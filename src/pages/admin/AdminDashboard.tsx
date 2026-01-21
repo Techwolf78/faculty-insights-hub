@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState, useMemo } from 'react';
+﻿import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { DashboardHeader } from '@/components/layout/DashboardHeader';
 import { StatsCard } from '@/components/ui/StatsCard';
@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   departmentsApi,
@@ -19,12 +20,30 @@ import {
   Faculty,
   FeedbackSession,
   FeedbackSubmission,
+  College,
+  collegesApi,
 } from '@/lib/storage';
 import { SessionForm } from '@/components/admin/SessionForm';
 import { SessionTable } from '@/components/admin/SessionTable';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format, subDays, isAfter } from 'date-fns';
 import { BarChart3, RefreshCw, Building2, Calendar, Users, FileText, User, TrendingUp, MessageSquare, Plus, Edit, Download, Upload, Trash2, ClipboardCheck } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  BarChart,
+  LineChart,
+  RadarChart,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Bar,
+  Line,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Radar,
+} from 'recharts';
 
 const CHART_COLORS = ['hsl(213, 96%, 16%)', 'hsl(213, 80%, 25%)', 'hsl(213, 60%, 35%)', 'hsl(160, 84%, 39%)'];
 
@@ -321,6 +340,7 @@ const AdminDashboard = () => {
   const [faculty, setFaculty] = useState<Faculty[]>([]);
   const [sessions, setSessions] = useState<FeedbackSession[]>([]);
   const [submissions, setSubmissions] = useState<FeedbackSubmission[]>([]);
+  const [college, setCollege] = useState<College | null>(null);
 
   // Session form state
   const [sessionFormOpen, setSessionFormOpen] = useState(false);
@@ -331,6 +351,10 @@ const AdminDashboard = () => {
   const [selectedDepartment, setSelectedDepartment] = useState<string>('all');
   const [selectedSubject, setSelectedSubject] = useState<string>('all');
   const [selectedBatch, setSelectedBatch] = useState<string>('all');
+  const [dateRange, setDateRange] = useState<{ from: string; to: string }>({
+    from: '',
+    to: ''
+  });
 
   // Get available subjects based on current selections
   const availableSubjects = useMemo(() => {
@@ -354,29 +378,36 @@ const AdminDashboard = () => {
   const currentSection = location.pathname.split('/').pop() || 'dashboard';
 
   // Load data function
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
-      const [depts, fac, sess, subs] = await Promise.all([
+      const [depts, fac, sess, subs, colleges] = await Promise.all([
         departmentsApi.getAll(),
         facultyApi.getAll(),
         feedbackSessionsApi.getAll(),
         submissionsApi.getAll(),
+        collegesApi.getAll(),
       ]);
 
       setDepartments(depts);
       setFaculty(fac);
       setSessions(sess);
       setSubmissions(subs);
+
+      // Find user's college
+      if (user?.collegeId) {
+        const userCollege = colleges.find(c => c.id === user.collegeId);
+        setCollege(userCollege || null);
+      }
     } catch (error) {
       console.error('Error loading dashboard data:', error);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user?.collegeId]);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
 
   // Filtered data based on selections
   const filteredData = useMemo(() => {
@@ -409,12 +440,30 @@ const AdminDashboard = () => {
     // Filter by batch (this would require batch data in submissions)
     // For now, we'll skip batch filtering
 
+    // Filter by date range
+    if (dateRange.from || dateRange.to) {
+      filteredSubs = filteredSubs.filter(sub => {
+        const submissionDate = new Date(sub.submittedAt);
+        const fromDate = dateRange.from ? new Date(dateRange.from) : null;
+        const toDate = dateRange.to ? new Date(dateRange.to) : null;
+
+        if (fromDate && toDate) {
+          return submissionDate >= fromDate && submissionDate <= toDate;
+        } else if (fromDate) {
+          return submissionDate >= fromDate;
+        } else if (toDate) {
+          return submissionDate <= toDate;
+        }
+        return true;
+      });
+    }
+
     return {
       submissions: filteredSubs,
       faculty: filteredFac,
       departments: filteredDepts
     };
-  }, [submissions, faculty, departments, selectedCourse, selectedDepartment]);
+  }, [submissions, faculty, departments, selectedCourse, selectedDepartment, dateRange]);
 
   // Calculate metrics
   const activeSessions = sessions.filter(s => s.isActive);
@@ -512,6 +561,7 @@ const AdminDashboard = () => {
             <DashboardHeader
               title="Dashboard"
               subtitle={`Welcome back, ${user?.name}. Here's what's happening.`}
+              college={college}
             />
 
             {/* Hierarchical Filtering */}
@@ -529,7 +579,7 @@ const AdminDashboard = () => {
                   </div>
                   <div className="flex items-center gap-4">
                     {/* Active Filters Display */}
-                    {(selectedCourse !== 'all' || selectedYear !== 'all' || selectedDepartment !== 'all' || selectedSubject !== 'all' || selectedBatch !== 'all') && (
+                    {(selectedCourse !== 'all' || selectedYear !== 'all' || selectedDepartment !== 'all' || selectedSubject !== 'all' || selectedBatch !== 'all' || dateRange.from || dateRange.to) && (
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Active Filters:</span>
                         <div className="flex flex-wrap gap-1">
@@ -588,6 +638,17 @@ const AdminDashboard = () => {
                               </button>
                             </Badge>
                           )}
+                          {(dateRange.from || dateRange.to) && (
+                            <Badge variant="secondary" className="text-xs">
+                              Date: {dateRange.from || 'Start'} - {dateRange.to || 'End'}
+                              <button
+                                onClick={() => setDateRange({ from: '', to: '' })}
+                                className="ml-1 hover:bg-secondary-foreground/20 rounded-full p-0.5"
+                              >
+                                ×
+                              </button>
+                            </Badge>
+                          )}
                         </div>
                       </div>
                     )}
@@ -600,6 +661,7 @@ const AdminDashboard = () => {
                         setSelectedDepartment('all');
                         setSelectedSubject('all');
                         setSelectedBatch('all');
+                        setDateRange({ from: '', to: '' });
                       }}
                       className="text-xs"
                     >
@@ -609,7 +671,7 @@ const AdminDashboard = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <Building2 className="h-4 w-4 text-primary" />
@@ -710,6 +772,67 @@ const AdminDashboard = () => {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-primary" />
+                      <Label className="text-sm font-medium">Date Range</Label>
+                    </div>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={`w-full justify-start text-left font-normal bg-background/80 backdrop-blur-sm border-primary/20 focus:border-primary ${
+                            !dateRange.from && !dateRange.to ? 'text-muted-foreground' : ''
+                          }`}
+                        >
+                          <Calendar className="mr-2 h-4 w-4" />
+                          {dateRange.from || dateRange.to ? (
+                            <>
+                              {dateRange.from ? format(new Date(dateRange.from), 'd MMM') : 'Start date'} - {' '}
+                              {dateRange.to ? format(new Date(dateRange.to), 'd MMM') : 'End date'}
+                            </>
+                          ) : (
+                            <span>Pick a date range</span>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <div className="p-3 space-y-3">
+                          <div className="space-y-2">
+                            <Label htmlFor="date-from" className="text-sm font-medium">Start Date</Label>
+                            <input
+                              id="date-from"
+                              type="date"
+                              value={dateRange.from}
+                              onChange={(e) => setDateRange(prev => ({ ...prev, from: e.target.value }))}
+                              className="w-full px-3 py-2 text-sm bg-background border border-border rounded-md focus:border-primary focus:outline-none"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="date-to" className="text-sm font-medium">End Date</Label>
+                            <input
+                              id="date-to"
+                              type="date"
+                              value={dateRange.to}
+                              onChange={(e) => setDateRange(prev => ({ ...prev, to: e.target.value }))}
+                              className="w-full px-3 py-2 text-sm bg-background border border-border rounded-md focus:border-primary focus:outline-none"
+                            />
+                          </div>
+                          {(dateRange.from || dateRange.to) && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setDateRange({ from: '', to: '' })}
+                              className="w-full"
+                            >
+                              Clear Dates
+                            </Button>
+                          )}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 </div>
               </div>
@@ -1022,6 +1145,7 @@ const AdminDashboard = () => {
             <DashboardHeader
               title="Faculty Management"
               subtitle="Manage faculty members and their departments"
+              college={college}
             />
 
             <div className="p-6">
@@ -1071,6 +1195,7 @@ const AdminDashboard = () => {
             <DashboardHeader
               title="Feedback Sessions"
               subtitle="Manage feedback collection sessions"
+              college={college}
             />
 
             <div className="p-6">
@@ -1085,12 +1210,40 @@ const AdminDashboard = () => {
                 </Button>
               </div>
 
-              <SessionTable
-                sessions={sessions}
-                faculty={faculty}
-                departments={departments}
-                onRefresh={loadData}
-              />
+              <Tabs defaultValue="active" className="w-full">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="all">All Sessions ({sessions.length})</TabsTrigger>
+                  <TabsTrigger value="active">Active Sessions ({sessions.filter(s => s.isActive).length})</TabsTrigger>
+                  <TabsTrigger value="inactive">Inactive Sessions ({sessions.filter(s => !s.isActive).length})</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="all" className="mt-6">
+                  <SessionTable
+                    sessions={sessions}
+                    faculty={faculty}
+                    departments={departments}
+                    onRefresh={loadData}
+                  />
+                </TabsContent>
+
+                <TabsContent value="active" className="mt-6">
+                  <SessionTable
+                    sessions={sessions.filter(s => s.isActive)}
+                    faculty={faculty}
+                    departments={departments}
+                    onRefresh={loadData}
+                  />
+                </TabsContent>
+
+                <TabsContent value="inactive" className="mt-6">
+                  <SessionTable
+                    sessions={sessions.filter(s => !s.isActive)}
+                    faculty={faculty}
+                    departments={departments}
+                    onRefresh={loadData}
+                  />
+                </TabsContent>
+              </Tabs>
             </div>
           </div>
         );
@@ -1100,6 +1253,7 @@ const AdminDashboard = () => {
             <DashboardHeader
               title="Departments"
               subtitle="Manage academic departments"
+              college={college}
             />
 
             <div className="p-6">
@@ -1146,6 +1300,7 @@ const AdminDashboard = () => {
             <DashboardHeader
               title="Question Bank"
               subtitle="Manage feedback questions"
+              college={college}
             />
 
             <div className="p-6">
@@ -1194,6 +1349,7 @@ const AdminDashboard = () => {
             <DashboardHeader
               title="Reports & Analytics"
               subtitle="Generate and view detailed reports"
+              college={college}
             />
 
             <div className="p-6">
@@ -1249,6 +1405,7 @@ const AdminDashboard = () => {
             <DashboardHeader
               title="Settings"
               subtitle="Configure system preferences"
+              college={college}
             />
 
             <div className="p-6">
@@ -1320,6 +1477,7 @@ const AdminDashboard = () => {
             <DashboardHeader
               title="Dashboard"
               subtitle={`Welcome back, ${user?.name}. Here's what's happening.`}
+              college={college}
             />
           </div>
         );

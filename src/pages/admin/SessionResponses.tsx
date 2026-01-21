@@ -113,7 +113,7 @@ const SessionResponses: React.FC = () => {
 
   if (!session) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex items-center justify-center  min-h-[400px]">
         <div className="text-center">
           <h3 className="text-lg font-medium text-muted-foreground mb-2">Session Not Found</h3>
           <Button onClick={() => navigate('/admin/sessions')}>
@@ -126,25 +126,40 @@ const SessionResponses: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+    <div className="space-y-6 p-4">
+      {/* Combined Header Container */}
+      <div className="relative py-4">
+        {/* Back Button - Left */}
+        <div className="absolute left-0 top-1/2 -translate-y-1/2">
           <Button variant="ghost" onClick={() => navigate('/admin/sessions')}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Sessions
           </Button>
-          <div>
-            <h1 className="text-2xl font-bold">{session.course} - {session.subject}</h1>
-            <p className="text-muted-foreground">
-              {session.academicYear} • Batch {session.batch} • {session.isActive ? 'Active' : 'Inactive'}
-            </p>
+        </div>
+        
+        {/* Export Button - Right */}
+        <div className="absolute right-0 top-1/2 -translate-y-1/2">
+          <Button onClick={exportToCSV} disabled={submissions.length === 0}>
+            <Download className="h-4 w-4 mr-2" />
+            Export CSV
+          </Button>
+        </div>
+        
+        {/* Centered Session Header */}
+        <div className="flex flex-col items-center justify-center text-center space-y-2">
+          <h1 className="text-3xl font-bold tracking-tight">
+            {session.course} - {session.subject}
+          </h1>
+          <div className="flex flex-wrap items-center justify-center gap-2 text-muted-foreground">
+            <span>{session.academicYear}</span>
+            <span>•</span>
+            <span>Batch {session.batch}</span>
+            <span>•</span>
+            <Badge variant={session.isActive ? "default" : "secondary"}>
+              {session.isActive ? 'Active' : 'Inactive'}
+            </Badge>
           </div>
         </div>
-        <Button onClick={exportToCSV} disabled={submissions.length === 0}>
-          <Download className="h-4 w-4 mr-2" />
-          Export CSV
-        </Button>
       </div>
 
       {/* Session Stats */}

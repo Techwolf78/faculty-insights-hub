@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { GraduationCap, Users, Shield, BarChart3, ChevronRight, ClipboardCheck, Building2 } from 'lucide-react';
+import { GraduationCap, Users, Shield, BarChart3, ClipboardCheck, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const features = [
@@ -83,13 +83,6 @@ export const Landing: React.FC = () => {
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-up" style={{ animationDelay: '0.3s' }}>
-              <Link to="/feedback/anonymous">
-                <Button size="lg" className="gap-2 gradient-hero text-primary-foreground hover:opacity-90 px-8 h-12">
-                  <GraduationCap className="h-5 w-5" />
-                  Student Feedback Portal
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </Link>
               <Link to="/login">
                 <Button variant="outline" size="lg" className="gap-2 px-8 h-12">
                   <Users className="h-5 w-5" />

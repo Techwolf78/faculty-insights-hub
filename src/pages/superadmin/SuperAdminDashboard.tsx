@@ -45,6 +45,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 
 export const SuperAdminDashboard: React.FC = () => {
@@ -55,6 +56,7 @@ export const SuperAdminDashboard: React.FC = () => {
   const [admins, setAdmins] = useState<User[]>([]);
   const [feedbackSessions, setFeedbackSessions] = useState<FeedbackSession[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('overview');
 
   // College form state
   const [collegeDialogOpen, setCollegeDialogOpen] = useState(false);
@@ -86,9 +88,33 @@ export const SuperAdminDashboard: React.FC = () => {
         feedbackSessionsApi.getAll(),
       ]);
 
+      // Update expired sessions to inactive
+      const updatedSessions = await Promise.all(
+        sessionList.map(async (session) => {
+          if (session.isActive && new Date(session.expiresAt) < new Date()) {
+            await feedbackSessionsApi.update(session.id, { isActive: false });
+            return { ...session, isActive: false };
+          }
+          return session;
+        })
+      );
+
+      // For demo: activate the specific session and set future expiration
+      const demoSession = updatedSessions.find(s => s.uniqueUrl === 'ds-ml-ai-1styear-A-10-2026');
+      if (demoSession && !demoSession.isActive) {
+        const futureDate = new Date();
+        futureDate.setDate(futureDate.getDate() + 10); // 10 days from now
+        await feedbackSessionsApi.update(demoSession.id, { 
+          isActive: true, 
+          expiresAt: futureDate.toISOString() 
+        });
+        demoSession.isActive = true;
+        demoSession.expiresAt = futureDate.toISOString();
+      }
+
       setColleges(collegeList);
       setAdmins(userList.filter(u => u.role === 'admin'));
-      setFeedbackSessions(sessionList);
+      setFeedbackSessions(updatedSessions);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -177,361 +203,682 @@ export const SuperAdminDashboard: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border bg-card">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg gradient-hero">
-                <Shield className="h-6 w-6 text-primary-foreground" />
-              </div>
-              <div>
-                <span className="font-display text-xl font-semibold text-foreground">Super Admin</span>
-                <span className="ml-2 text-sm text-muted-foreground">Platform Management</span>
-              </div>
+    <div className="h-screen flex bg-background">
+      {/* Sidebar - Full height */}
+      <aside className="w-64 bg-card border-r border-border flex flex-col">
+        {/* Sidebar Header with Title */}
+        <div className="p-4 border-b border-border">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg gradient-hero">
+              <Shield className="h-6 w-6 text-primary-foreground" />
             </div>
+            <div>
+              <span className="font-display text-xl font-semibold text-foreground">Super Admin</span> <br />
+              <span className="text-sm text-muted-foreground">Platform Management</span>
+            </div>
+          </div>
+        </div>
 
-            <div className="flex items-center gap-4">
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="outline" className="gap-2 text-warning border-warning hover:bg-warning/10">
-                    <RefreshCw className="h-4 w-4" />
-                    Reset Demo Data
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle className="flex items-center gap-2">
-                      <AlertTriangle className="h-5 w-5 text-warning" />
-                      Reset Demo Data?
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will delete all existing data and recreate the demo dataset. This action cannot be undone.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleResetData} className="bg-warning text-warning-foreground hover:bg-warning/90">
-                      Reset Data
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-
-              <Button variant="ghost" onClick={handleLogout} className="gap-2">
-                <LogOut className="h-4 w-4" />
-                Sign Out
+        {/* Sidebar Navigation */}
+        <div className="flex-1 p-4 overflow-y-auto">
+          <nav className="space-y-1">
+            <div className="grid w-full grid-rows-4 h-auto gap-1">
+              <Button
+                variant={activeTab === 'overview' ? 'default' : 'ghost'}
+                className={`w-full justify-start gap-3 h-10 px-3 text-sm ${
+                  activeTab === 'overview' 
+                    ? 'bg-primary text-primary-foreground' 
+                    : 'hover:bg-primary/10'
+                }`}
+                onClick={() => setActiveTab('overview')}
+              >
+                <Building2 className="h-4 w-4" />
+                Overview
+              </Button>
+              <Button
+                variant={activeTab === 'colleges' ? 'default' : 'ghost'}
+                className={`w-full justify-start gap-3 h-10 px-3 text-sm ${
+                  activeTab === 'colleges' 
+                    ? 'bg-primary text-primary-foreground' 
+                    : 'hover:bg-primary/10'
+                }`}
+                onClick={() => setActiveTab('colleges')}
+              >
+                <GraduationCap className="h-4 w-4" />
+                Colleges ({colleges.length})
+              </Button>
+              <Button
+                variant={activeTab === 'admins' ? 'default' : 'ghost'}
+                className={`w-full justify-start gap-3 h-10 px-3 text-sm ${
+                  activeTab === 'admins' 
+                    ? 'bg-primary text-primary-foreground' 
+                    : 'hover:bg-primary/10'
+                }`}
+                onClick={() => setActiveTab('admins')}
+              >
+                <UserPlus className="h-4 w-4" />
+                Admins ({admins.length})
+              </Button>
+              <Button
+                variant={activeTab === 'sessions' ? 'default' : 'ghost'}
+                className={`w-full justify-start gap-3 h-10 px-3 text-sm ${
+                  activeTab === 'sessions' 
+                    ? 'bg-primary text-primary-foreground' 
+                    : 'hover:bg-primary/10'
+                }`}
+                onClick={() => setActiveTab('sessions')}
+              >
+                <Shield className="h-4 w-4" />
+                Sessions ({feedbackSessions.length})
               </Button>
             </div>
-          </div>
+          </nav>
         </div>
-      </header>
+      </aside>
 
-      <main className="container mx-auto px-6 py-8">
-        {/* Notice Banner */}
-        <div className="mb-8 p-4 rounded-lg bg-primary/5 border border-primary/20 animate-fade-up">
-          <div className="flex items-start gap-3">
-            <Shield className="h-5 w-5 text-primary mt-0.5" />
-            <div>
-              <p className="text-sm font-medium text-foreground">Super Admin Mode</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                You are managing the platform as a developer. You can create colleges and admin users, but cannot view feedback, reports, or faculty performance data.
-              </p>
-            </div>
-          </div>
-        </div>
+      {/* Right Side */}
+      <div className="flex-1 flex flex-col">
+        {/* Top Header with Buttons */}
+        <header className="border-b border-border bg-card p-4 flex justify-end gap-4">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" className="gap-2 text-warning border-warning hover:bg-warning/10">
+                <RefreshCw className="h-4 w-4" />
+                Reset Demo Data
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-warning" />
+                  Reset Demo Data?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will delete all existing data and recreate the demo dataset. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleResetData} className="bg-warning text-warning-foreground hover:bg-warning/90">
+                  Reset Data
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
-        <div className="grid gap-8 lg:grid-cols-2">
-          {/* Colleges Section */}
-          <div className="glass-card rounded-xl p-6 animate-fade-up">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <Building2 className="h-5 w-5 text-primary" />
+          <Button variant="ghost" onClick={handleLogout} className="gap-2">
+            <LogOut className="h-4 w-4" />
+            Sign Out
+          </Button>
+        </header>
+
+        {/* Main Content */}
+        <main className="flex-1 p-6 overflow-y-auto">
+          {/* Overview Tab */}
+          {activeTab === 'overview' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="font-display text-2xl font-bold text-foreground">Platform Overview</h1>
+                  <p className="text-muted-foreground">Monitor and manage your educational platform</p>
                 </div>
-                <h2 className="font-display text-lg font-semibold text-foreground">Colleges</h2>
               </div>
 
-              <Dialog open={collegeDialogOpen} onOpenChange={setCollegeDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button size="sm" className="gap-2 gradient-hero text-primary-foreground hover:opacity-90">
-                    <Plus className="h-4 w-4" />
-                    Add College
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Create New College</DialogTitle>
-                    <DialogDescription>
-                      Add a new college to the platform. You'll be able to create admin users for this college.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="collegeName">College Name</Label>
-                      <Input
-                        id="collegeName"
-                        placeholder="e.g., Gryphon Institute of Technology"
-                        value={collegeName}
-                        onChange={(e) => setCollegeName(e.target.value)}
-                      />
+              {/* Stats Cards */}
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+                <div className="glass-card rounded-xl p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 rounded-lg bg-primary/10">
+                      <Building2 className="h-5 w-5 text-primary" />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="collegeCode">College Code</Label>
-                      <Input
-                        id="collegeCode"
-                        placeholder="e.g., GIT"
-                        value={collegeCode}
-                        onChange={(e) => setCollegeCode(e.target.value.toUpperCase())}
-                        maxLength={10}
-                      />
+                    <div>
+                      <p className="text-2xl font-bold text-foreground">{colleges.length}</p>
+                      <p className="text-sm text-muted-foreground">Colleges</p>
                     </div>
                   </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setCollegeDialogOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button onClick={handleCreateCollege} className="gradient-hero text-primary-foreground hover:opacity-90">
-                      Create College
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </div>
+                </div>
 
-            <div className="space-y-3">
-              {colleges.map((college, index) => (
-                <div
-                  key={college.id}
-                  className="flex items-center justify-between p-4 rounded-lg bg-secondary/50 animate-fade-up"
-                  style={{ animationDelay: `${index * 0.05}s` }}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <div className="glass-card rounded-xl p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 rounded-lg bg-primary/10">
+                      <UserPlus className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-foreground">{admins.length}</p>
+                      <p className="text-sm text-muted-foreground">Admins</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="glass-card rounded-xl p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 rounded-lg bg-primary/10">
+                      <Shield className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-foreground">{feedbackSessions.length}</p>
+                      <p className="text-sm text-muted-foreground">Sessions</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="glass-card rounded-xl p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 rounded-lg bg-primary/10">
                       <GraduationCap className="h-5 w-5 text-primary" />
                     </div>
                     <div>
-                      <p className="font-medium text-foreground">{college.name}</p>
-                      <p className="text-sm text-muted-foreground">Code: {college.code}</p>
+                      <p className="text-2xl font-bold text-foreground">{feedbackSessions.filter(s => s.isActive).length}</p>
+                      <p className="text-sm text-muted-foreground">Active Sessions</p>
                     </div>
                   </div>
-                  <span className="text-xs text-muted-foreground">
-                    {admins.filter(a => a.collegeId === college.id).length} admin(s)
-                  </span>
                 </div>
-              ))}
-
-              {colleges.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Building2 className="h-10 w-10 mx-auto mb-3 opacity-50" />
-                  <p>No colleges yet</p>
-                  <p className="text-sm">Create your first college to get started</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* College Admins Section */}
-          <div className="glass-card rounded-xl p-6 animate-fade-up" style={{ animationDelay: '0.1s' }}>
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <UserPlus className="h-5 w-5 text-primary" />
-                </div>
-                <h2 className="font-display text-lg font-semibold text-foreground">College Admins</h2>
               </div>
 
-              <Dialog open={adminDialogOpen} onOpenChange={setAdminDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button 
-                    size="sm" 
-                    className="gap-2 gradient-hero text-primary-foreground hover:opacity-90"
-                    disabled={colleges.length === 0}
-                  >
-                    <Plus className="h-4 w-4" />
-                    Add Admin
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Create College Admin</DialogTitle>
-                    <DialogDescription>
-                      Create a new admin user for a college. They will have full control within their college scope.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="adminName">Full Name</Label>
-                      <Input
-                        id="adminName"
-                        placeholder="e.g., Dr. Sarah Mitchell"
-                        value={adminName}
-                        onChange={(e) => setAdminName(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="adminEmail">Email Address</Label>
-                      <Input
-                        id="adminEmail"
-                        type="email"
-                        placeholder="e.g., dean@college.edu"
-                        value={adminEmail}
-                        onChange={(e) => setAdminEmail(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="adminPassword">Password</Label>
-                      <Input
-                        id="adminPassword"
-                        type="password"
-                        placeholder="Secure password"
-                        value={adminPassword}
-                        onChange={(e) => setAdminPassword(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="adminCollege">Assign to College</Label>
-                      <select
-                        id="adminCollege"
-                        value={adminCollegeId}
-                        onChange={(e) => setAdminCollegeId(e.target.value)}
-                        className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
-                      >
-                        <option value="">Select a college...</option>
-                        {colleges.map(c => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setAdminDialogOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button onClick={handleCreateAdmin} className="gradient-hero text-primary-foreground hover:opacity-90">
-                      Create Admin
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </div>
-
-            <div className="space-y-3">
-              {admins.map((admin, index) => {
-                const college = colleges.find(c => c.id === admin.collegeId);
-
-                return (
-                  <div
-                    key={admin.id}
-                    className="flex items-center justify-between p-4 rounded-lg bg-secondary/50 animate-fade-up"
-                    style={{ animationDelay: `${(index + colleges.length) * 0.05}s` }}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-accent flex items-center justify-center">
-                        <span className="text-sm font-medium text-accent-foreground">
-                          {admin.name.split(' ').map(n => n[0]).join('')}
-                        </span>
+              {/* Recent Activity */}
+              <div className="glass-card rounded-xl p-6">
+                <h3 className="font-display text-lg font-semibold text-foreground mb-4">Recent Activity</h3>
+                <div className="space-y-3">
+                  {colleges.slice(0, 3).map((college, index) => (
+                    <div key={college.id} className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50">
+                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                        <Building2 className="h-4 w-4 text-primary" />
                       </div>
-                      <div>
-                        <p className="font-medium text-foreground">{admin.name}</p>
-                        <p className="text-sm text-muted-foreground">{admin.email}</p>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-foreground">College created: {college.name}</p>
+                        <p className="text-xs text-muted-foreground">Code: {college.code}</p>
                       </div>
                     </div>
-                    <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">
-                      {college?.code || 'N/A'}
-                    </span>
-                  </div>
-                );
-              })}
-
-              {admins.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
-                  <UserPlus className="h-10 w-10 mx-auto mb-3 opacity-50" />
-                  <p>No admin users yet</p>
-                  <p className="text-sm">Create a college first, then add admins</p>
+                  ))}
+                  {colleges.length === 0 && (
+                    <p className="text-muted-foreground text-center py-4">No recent activity</p>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
-          </div>
-        </div>
-
-        {/* Feedback Session URLs for Testing */}
-        <div className="mt-8 glass-card rounded-xl p-6 animate-fade-up" style={{ animationDelay: '0.1s' }}>
-          <h3 className="font-display text-lg font-semibold text-foreground mb-4">Demo Feedback Session URLs</h3>
-          <p className="text-sm text-muted-foreground mb-4">
-            Use these URLs to test the anonymous feedback portal at <code className="bg-secondary px-1 py-0.5 rounded text-xs">/feedback/anonymous/[session-url]</code>
-          </p>
-          {feedbackSessions.length > 0 ? (
-            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-              {feedbackSessions.map((session) => (
-                <div key={session.id} className="p-3 rounded-lg bg-secondary/50">
-                  <div className="mb-2">
-                    <p className="font-medium text-sm text-foreground">{session.courseName}</p>
-                    <p className="text-xs text-muted-foreground">{session.batch}</p>
-                  </div>
-                  <div className="mb-2">
-                    <p className="text-xs text-muted-foreground mb-1">Session URL:</p>
-                    <div className="flex items-center gap-2">
-                      <code className="bg-background px-2 py-1 rounded text-xs font-mono break-all flex-1">
-                        /feedback/anonymous/{session.uniqueUrl}
-                      </code>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => window.open(`/feedback/anonymous/${session.uniqueUrl}`, '_blank')}
-                        className="h-8 w-8 p-0"
-                        title="Open in new tab"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      session.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                    }`}>
-                      {session.isActive ? 'Active' : 'Inactive'}
-                    </span>
-                    <span className="text-muted-foreground">
-                      Expires: {new Date(session.expiresAt).toLocaleDateString()}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-muted-foreground">No feedback sessions available</p>
           )}
-        </div>
 
-        {/* Demo Credentials Info */}
-        <div className="mt-8 glass-card rounded-xl p-6 animate-fade-up" style={{ animationDelay: '0.2s' }}>
-          <h3 className="font-display text-lg font-semibold text-foreground mb-4">Demo Credentials</h3>
-          <div className="grid gap-4 md:grid-cols-4">
-            <div className="p-4 rounded-lg bg-secondary/50">
-              <p className="text-sm font-medium text-foreground mb-1">Super Admin</p>
-              <p className="text-xs text-muted-foreground">superadmin@gryphon.edu</p>
-              <p className="text-xs text-muted-foreground">admin123</p>
+          {/* Colleges Tab */}
+          {activeTab === 'colleges' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="font-display text-2xl font-bold text-foreground">Colleges</h1>
+                  <p className="text-muted-foreground">Manage educational institutions</p>
+                </div>
+                <Dialog open={collegeDialogOpen} onOpenChange={setCollegeDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="gap-2 gradient-hero text-primary-foreground hover:opacity-90">
+                      <Plus className="h-4 w-4" />
+                      Add College
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Create New College</DialogTitle>
+                      <DialogDescription>
+                        Add a new college to the platform. You'll be able to create admin users for this college.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="collegeName">College Name</Label>
+                        <Input
+                          id="collegeName"
+                          placeholder="e.g., Gryphon Institute of Technology"
+                          value={collegeName}
+                          onChange={(e) => setCollegeName(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="collegeCode">College Code</Label>
+                        <Input
+                          id="collegeCode"
+                          placeholder="e.g., GIT"
+                          value={collegeCode}
+                          onChange={(e) => setCollegeCode(e.target.value.toUpperCase())}
+                          maxLength={10}
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setCollegeDialogOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button onClick={handleCreateCollege} className="gradient-hero text-primary-foreground hover:opacity-90">
+                        Create College
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {colleges.map((college, index) => (
+                  <div
+                    key={college.id}
+                    className="glass-card rounded-xl p-6 animate-fade-up"
+                    style={{ animationDelay: `${index * 0.05}s` }}
+                  >
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                        <GraduationCap className="h-6 w-6 text-primary" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-foreground">{college.name}</h3>
+                        <p className="text-sm text-muted-foreground">Code: {college.code}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        {admins.filter(a => a.collegeId === college.id).length} admin(s)
+                      </span>
+                      <span className="px-2 py-1 rounded-full bg-primary/10 text-primary text-xs">
+                        Active
+                      </span>
+                    </div>
+                  </div>
+                ))}
+
+                {colleges.length === 0 && (
+                  <div className="col-span-full text-center py-12">
+                    <Building2 className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                    <h3 className="text-lg font-medium text-muted-foreground mb-2">No colleges yet</h3>
+                    <p className="text-muted-foreground">Create your first college to get started</p>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="p-4 rounded-lg bg-secondary/50">
-              <p className="text-sm font-medium text-foreground mb-1">College Admin</p>
-              <p className="text-xs text-muted-foreground">dean@gryphon.edu</p>
-              <p className="text-xs text-muted-foreground">dean123</p>
+          )}
+
+          {/* Admins Tab */}
+          {activeTab === 'admins' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="font-display text-2xl font-bold text-foreground">College Administrators</h1>
+                  <p className="text-muted-foreground">Manage admin users for each college</p>
+                </div>
+                <Dialog open={adminDialogOpen} onOpenChange={setAdminDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button
+                      className="gap-2 gradient-hero text-primary-foreground hover:opacity-90"
+                      disabled={colleges.length === 0}
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Admin
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Create College Admin</DialogTitle>
+                      <DialogDescription>
+                        Create a new admin user for a college. They will have full control within their college scope.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="adminName">Full Name</Label>
+                        <Input
+                          id="adminName"
+                          placeholder="e.g., Dr. Sarah Mitchell"
+                          value={adminName}
+                          onChange={(e) => setAdminName(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="adminEmail">Email Address</Label>
+                        <Input
+                          id="adminEmail"
+                          type="email"
+                          placeholder="e.g., dean@college.edu"
+                          value={adminEmail}
+                          onChange={(e) => setAdminEmail(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="adminPassword">Password</Label>
+                        <Input
+                          id="adminPassword"
+                          type="password"
+                          placeholder="Secure password"
+                          value={adminPassword}
+                          onChange={(e) => setAdminPassword(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="adminCollege">Assign to College</Label>
+                        <select
+                          id="adminCollege"
+                          value={adminCollegeId}
+                          onChange={(e) => setAdminCollegeId(e.target.value)}
+                          className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                        >
+                          <option value="">Select a college...</option>
+                          {colleges.map(c => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setAdminDialogOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button onClick={handleCreateAdmin} className="gradient-hero text-primary-foreground hover:opacity-90">
+                        Create Admin
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {admins.map((admin, index) => {
+                  const college = colleges.find(c => c.id === admin.collegeId);
+
+                  return (
+                    <div
+                      key={admin.id}
+                      className="glass-card rounded-xl p-6 animate-fade-up"
+                      style={{ animationDelay: `${index * 0.05}s` }}
+                    >
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="h-12 w-12 rounded-full bg-accent flex items-center justify-center">
+                          <span className="text-sm font-medium text-accent-foreground">
+                            {admin.name.split(' ').map(n => n[0]).join('')}
+                          </span>
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-foreground">{admin.name}</h3>
+                          <p className="text-sm text-muted-foreground">{admin.email}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="px-2 py-1 rounded-full bg-primary/10 text-primary text-xs">
+                          {college?.code || 'N/A'}
+                        </span>
+                        <span className="text-xs text-muted-foreground">Admin</span>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {admins.length === 0 && (
+                  <div className="col-span-full text-center py-12">
+                    <UserPlus className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                    <h3 className="text-lg font-medium text-muted-foreground mb-2">No admin users yet</h3>
+                    <p className="text-muted-foreground">Create a college first, then add admins</p>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="p-4 rounded-lg bg-secondary/50">
-              <p className="text-sm font-medium text-foreground mb-1">HOD</p>
-              <p className="text-xs text-muted-foreground">hod.icem@gryphon.edu</p>
-              <p className="text-xs text-muted-foreground">hod123</p>
+          )}
+
+          {/* Sessions Tab */}
+          {activeTab === 'sessions' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="font-display text-2xl font-bold text-foreground">Feedback Sessions</h1>
+                  <p className="text-muted-foreground">Monitor and manage all feedback sessions across colleges</p>
+                </div>
+              </div>
+
+              {/* Session Stats */}
+              <div className="grid gap-6 md:grid-cols-3">
+                <div className="glass-card rounded-xl p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 rounded-lg bg-primary/10">
+                      <Shield className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-foreground">{feedbackSessions.length}</p>
+                      <p className="text-sm text-muted-foreground">Total Sessions</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="glass-card rounded-xl p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 rounded-lg bg-green-100">
+                      <Shield className="h-5 w-5 text-green-600" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-foreground">{feedbackSessions.filter(s => s.isActive).length}</p>
+                      <p className="text-sm text-muted-foreground">Active Sessions</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="glass-card rounded-xl p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 rounded-lg bg-red-100">
+                      <Shield className="h-5 w-5 text-red-600" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-foreground">{feedbackSessions.filter(s => !s.isActive).length}</p>
+                      <p className="text-sm text-muted-foreground">Inactive Sessions</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Session Filters */}
+              <Tabs defaultValue="all" className="w-full">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="all">All Sessions</TabsTrigger>
+                  <TabsTrigger value="active">Active Sessions</TabsTrigger>
+                  <TabsTrigger value="past">Past Sessions</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="all" className="space-y-6 mt-6">
+                  <div className="space-y-4">
+                    {colleges.map((college) => {
+                      const collegeSessions = feedbackSessions.filter(s => s.collegeId === college.id);
+                      if (collegeSessions.length === 0) return null;
+
+                      return (
+                        <div key={college.id} className="glass-card rounded-xl p-4">
+                          <div className="flex items-center gap-2 mb-3">
+                            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                              <GraduationCap className="h-4 w-4 text-primary" />
+                            </div>
+                            <div>
+                              <h3 className="font-semibold text-foreground text-sm">{college.name}</h3>
+                              <p className="text-xs text-muted-foreground">Code: {college.code} • {collegeSessions.length} sessions</p>
+                            </div>
+                          </div>
+
+                          <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+                            {collegeSessions.map((session) => (
+                              <div key={session.id} className="p-2 rounded-lg bg-secondary/50">
+                                <div className="mb-2">
+                                  <p className="font-medium text-xs text-foreground">{session.course} - {session.subject}</p>
+                                  <p className="text-xs text-muted-foreground">{session.batch} • {session.academicYear}</p>
+                                </div>
+                                <div className="mb-2">
+                                  <p className="text-xs text-muted-foreground mb-1">Session URL:</p>
+                                  <div className="flex items-center gap-1">
+                                    <code className="bg-background px-2 py-1 rounded text-xs font-mono break-all flex-1 text-xs">
+                                      /feedback/anonymous/{session.uniqueUrl}
+                                    </code>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => window.open(`/feedback/anonymous/${session.uniqueUrl}`, '_blank')}
+                                      className="h-6 w-6 p-0"
+                                      title="Open in new tab"
+                                    >
+                                      <ExternalLink className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className={`px-1 py-0.5 rounded-full text-xs ${
+                                    session.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                  }`}>
+                                    {session.isActive ? 'Active' : 'Inactive'}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">
+                                    Expires: {new Date(session.expiresAt).toLocaleDateString()}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {feedbackSessions.length === 0 && (
+                      <div className="text-center py-12">
+                        <Shield className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                        <h3 className="text-lg font-medium text-muted-foreground mb-2">No feedback sessions yet</h3>
+                        <p className="text-muted-foreground">Sessions will appear here once colleges create them</p>
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="active" className="space-y-6 mt-6">
+                  <div className="space-y-4">
+                    {colleges.map((college) => {
+                      const collegeSessions = feedbackSessions.filter(s => s.collegeId === college.id && s.isActive);
+                      if (collegeSessions.length === 0) return null;
+
+                      return (
+                        <div key={college.id} className="glass-card rounded-xl p-4">
+                          <div className="flex items-center gap-2 mb-3">
+                            <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
+                              <GraduationCap className="h-4 w-4 text-green-600" />
+                            </div>
+                            <div>
+                              <h3 className="font-semibold text-foreground text-sm">{college.name}</h3>
+                              <p className="text-xs text-muted-foreground">Code: {college.code} • {collegeSessions.length} active sessions</p>
+                            </div>
+                          </div>
+
+                          <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+                            {collegeSessions.map((session) => (
+                              <div key={session.id} className="p-2 rounded-lg bg-green-50 border border-green-200">
+                                <div className="mb-2">
+                                  <p className="font-medium text-xs text-foreground">{session.course} - {session.subject}</p>
+                                  <p className="text-xs text-muted-foreground">{session.batch} • {session.academicYear}</p>
+                                </div>
+                                <div className="mb-2">
+                                  <p className="text-xs text-muted-foreground mb-1">Session URL:</p>
+                                  <div className="flex items-center gap-1">
+                                    <code className="bg-background px-2 py-1 rounded text-xs font-mono break-all flex-1 text-xs">
+                                      /feedback/anonymous/{session.uniqueUrl}
+                                    </code>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => window.open(`/feedback/anonymous/${session.uniqueUrl}`, '_blank')}
+                                      className="h-6 w-6 p-0"
+                                      title="Open in new tab"
+                                    >
+                                      <ExternalLink className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="px-1 py-0.5 rounded-full text-xs bg-green-100 text-green-800">
+                                    Active
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">
+                                    Expires: {new Date(session.expiresAt).toLocaleDateString()}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {feedbackSessions.filter(s => s.isActive).length === 0 && (
+                      <div className="text-center py-12">
+                        <Shield className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                        <h3 className="text-lg font-medium text-muted-foreground mb-2">No active sessions</h3>
+                        <p className="text-muted-foreground">Active feedback sessions will appear here</p>
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="past" className="space-y-6 mt-6">
+                  <div className="space-y-4">
+                    {colleges.map((college) => {
+                      const collegeSessions = feedbackSessions.filter(s => s.collegeId === college.id && !s.isActive);
+                      if (collegeSessions.length === 0) return null;
+
+                      return (
+                        <div key={college.id} className="glass-card rounded-xl p-4">
+                          <div className="flex items-center gap-2 mb-3">
+                            <div className="h-8 w-8 rounded-full bg-red-100 flex items-center justify-center">
+                              <GraduationCap className="h-4 w-4 text-red-600" />
+                            </div>
+                            <div>
+                              <h3 className="font-semibold text-foreground text-sm">{college.name}</h3>
+                              <p className="text-xs text-muted-foreground">Code: {college.code} • {collegeSessions.length} past sessions</p>
+                            </div>
+                          </div>
+
+                          <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+                            {collegeSessions.map((session) => (
+                              <div key={session.id} className="p-2 rounded-lg bg-red-50 border border-red-200">
+                                <div className="mb-2">
+                                  <p className="font-medium text-xs text-foreground">{session.course} - {session.subject}</p>
+                                  <p className="text-xs text-muted-foreground">{session.batch} • {session.academicYear}</p>
+                                </div>
+                                <div className="mb-2">
+                                  <p className="text-xs text-muted-foreground mb-1">Session URL:</p>
+                                  <div className="flex items-center gap-1">
+                                    <code className="bg-background px-2 py-1 rounded text-xs font-mono break-all flex-1 text-xs">
+                                      /feedback/anonymous/{session.uniqueUrl}
+                                    </code>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => window.open(`/feedback/anonymous/${session.uniqueUrl}`, '_blank')}
+                                      className="h-6 w-6 p-0"
+                                      title="Open in new tab"
+                                    >
+                                      <ExternalLink className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="px-1 py-0.5 rounded-full text-xs bg-red-100 text-red-800">
+                                    Inactive
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">
+                                    Expired: {new Date(session.expiresAt).toLocaleDateString()}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {feedbackSessions.filter(s => !s.isActive).length === 0 && (
+                      <div className="text-center py-12">
+                        <Shield className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                        <h3 className="text-lg font-medium text-muted-foreground mb-2">No past sessions</h3>
+                        <p className="text-muted-foreground">Past feedback sessions will appear here</p>
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+              </Tabs>
             </div>
-            <div className="p-4 rounded-lg bg-secondary/50">
-              <p className="text-sm font-medium text-foreground mb-1">Faculty</p>
-              <p className="text-xs text-muted-foreground">faculty1@gryphon.edu</p>
-              <p className="text-xs text-muted-foreground">faculty123</p>
-            </div>
-          </div>
-        </div>
-      </main>
+          )}
+        </main>
+      </div>
     </div>
   );
 };

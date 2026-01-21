@@ -1,11 +1,13 @@
 import React from 'react';
+import { College } from '@/lib/storage';
 
 interface DashboardHeaderProps {
   title: string;
   subtitle?: string;
+  college?: College;
 }
 
-export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ title, subtitle }) => {
+export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ title, subtitle, college }) => {
   return (
     <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-sm border-b border-border">
       <div className="flex items-center justify-between px-6 py-4">
@@ -15,6 +17,27 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ title, subtitl
             <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>
           )}
         </div>
+        {college && (
+          <>
+            {college.code === 'ICEM' ? (
+              <img
+                src="https://indiraicem.ac.in/Logo.png"
+                alt={`${college.name} Logo`}
+                className="h-16 w-auto object-contain"
+              />
+            ) : college.code === 'IGSB' ? (
+              <img
+                src="https://indiraigsb.edu.in/assets/images/igbs/igsb-footer-logo.png"
+                alt={`${college.name} Logo`}
+                className="h-16 w-auto object-contain"
+              />
+            ) : (
+              <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                <span className="text-lg font-bold text-primary">{college.code}</span>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </header>
   );
