@@ -121,7 +121,7 @@ export const FacultyDashboard: React.FC = () => {
         .filter(r => r.comment)
         .map(r => ({
           comment: r.comment,
-          date: sub.submittedAt,
+          date: sub.submittedAt?.toDate(),
         }))
     )
     .slice(0, 5);

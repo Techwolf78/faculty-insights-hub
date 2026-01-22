@@ -9,6 +9,8 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 // Pages
 import { Landing } from "@/pages/Landing";
 import { Login } from "@/pages/Login";
+import { ICEMLogin } from "@/pages/ICEMLogin";
+import { IGSBLogin } from "@/pages/IGSBLogin";
 import { SuperAdminDashboard } from "@/pages/superadmin/SuperAdminDashboard";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
 import FacultyDetails from "@/pages/admin/FacultyDetails";
@@ -17,21 +19,26 @@ import { HodDashboard } from "@/pages/hod/HodDashboard";
 import { FacultyDashboard } from "@/pages/faculty/FacultyDashboard";
 import { AnonymousFeedback } from "@/pages/feedback/AnonymousFeedback";
 import NotFound from "@/pages/NotFound";
+import SeedData from "@/pages/SeedData";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
+const App = () => {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
             {/* Public Routes */}
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/login/icem" element={<ICEMLogin />} />
+            <Route path="/login/igsb" element={<IGSBLogin />} />
             <Route path="/feedback/anonymous/:sessionId" element={<AnonymousFeedback />} />
+            <Route path="/seed-data" element={<SeedData />} />
 
             {/* Super Admin Route (hidden) */}
             <Route path="/super-admin" element={<SuperAdminDashboard />} />
@@ -70,6 +77,7 @@ const App = () => (
       </TooltipProvider>
     </AuthProvider>
   </QueryClientProvider>
-);
+  );
+};
 
 export default App;

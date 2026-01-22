@@ -1,5 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { usersApi, User, resetDemoData, storage, STORAGE_KEYS, College } from '@/lib/storage';
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase';
+import { User } from '@/lib/storage';
 
 /* eslint-disable react-refresh/only-export-components */
 
@@ -17,37 +20,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Only reset and initialize demo data if no colleges exist (first time setup)
-    const existingColleges = storage.get<College[]>(STORAGE_KEYS.COLLEGES);
-    if (!existingColleges || existingColleges.length === 0) {
-      resetDemoData();
-    }
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
+      if (firebaseUser) {
+        // Fetch user data from Firestore
+        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data() as User;
+          setUser({ ...userData, id: firebaseUser.uid });
+        } else {
+          // Handle case where user doc doesn't exist
+          setUser(null);
+        }
+      } else {
+        setUser(null);
+      }
+      setIsLoading(false);
+    });
 
-    // Check for existing session
-    const currentUser = usersApi.getCurrentUser();
-    setUser(currentUser);
-    setIsLoading(false);
+    return () => unsubscribe();
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      const authenticatedUser = await usersApi.authenticate(email, password);
-      if (authenticatedUser) {
-        setUser(authenticatedUser);
-        return { success: true };
+      await signInWithEmailAndPassword(auth, email, password);
+      return { success: true };
+    } catch (error) {
+      let errorMessage = 'An error occurred during login';
+      if (error && typeof error === 'object' && 'code' in error) {
+        const firebaseError = error as { code: string };
+        if (firebaseError.code === 'auth/user-not-found') {
+          errorMessage = 'User not found';
+        } else if (firebaseError.code === 'auth/wrong-password') {
+          errorMessage = 'Invalid password';
+        }
       }
-      return { success: false, error: 'Invalid email or password' };
-    } catch {
-      return { success: false, error: 'An error occurred during login' };
+      return { success: false, error: errorMessage };
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  const logout = useCallback(() => {
-    usersApi.logout();
-    setUser(null);
+  const logout = useCallback(async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   }, []);
 
   return (

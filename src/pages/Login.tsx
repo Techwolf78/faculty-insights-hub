@@ -1,68 +1,137 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { GraduationCap, Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { GraduationCap, Mail, Lock, Eye, EyeOff, AlertCircle, UserPlus } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
+import { usersApi } from '@/lib/storage';
 
 export const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { login } = useAuth();
+  // Registration state
+  const [isRegistrationMode, setIsRegistrationMode] = useState(false);
+  const [registerName, setRegisterName] = useState('');
+  const [registerEmail, setRegisterEmail] = useState('');
+  const [registerPassword, setRegisterPassword] = useState('');
+  const [registerConfirmPassword, setRegisterConfirmPassword] = useState('');
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
+
+  const { login, user, isLoading } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+  }, []);
+
+  // Handle navigation when user data becomes available after login
+  useEffect(() => {
+    if (user && !isLoading) {
+      switch (user.role) {
+        case 'superAdmin':
+          navigate('/super-admin');
+          break;
+        case 'admin':
+          navigate('/admin/dashboard');
+          break;
+        case 'hod':
+          navigate('/hod/dashboard');
+          break;
+        case 'faculty':
+          navigate('/faculty/dashboard');
+          break;
+        default:
+          navigate('/');
+      }
+    }
+  }, [user, isLoading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setIsLoading(true);
+    setIsSubmitting(true);
 
     const result = await login(email, password);
 
-    if (result.success) {
-      // Get the user role from the result and redirect accordingly
-      const storedUser = localStorage.getItem('ffs_current_user');
-      if (storedUser) {
-        const user = JSON.parse(storedUser);
-        switch (user.role) {
-          case 'superAdmin':
-            navigate('/super-admin');
-            break;
-          case 'admin':
-            navigate('/admin/dashboard');
-            break;
-          case 'hod':
-            navigate('/hod/dashboard');
-            break;
-          case 'faculty':
-            navigate('/faculty/dashboard');
-            break;
-          default:
-            navigate('/');
-        }
-      }
-    } else {
+    if (!result.success) {
       setError(result.error || 'Login failed');
-      setIsLoading(false);
+      setIsSubmitting(false);
+    }
+    // On success, navigation will be handled by the useEffect above
+  };
+
+  const handleRegistration = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    // Validation
+    if (registerPassword !== registerConfirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    if (registerPassword.length < 6) {
+      setError('Password must be at least 6 characters long');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // Create Firebase Auth user
+      const userCredential = await createUserWithEmailAndPassword(auth, registerEmail, registerPassword);
+      const userId = userCredential.user.uid;
+
+      // Create Firestore user document
+      const userData = {
+        email: registerEmail,
+        password: registerPassword,
+        role: 'superAdmin' as const,
+        name: registerName,
+      };
+
+      await usersApi.create(userData, userId);
+
+      // Sign out the newly created user so they can log in properly
+      await signOut(auth);
+
+      // Switch back to login mode and show success message
+      setIsRegistrationMode(false);
+      setError('');
+      setRegisterName('');
+      setRegisterEmail('');
+      setRegisterPassword('');
+      setRegisterConfirmPassword('');
+
+      // Show success message in login form
+      setError('Super admin account created successfully! Please sign in.');
+
+    } catch (error: unknown) {
+      console.error('Registration error:', error);
+      const firebaseError = error as { code?: string };
+      if (firebaseError.code === 'auth/email-already-in-use') {
+        setError('An account with this email already exists');
+      } else if (firebaseError.code === 'auth/weak-password') {
+        setError('Password is too weak');
+      } else if (firebaseError.code === 'auth/invalid-email') {
+        setError('Invalid email address');
+      } else {
+        setError('Failed to create account. Please try again.');
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const demoCredentials = [
-    // ICEM College
-    { role: 'ICEM College Admin', email: 'dean@gryphon.edu', password: 'admin123' },
-    { role: 'ICEM HOD', email: 'hod.icem@gryphon.edu', password: 'hod123' },
-    { role: 'ICEM Faculty', email: 'faculty1@gryphon.edu', password: 'faculty123' },
-    // IGSB College
-    { role: 'IGSB College Admin', email: 'admin.igsb@gryphon.edu', password: 'admin123' },
-    { role: 'IGSB Dean', email: 'dean.igsb@gryphon.edu', password: 'admin123' },
-    { role: 'IGSB HOD', email: 'hod.igsb@gryphon.edu', password: 'hod123' },
-    { role: 'IGSB Faculty', email: 'faculty1.igsb@gryphon.edu', password: 'faculty123' },
     // System Admin
-    { role: 'System Admin', email: 'superadmin@gryphon.edu', password: 'admin123' },
+    { role: 'Super Admin', email: 'ajaypawargryphon@gmail.com', password: 'password123' },
   ];
 
   const fillCredentials = (email: string, password: string) => {
@@ -125,97 +194,213 @@ export const Login: React.FC = () => {
           </div>
 
           <div className="text-center mb-8">
-            <h2 className="font-display text-2xl font-bold text-foreground mb-2">Welcome Back</h2>
-            <p className="text-muted-foreground">Sign in to access your dashboard</p>
+            <h2 className="font-display text-2xl font-bold text-foreground mb-2">
+              {isRegistrationMode ? 'Create Super Admin Account' : 'Welcome Back'}
+            </h2>
+            <p className="text-muted-foreground">
+              {isRegistrationMode ? 'Register a new super administrator account' : 'Sign in to access your dashboard'}
+            </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {error && (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm animate-scale-in">
-                <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                {error}
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <Label htmlFor="email">Email Address</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="you@institution.edu"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10 h-12"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10 pr-10 h-12"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                </button>
-              </div>
-            </div>
-
-            <Button
-              type="submit"
-              className="w-full h-12 gradient-hero text-primary-foreground hover:opacity-90"
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <div className="flex items-center gap-2">
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
-                  Signing in...
+          {isRegistrationMode ? (
+            <form onSubmit={handleRegistration} className="space-y-5">
+              {error && (
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm animate-scale-in">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                  {error}
                 </div>
-              ) : (
-                'Sign In'
               )}
-            </Button>
-          </form>
 
-          <div className="mt-8">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-border" />
+              <div className="space-y-2">
+                <Label htmlFor="registerName">Full Name</Label>
+                <div className="relative">
+                  <UserPlus className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                  <Input
+                    id="registerName"
+                    type="text"
+                    placeholder="Super Admin Name"
+                    value={registerName}
+                    onChange={(e) => setRegisterName(e.target.value)}
+                    className="pl-10 h-12"
+                    required
+                  />
+                </div>
               </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">Demo Credentials</span>
-              </div>
-            </div>
 
-            <div className="mt-4 space-y-2">
-              {demoCredentials.map((cred) => (
-                <button
-                  key={cred.role}
-                  type="button"
-                  onClick={() => fillCredentials(cred.email, cred.password)}
-                  className="w-full flex items-center justify-between p-3 rounded-lg border border-border hover:bg-secondary transition-colors text-sm"
-                >
-                  <span className="font-medium text-foreground">{cred.role}</span>
-                  <span className="text-muted-foreground">{cred.email}</span>
-                </button>
-              ))}
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="registerEmail">Email Address</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                  <Input
+                    id="registerEmail"
+                    type="email"
+                    placeholder="admin@institution.edu"
+                    value={registerEmail}
+                    onChange={(e) => setRegisterEmail(e.target.value)}
+                    className="pl-10 h-12"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="registerPassword">Password</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                  <Input
+                    id="registerPassword"
+                    type={showRegisterPassword ? 'text' : 'password'}
+                    placeholder="••••••••"
+                    value={registerPassword}
+                    onChange={(e) => setRegisterPassword(e.target.value)}
+                    className="pl-10 pr-10 h-12"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowRegisterPassword(!showRegisterPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showRegisterPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="registerConfirmPassword">Confirm Password</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                  <Input
+                    id="registerConfirmPassword"
+                    type={showRegisterPassword ? 'text' : 'password'}
+                    placeholder="••••••••"
+                    value={registerConfirmPassword}
+                    onChange={(e) => setRegisterConfirmPassword(e.target.value)}
+                    className="pl-10 h-12"
+                    required
+                  />
+                </div>
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full h-12 gradient-hero text-primary-foreground hover:opacity-90"
+                disabled={isSubmitting || isLoading}
+              >
+                {isSubmitting || isLoading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                    Creating Account...
+                  </div>
+                ) : (
+                  'Create Super Admin Account'
+                )}
+              </Button>
+            </form>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {error && (
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm animate-scale-in">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                  {error}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="email">Email Address</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="you@institution.edu"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="pl-10 h-12"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                  <Input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="pl-10 pr-10 h-12"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full h-12 gradient-hero text-primary-foreground hover:opacity-90"
+                disabled={isSubmitting || isLoading}
+              >
+                {isSubmitting || isLoading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                    Signing in...
+                  </div>
+                ) : (
+                  'Sign In'
+                )}
+              </Button>
+            </form>
+          )}
+
+          <div className="mt-6 text-center">
+            <button
+              type="button"
+              onClick={() => {
+                setIsRegistrationMode(!isRegistrationMode);
+                setError('');
+              }}
+              className="text-sm text-primary hover:text-primary/80 transition-colors"
+            >
+              {isRegistrationMode ? '← Back to Sign In' : 'Create Super Admin Account'}
+            </button>
           </div>
+
+          {!isRegistrationMode && (
+            <div className="mt-8">
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-border" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">Demo Credentials</span>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-2">
+                {demoCredentials.map((cred) => (
+                  <button
+                    key={cred.role}
+                    type="button"
+                    onClick={() => fillCredentials(cred.email, cred.password)}
+                    className="w-full flex items-center justify-between p-3 rounded-lg border border-border hover:bg-secondary transition-colors text-sm"
+                  >
+                    <span className="font-medium text-foreground">{cred.role}</span>
+                    <span className="text-muted-foreground">{cred.email}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <p className="mt-8 text-center text-sm text-muted-foreground">
             <Link to="/" className="hover:text-primary transition-colors">

@@ -443,7 +443,8 @@ const AdminDashboard = () => {
     // Filter by date range
     if (dateRange.from || dateRange.to) {
       filteredSubs = filteredSubs.filter(sub => {
-        const submissionDate = new Date(sub.submittedAt);
+        if (!sub.submittedAt) return false;
+        const submissionDate = sub.submittedAt.toDate();
         const fromDate = dateRange.from ? new Date(dateRange.from) : null;
         const toDate = dateRange.to ? new Date(dateRange.to) : null;
 
@@ -468,10 +469,10 @@ const AdminDashboard = () => {
   // Calculate metrics
   const activeSessions = sessions.filter(s => s.isActive);
   const todaySubmissions = submissions.filter(s =>
-    format(new Date(s.submittedAt), 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
+    s.submittedAt && format(s.submittedAt.toDate(), 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
   );
   const weekSubmissions = submissions.filter(s =>
-    isAfter(new Date(s.submittedAt), subDays(new Date(), 7))
+    s.submittedAt && isAfter(s.submittedAt.toDate(), subDays(new Date(), 7))
   );
 
   // Calculate average rating
@@ -506,7 +507,7 @@ const AdminDashboard = () => {
   const trendData = Array.from({ length: 7 }, (_, i) => {
     const date = subDays(new Date(), 6 - i);
     const daySubs = filteredData.submissions.filter(s =>
-      format(new Date(s.submittedAt), 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
+      s.submittedAt && format(s.submittedAt.toDate(), 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
     );
 
     return {
@@ -1044,13 +1045,23 @@ const AdminDashboard = () => {
                           .filter(r => r.comment && r.comment.trim() !== '')
                           .map(r => ({
                             comment: r.comment!.trim(),
-                            date: sub.submittedAt,
+                            date: sub.submittedAt?.toDate(),
                             rating: r.rating
                           }))
                         )
                         .filter(item => item.comment.length > 0)
-                        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                        .slice(0, 4); // Show up to 4 recent comments
+                        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+                      // Sort all comments by rating to get highest and lowest
+                      const sortedByRating = [...allComments].sort((a, b) => (b.rating || 0) - (a.rating || 0));
+
+                      // Take top 2 highest rated as positive feedback
+                      const positiveComments = sortedByRating.slice(0, 2);
+
+                      // Take bottom 2 lowest rated as negative feedback
+                      const negativeComments = sortedByRating.slice(-2).reverse(); // Reverse to show lowest first
+
+                      const displayComments = [...positiveComments, ...negativeComments].slice(0, 4);
 
                       return (
                         <div
@@ -1094,28 +1105,71 @@ const AdminDashboard = () => {
                               Recent Comments
                             </h5>
 
-                            {allComments.length > 0 ? (
-                              <div className="grid gap-3 md:grid-cols-2">
-                                {allComments.map((item, commentIndex) => (
-                                  <div
-                                    key={commentIndex}
-                                    className="bg-secondary/30 rounded-lg p-4 border-l-4 border-primary/50"
-                                  >
-                                    <div className="flex items-start justify-between mb-2">
-                                      <span className="text-xs text-muted-foreground">
-                                        {format(new Date(item.date), 'MMM d, yyyy')}
-                                      </span>
-                                      {item.rating && (
-                                        <span className="text-xs font-medium text-primary">
-                                          {item.rating}/5
-                                        </span>
-                                      )}
+                            {displayComments.length > 0 ? (
+                              <div className="space-y-3">
+                                {/* Positive Comments Row */}
+                                {positiveComments.length > 0 && (
+                                  <div>
+                                    <h6 className="text-xs font-medium text-green-600 mb-2 flex items-center gap-1">
+                                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                      Positive Feedback
+                                    </h6>
+                                    <div className="grid gap-2 md:grid-cols-2">
+                                      {positiveComments.map((item, commentIndex) => (
+                                        <div
+                                          key={`positive-${commentIndex}`}
+                                          className="bg-green-50 border border-green-200 rounded-lg p-3"
+                                        >
+                                          <div className="flex items-start justify-between mb-2">
+                                            <span className="text-xs text-green-600">
+                                              {format(new Date(item.date), 'MMM d, yyyy')}
+                                            </span>
+                                            {item.rating && (
+                                              <span className="text-xs font-medium text-green-700 bg-green-100 px-2 py-1 rounded">
+                                                {item.rating}/5
+                                              </span>
+                                            )}
+                                          </div>
+                                          <p className="text-sm text-green-800 leading-relaxed">
+                                            "{item.comment}"
+                                          </p>
+                                        </div>
+                                      ))}
                                     </div>
-                                    <p className="text-sm text-foreground italic leading-relaxed">
-                                      "{item.comment}"
-                                    </p>
                                   </div>
-                                ))}
+                                )}
+
+                                {/* Negative Comments Row */}
+                                {negativeComments.length > 0 && (
+                                  <div>
+                                    <h6 className="text-xs font-medium text-red-600 mb-2 flex items-center gap-1">
+                                      <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                                      Areas for Improvement
+                                    </h6>
+                                    <div className="grid gap-2 md:grid-cols-2">
+                                      {negativeComments.map((item, commentIndex) => (
+                                        <div
+                                          key={`negative-${commentIndex}`}
+                                          className="bg-red-50 border border-red-200 rounded-lg p-3"
+                                        >
+                                          <div className="flex items-start justify-between mb-2">
+                                            <span className="text-xs text-red-600">
+                                              {format(new Date(item.date), 'MMM d, yyyy')}
+                                            </span>
+                                            {item.rating && (
+                                              <span className="text-xs font-medium text-red-700 bg-red-100 px-2 py-1 rounded">
+                                                {item.rating}/5
+                                              </span>
+                                            )}
+                                          </div>
+                                          <p className="text-sm text-red-800 leading-relaxed">
+                                            "{item.comment}"
+                                          </p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             ) : (
                               <div className="text-center py-6">
@@ -1276,9 +1330,6 @@ const AdminDashboard = () => {
                         <Building2 className="h-5 w-5 text-primary" />
                         <h4 className="font-medium text-foreground">{dept.name}</h4>
                       </div>
-                      {dept.description && (
-                        <p className="text-sm text-muted-foreground mb-2">{dept.description}</p>
-                      )}
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-muted-foreground">
                           {faculty.filter(f => f.departmentId === dept.id).length} faculty

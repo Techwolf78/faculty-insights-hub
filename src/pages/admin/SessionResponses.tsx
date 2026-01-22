@@ -71,7 +71,7 @@ const SessionResponses: React.FC = () => {
     const headers = ['Submission ID', 'Submitted At', ...questions.map(q => q.text)];
     const rows = submissions.map(sub => [
       sub.id,
-      format(new Date(sub.submittedAt), 'yyyy-MM-dd HH:mm:ss'),
+      format(sub.submittedAt.toDate(), 'yyyy-MM-dd HH:mm:ss'),
       ...questions.map(q => {
         const response = sub.responses.find(r => r.questionId === q.id);
         return response ? getResponseValue(response) : '';
@@ -219,7 +219,7 @@ const SessionResponses: React.FC = () => {
                   {paginatedSubmissions.map(sub => (
                     <TableRow key={sub.id}>
                       <TableCell className="font-mono text-sm">{sub.id.slice(-8)}</TableCell>
-                      <TableCell>{format(new Date(sub.submittedAt), 'MMM d, yyyy HH:mm')}</TableCell>
+                      <TableCell>{format(sub.submittedAt.toDate(), 'MMM d, yyyy HH:mm')}</TableCell>
                       {questions.map(q => {
                         const response = sub.responses.find(r => r.questionId === q.id);
                         return (

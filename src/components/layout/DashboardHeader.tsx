@@ -27,9 +27,10 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ title, subtitl
               />
             ) : college.code === 'IGSB' ? (
               <img
-                src="https://indiraigsb.edu.in/assets/images/igbs/igsb-footer-logo.png"
+                src="https://indiraigsb.edu.in/assets/images/igsb-logo.png"
                 alt={`${college.name} Logo`}
-                className="h-16 w-auto object-contain"
+                className="h-20 w-auto object-contain rounded-sm p-1"
+                style={{ backgroundColor: '#072F61' }}
               />
             ) : (
               <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">

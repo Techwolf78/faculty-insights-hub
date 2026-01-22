@@ -8,6 +8,7 @@ import {
   College,
   User,
   FeedbackSession,
+  Timestamp,
   resetDemoData,
 } from '@/lib/storage';
 import {
@@ -91,7 +92,7 @@ export const SuperAdminDashboard: React.FC = () => {
       // Update expired sessions to inactive
       const updatedSessions = await Promise.all(
         sessionList.map(async (session) => {
-          if (session.isActive && new Date(session.expiresAt) < new Date()) {
+          if (session.isActive && session.expiresAt.toDate() < new Date()) {
             await feedbackSessionsApi.update(session.id, { isActive: false });
             return { ...session, isActive: false };
           }
@@ -106,10 +107,10 @@ export const SuperAdminDashboard: React.FC = () => {
         futureDate.setDate(futureDate.getDate() + 10); // 10 days from now
         await feedbackSessionsApi.update(demoSession.id, { 
           isActive: true, 
-          expiresAt: futureDate.toISOString() 
+          expiresAt: Timestamp.fromDate(futureDate)
         });
         demoSession.isActive = true;
-        demoSession.expiresAt = futureDate.toISOString();
+        demoSession.expiresAt = Timestamp.fromDate(futureDate);
       }
 
       setColleges(collegeList);
@@ -154,7 +155,6 @@ export const SuperAdminDashboard: React.FC = () => {
       await usersApi.create({
         name: adminName.trim(),
         email: adminEmail.trim().toLowerCase(),
-        password: adminPassword,
         role: 'admin',
         collegeId: adminCollegeId,
       });
@@ -700,7 +700,7 @@ export const SuperAdminDashboard: React.FC = () => {
                                 <div className="mb-2">
                                   <p className="text-xs text-muted-foreground mb-1">Session URL:</p>
                                   <div className="flex items-center gap-1">
-                                    <code className="bg-background px-2 py-1 rounded text-xs font-mono break-all flex-1 text-xs">
+                                    <code className="bg-background px-2 py-1 rounded text-xs font-mono break-all flex-1">
                                       /feedback/anonymous/{session.uniqueUrl}
                                     </code>
                                     <Button
@@ -721,7 +721,7 @@ export const SuperAdminDashboard: React.FC = () => {
                                     {session.isActive ? 'Active' : 'Inactive'}
                                   </span>
                                   <span className="text-xs text-muted-foreground">
-                                    Expires: {new Date(session.expiresAt).toLocaleDateString()}
+                                    Expires: {session.expiresAt.toDate().toLocaleDateString()}
                                   </span>
                                 </div>
                               </div>
@@ -769,7 +769,7 @@ export const SuperAdminDashboard: React.FC = () => {
                                 <div className="mb-2">
                                   <p className="text-xs text-muted-foreground mb-1">Session URL:</p>
                                   <div className="flex items-center gap-1">
-                                    <code className="bg-background px-2 py-1 rounded text-xs font-mono break-all flex-1 text-xs">
+                                    <code className="bg-background px-2 py-1 rounded text-xs font-mono break-all flex-1">
                                       /feedback/anonymous/{session.uniqueUrl}
                                     </code>
                                     <Button
@@ -788,7 +788,7 @@ export const SuperAdminDashboard: React.FC = () => {
                                     Active
                                   </span>
                                   <span className="text-xs text-muted-foreground">
-                                    Expires: {new Date(session.expiresAt).toLocaleDateString()}
+                                    Expires: {session.expiresAt.toDate().toLocaleDateString()}
                                   </span>
                                 </div>
                               </div>
@@ -836,7 +836,7 @@ export const SuperAdminDashboard: React.FC = () => {
                                 <div className="mb-2">
                                   <p className="text-xs text-muted-foreground mb-1">Session URL:</p>
                                   <div className="flex items-center gap-1">
-                                    <code className="bg-background px-2 py-1 rounded text-xs font-mono break-all flex-1 text-xs">
+                                    <code className="bg-background px-2 py-1 rounded text-xs font-mono break-all flex-1">
                                       /feedback/anonymous/{session.uniqueUrl}
                                     </code>
                                     <Button
@@ -855,7 +855,7 @@ export const SuperAdminDashboard: React.FC = () => {
                                     Inactive
                                   </span>
                                   <span className="text-xs text-muted-foreground">
-                                    Expired: {new Date(session.expiresAt).toLocaleDateString()}
+                                    Expired: {session.expiresAt.toDate().toLocaleDateString()}
                                   </span>
                                 </div>
                               </div>

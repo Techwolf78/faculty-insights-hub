@@ -5,6 +5,7 @@ import { StatsCard } from '@/components/ui/StatsCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from '@/components/ui/pagination';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   departmentsApi,
@@ -45,6 +46,9 @@ const FacultyDetails: React.FC = () => {
   const [sessions, setSessions] = useState<FeedbackSession[]>([]);
   const [selectedFaculty, setSelectedFaculty] = useState<string | null>(null);
   const [selectedTimeRange, setSelectedTimeRange] = useState<string>('all');
+  const [sessionPageSelected, setSessionPageSelected] = useState(1);
+  const [sessionPageIndividual, setSessionPageIndividual] = useState(1);
+  const sessionsPerPage = 5;
 
   // Find the current faculty
   const currentFaculty = faculty.find(f => f.id === facultyId);
@@ -95,7 +99,7 @@ const FacultyDetails: React.FC = () => {
         return currentFacultySubmissions;
     }
 
-    return currentFacultySubmissions.filter(sub => new Date(sub.submittedAt) >= startDate);
+    return currentFacultySubmissions.filter(sub => sub.submittedAt && sub.submittedAt.toDate() >= startDate);
   }, [currentFacultySubmissions, selectedTimeRange]);
 
   // Filter all submissions based on selected time range for overall stats
@@ -119,7 +123,7 @@ const FacultyDetails: React.FC = () => {
         return submissions;
     }
 
-    return submissions.filter(sub => new Date(sub.submittedAt) >= startDate);
+    return submissions.filter(sub => sub.submittedAt && sub.submittedAt.toDate() >= startDate);
   }, [submissions, selectedTimeRange]);
 
   // Current faculty performance data
@@ -152,7 +156,7 @@ const FacultyDetails: React.FC = () => {
         session: session.subject,
         rating: Math.round(sessionAvg * 10) / 10,
         responses: sessionSubs.length,
-        date: format(new Date(session.expiresAt), 'MMM yyyy')
+        date: format(session.expiresAt.toDate(), 'MMM yyyy')
       };
     }).filter(session => session.responses > 0);
 
@@ -220,7 +224,7 @@ const FacultyDetails: React.FC = () => {
           return {
             comment: r.comment!.trim(),
             rating: r.rating || 0,
-            submittedAt: sub.submittedAt,
+            submittedAt: sub.submittedAt?.toDate(),
             question: r.questionId || 'General Feedback',
             batch: session?.batch || 'Unknown'
           };
@@ -231,6 +235,25 @@ const FacultyDetails: React.FC = () => {
 
     return allComments;
   }, [filteredAllSubmissions, sessions]);
+
+  // Function to generate pagination page numbers
+  const getPageNumbers = (current: number, total: number): (number | string)[] => {
+    const pages: (number | string)[] = [];
+    if (total <= 7) {
+      for (let i = 1; i <= total; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (current > 4) pages.push('...');
+      const start = Math.max(2, current - 1);
+      const end = Math.min(total - 1, current + 1);
+      for (let i = start; i <= end; i++) {
+        if (!pages.includes(i)) pages.push(i);
+      }
+      if (current < total - 3) pages.push('...');
+      if (total > 1) pages.push(total);
+    }
+    return pages;
+  };
 
   if (isLoading) {
     return (
@@ -321,7 +344,7 @@ const FacultyDetails: React.FC = () => {
               <p className="text-sm text-muted-foreground">Click on any faculty member to view detailed analysis</p>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
                 {faculty.map((member) => {
                   const memberSubs = submissions.filter(sub => sub.facultyId === member.id);
                   const avgRating = memberSubs.length > 0
@@ -337,13 +360,13 @@ const FacultyDetails: React.FC = () => {
                     <div
                       key={member.id}
                       onClick={() => setSelectedFaculty(member.id)}
-                      className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                      className={`p-3 border rounded-lg cursor-pointer transition-colors ${
                         selectedFaculty === member.id ? 'ring-2 ring-primary bg-primary/5' : 'hover:bg-secondary/10'
                       }`}
                     >
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                          <span className="text-sm font-semibold text-primary">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                          <span className="text-xs font-semibold text-primary">
                             {member.name.split(' ').map(n => n[0]).join('').toUpperCase()}
                           </span>
                         </div>
@@ -417,7 +440,7 @@ const FacultyDetails: React.FC = () => {
                   session: session.subject,
                   rating: Math.round(sessionAvg * 10) / 10,
                   responses: sessionSubs.length,
-                  date: format(new Date(session.expiresAt), 'MMM yyyy')
+                  date: format(session.expiresAt.toDate(), 'MMM yyyy')
                 };
               }).filter(session => session.responses > 0);
 
@@ -467,9 +490,7 @@ const FacultyDetails: React.FC = () => {
                           </span>
                         </div>
                         <div>
-                          <h3 className="text-xl font-bold">{selectedFacultyData.name}</h3>
-                          <p className="text-muted-foreground text-sm">{selectedFacultyData.designation}</p>
-                          <p className="text-xs text-muted-foreground">{facultyData?.departmentName}</p>
+                          <h3 className="text-xl font-bold">{selectedFacultyData.name} | {selectedFacultyData.designation} | {facultyData?.departmentName}</h3>
                         </div>
                       </div>
                       <Button
@@ -550,20 +571,64 @@ const FacultyDetails: React.FC = () => {
 
                       {facultyData?.sessionBreakdown.length ? (
                         <div className="mt-3 space-y-1">
-                          {facultyData.sessionBreakdown.map((session, index) => (
-                            <div key={index} className="flex items-center justify-between p-2 border rounded">
-                              <div>
-                                <h4 className="font-medium text-xs">{session.session}</h4>
-                                <p className="text-xs text-muted-foreground">{session.date}</p>
-                              </div>
-                              <div className="text-right">
-                                <div className="flex items-center gap-1">
-                                  <span className="font-semibold text-sm">{session.rating.toFixed(1)}</span>
-                                  <span className="text-xs text-muted-foreground">({session.responses})</span>
+                          {(() => {
+                            const totalSessionPagesSelected = Math.ceil(facultyData.sessionBreakdown.length / sessionsPerPage);
+                            const paginatedSessionsSelected = facultyData.sessionBreakdown.slice(
+                              (sessionPageSelected - 1) * sessionsPerPage,
+                              sessionPageSelected * sessionsPerPage
+                            );
+                            return (
+                              <>
+                                {paginatedSessionsSelected.map((session, index) => (
+                                  <div key={index} className="flex items-center justify-between p-2 border rounded">
+                                    <div>
+                                      <h4 className="font-medium text-xs">{session.session}</h4>
+                                      <p className="text-xs text-muted-foreground">{session.date}</p>
+                                    </div>
+                                    <div className="text-right">
+                                      <div className="flex items-center gap-1">
+                                        <span className="font-semibold text-sm">{session.rating.toFixed(1)}</span>
+                                        <span className="text-xs text-muted-foreground">({session.responses})</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                                <div className="flex items-center justify-center mt-4">
+                                  <Pagination>
+                                    <PaginationContent>
+                                      <PaginationItem>
+                                        <PaginationPrevious
+                                          onClick={() => setSessionPageSelected(Math.max(1, sessionPageSelected - 1))}
+                                          className={sessionPageSelected === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                                        />
+                                      </PaginationItem>
+                                      {getPageNumbers(sessionPageSelected, totalSessionPagesSelected).map((page, index) => (
+                                        <PaginationItem key={index}>
+                                          {page === '...' ? (
+                                            <PaginationEllipsis />
+                                          ) : (
+                                            <PaginationLink
+                                              onClick={() => setSessionPageSelected(page as number)}
+                                              isActive={page === sessionPageSelected}
+                                              className="cursor-pointer"
+                                            >
+                                              {page}
+                                            </PaginationLink>
+                                          )}
+                                        </PaginationItem>
+                                      ))}
+                                      <PaginationItem>
+                                        <PaginationNext
+                                          onClick={() => setSessionPageSelected(Math.min(totalSessionPagesSelected, sessionPageSelected + 1))}
+                                          className={sessionPageSelected === totalSessionPagesSelected ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                                        />
+                                      </PaginationItem>
+                                    </PaginationContent>
+                                  </Pagination>
                                 </div>
-                              </div>
-                            </div>
-                          ))}
+                              </>
+                            );
+                          })()}
                         </div>
                       ) : null}
                     </CardContent>
@@ -684,7 +749,7 @@ const FacultyDetails: React.FC = () => {
                                   <span className="text-xs text-muted-foreground">Batch {comment.batch}</span>
                                 </div>
                                 <span className="text-xs text-muted-foreground">
-                                  {format(new Date(comment.submittedAt), 'MMM d, yyyy')}
+                                  {format(comment.submittedAt, 'MMM d, yyyy')}
                                 </span>
                               </div>
                               <p className="text-sm text-foreground italic mb-2">"{comment.comment}"</p>
@@ -882,20 +947,64 @@ const FacultyDetails: React.FC = () => {
 
                   {facultyData?.sessionBreakdown.length ? (
                     <div className="mt-3 space-y-1">
-                      {facultyData.sessionBreakdown.map((session, index) => (
-                        <div key={index} className="flex items-center justify-between p-2 border rounded">
-                          <div>
-                            <h4 className="font-medium text-xs">{session.session}</h4>
-                            <p className="text-xs text-muted-foreground">{session.date}</p>
-                          </div>
-                          <div className="text-right">
-                            <div className="flex items-center gap-1">
-                              <span className="font-semibold text-sm">{session.rating.toFixed(1)}</span>
-                              <span className="text-xs text-muted-foreground">({session.responses})</span>
+                      {(() => {
+                        const totalSessionPagesIndividual = Math.ceil(facultyData.sessionBreakdown.length / sessionsPerPage);
+                        const paginatedSessionsIndividual = facultyData.sessionBreakdown.slice(
+                          (sessionPageIndividual - 1) * sessionsPerPage,
+                          sessionPageIndividual * sessionsPerPage
+                        );
+                        return (
+                          <>
+                            {paginatedSessionsIndividual.map((session, index) => (
+                              <div key={index} className="flex items-center justify-between p-2 border rounded">
+                                <div>
+                                  <h4 className="font-medium text-xs">{session.session}</h4>
+                                  <p className="text-xs text-muted-foreground">{session.date}</p>
+                                </div>
+                                <div className="text-right">
+                                  <div className="flex items-center gap-1">
+                                    <span className="font-semibold text-sm">{session.rating.toFixed(1)}</span>
+                                    <span className="text-xs text-muted-foreground">({session.responses})</span>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                            <div className="flex items-center justify-center mt-4">
+                              <Pagination>
+                                <PaginationContent>
+                                  <PaginationItem>
+                                    <PaginationPrevious
+                                      onClick={() => setSessionPageIndividual(Math.max(1, sessionPageIndividual - 1))}
+                                      className={sessionPageIndividual === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                                    />
+                                  </PaginationItem>
+                                  {getPageNumbers(sessionPageIndividual, totalSessionPagesIndividual).map((page, index) => (
+                                    <PaginationItem key={index}>
+                                      {page === '...' ? (
+                                        <PaginationEllipsis />
+                                      ) : (
+                                        <PaginationLink
+                                          onClick={() => setSessionPageIndividual(page as number)}
+                                          isActive={page === sessionPageIndividual}
+                                          className="cursor-pointer"
+                                        >
+                                          {page}
+                                        </PaginationLink>
+                                      )}
+                                    </PaginationItem>
+                                  ))}
+                                  <PaginationItem>
+                                    <PaginationNext
+                                      onClick={() => setSessionPageIndividual(Math.min(totalSessionPagesIndividual, sessionPageIndividual + 1))}
+                                      className={sessionPageIndividual === totalSessionPagesIndividual ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                                    />
+                                  </PaginationItem>
+                                </PaginationContent>
+                              </Pagination>
                             </div>
-                          </div>
-                        </div>
-                      ))}
+                          </>
+                        );
+                      })()}
                     </div>
                   ) : null}
                 </CardContent>
@@ -984,7 +1093,7 @@ const FacultyDetails: React.FC = () => {
                         <span className="text-xs text-muted-foreground">Batch {comment.batch}</span>
                       </div>
                       <span className="text-xs text-muted-foreground">
-                        {format(new Date(comment.submittedAt), 'MMM d, yyyy')}
+                        {format(comment.submittedAt, 'MMM d, yyyy')}
                       </span>
                     </div>
                     <p className="text-sm text-foreground italic mb-2">"{comment.comment}"</p>

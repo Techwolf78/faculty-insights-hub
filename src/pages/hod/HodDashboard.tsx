@@ -117,7 +117,7 @@ export const HodDashboard: React.FC = () => {
         .map(r => ({
           comment: r.comment,
           facultyName: facultyMember?.name || 'Unknown',
-          date: sub.submittedAt,
+          date: sub.submittedAt?.toDate(),
         }));
     })
     .slice(0, 5);

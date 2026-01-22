@@ -107,7 +107,7 @@ export const SessionTable: React.FC<SessionTableProps> = ({
                   <p><strong>Department:</strong> {getDepartmentName(session.departmentId)}</p>
                   <p><strong>Batch:</strong> {session.batch}</p>
                   <p><strong>Faculty:</strong> {getFacultyName(session.facultyId)}</p>
-                  <p><strong>Expires:</strong> {format(new Date(session.expiresAt), 'MMM d, yyyy HH:mm')}</p>
+                  <p><strong>Expires:</strong> {format(session.expiresAt.toDate(), 'MMM d, yyyy HH:mm')}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2 ml-4">

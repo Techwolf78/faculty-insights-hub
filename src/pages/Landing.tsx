@@ -1,9 +1,23 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { GraduationCap, Users, Shield, BarChart3, ClipboardCheck, Building2 } from 'lucide-react';
+import { GraduationCap, Users, Shield, BarChart3, ClipboardCheck, Building2, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
-const features = [
+interface Feature {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  descriptionLink?: { text: string; href: string };
+  descriptionSuffix?: string;
+}
+
+const features: Feature[] = [
   {
     icon: ClipboardCheck,
     title: 'Anonymous Feedback',
@@ -17,7 +31,9 @@ const features = [
   {
     icon: Shield,
     title: 'Role-Based Access',
-    description: 'Secure multi-level dashboards for administrators, HODs, and faculty members.',
+    description: 'Secure multi-level dashboards for ',
+    descriptionLink: { text: 'administrators', href: '/login' },
+    descriptionSuffix: ', HODs, and faculty members.',
   },
   {
     icon: Building2,
@@ -50,11 +66,26 @@ export const Landing: React.FC = () => {
               <a href="#about" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
                 About
               </a>
-              <Link to="/login">
-                <Button variant="outline" size="sm">
-                  Staff Login
-                </Button>
-              </Link>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    Staff Login
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem asChild>
+                    <Link to="/login/icem" className="w-full">
+                      ICEM College Login
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link to="/login/igsb" className="w-full">
+                      IGSB College Login
+                    </Link>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>
@@ -83,10 +114,16 @@ export const Landing: React.FC = () => {
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-up" style={{ animationDelay: '0.3s' }}>
-              <Link to="/login">
+              <Link to="/login/icem">
+                <Button size="lg" className="gap-2 px-8 h-12 gradient-hero text-primary-foreground hover:opacity-90">
+                  <Users className="h-5 w-5" />
+                  ICEM College Login
+                </Button>
+              </Link>
+              <Link to="/login/igsb">
                 <Button variant="outline" size="lg" className="gap-2 px-8 h-12">
                   <Users className="h-5 w-5" />
-                  Admin / Staff Login
+                  IGSB College Login
                 </Button>
               </Link>
             </div>
@@ -125,6 +162,12 @@ export const Landing: React.FC = () => {
                 </h3>
                 <p className="text-sm text-muted-foreground">
                   {feature.description}
+                  {feature.descriptionLink && (
+                    <Link to={feature.descriptionLink.href} className="text-muted-foreground hover:text-foreground transition-colors">
+                      {feature.descriptionLink.text}
+                    </Link>
+                  )}
+                  {feature.descriptionSuffix}
                 </p>
               </div>
             ))}

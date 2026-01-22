@@ -105,7 +105,7 @@ export const AnonymousFeedback: React.FC = () => {
           return;
         }
 
-        if (new Date(session.expiresAt) < new Date()) {
+        if (session.expiresAt.toDate() < new Date()) {
           setSessionError('This feedback session has expired.');
           setIsValidating(false);
           return;
