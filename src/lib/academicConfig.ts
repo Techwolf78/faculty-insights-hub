@@ -1,32 +1,55 @@
 // Academic Configuration utilities for Faculty Insights Hub
 
-import { academicConfigApi, AcademicConfig } from './storage';
+import { academicConfigApi, departmentsApi, AcademicConfig } from './storage';
 
 // Default course data structure
 const defaultCourseData: AcademicConfig['courseData'] = {
   'Engineering': {
     years: ['1st Year', '2nd Year', '3rd Year', '4th Year'],
-    departments: ['Computer Science & Engineering', 'Information Technology', 'Mechanical Engineering'],
+    yearDepartments: {
+      '1st Year': ['Computer Science & Engineering', 'Information Technology', 'Mechanical Engineering'],
+      '2nd Year': ['Computer Science & Engineering', 'Information Technology', 'Mechanical Engineering'],
+      '3rd Year': ['Computer Science & Engineering', 'Information Technology', 'Mechanical Engineering'],
+      '4th Year': ['Computer Science & Engineering', 'Information Technology', 'Mechanical Engineering'],
+    },
     semesters: ['Odd', 'Even'],
   },
   'MBA': {
     years: ['1st Year', '2nd Year'],
-    departments: ['Business Administration', 'Finance & Accounting', 'Marketing & Sales'],
+    yearDepartments: {
+      '1st Year': ['Business Administration', 'Finance & Accounting', 'Marketing & Sales'],
+      '2nd Year': ['Business Administration', 'Finance & Accounting', 'Marketing & Sales'],
+    },
     semesters: ['Odd', 'Even'],
   },
   'MCA': {
     years: ['1st Year', '2nd Year'],
-    departments: ['Computer Applications', 'Software Development'],
+    yearDepartments: {
+      '1st Year': ['Computer Applications', 'Software Development'],
+      '2nd Year': ['Computer Applications', 'Software Development'],
+    },
     semesters: ['Odd', 'Even'],
   },
   'BBA+MBA': {
     years: ['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year'],
-    departments: ['Business Administration', 'Finance & Accounting', 'Marketing & Sales'],
+    yearDepartments: {
+      '1st Year': ['Business Administration', 'Finance & Accounting', 'Marketing & Sales'],
+      '2nd Year': ['Business Administration', 'Finance & Accounting', 'Marketing & Sales'],
+      '3rd Year': ['Business Administration', 'Finance & Accounting', 'Marketing & Sales'],
+      '4th Year': ['Business Administration', 'Finance & Accounting', 'Marketing & Sales'],
+      '5th Year': ['Business Administration', 'Finance & Accounting', 'Marketing & Sales'],
+    },
     semesters: ['Odd', 'Even'],
   },
   'BCA+MCA': {
     years: ['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year'],
-    departments: ['Computer Applications', 'Software Development'],
+    yearDepartments: {
+      '1st Year': ['Computer Applications', 'Software Development'],
+      '2nd Year': ['Computer Applications', 'Software Development'],
+      '3rd Year': ['Computer Applications', 'Software Development'],
+      '4th Year': ['Computer Applications', 'Software Development'],
+      '5th Year': ['Computer Applications', 'Software Development'],
+    },
     semesters: ['Odd', 'Even'],
   },
 };
@@ -132,8 +155,12 @@ const defaultSubjectsData: AcademicConfig['subjectsData'] = {
 const defaultBatches = ['A', 'B', 'C', 'D'];
 
 export interface AcademicConfigData {
-  courseData: AcademicConfig['courseData'];
-  subjectsData: AcademicConfig['subjectsData'];
+  courseData: Record<string, {
+    years: string[];
+    yearDepartments: Record<string, string[]>;
+    semesters?: string[];
+  }>;
+  subjectsData: Record<string, Record<string, Record<string, Record<string, string[]>>>>;
   batches: string[];
 }
 
@@ -171,7 +198,39 @@ export const saveAcademicConfig = async (
   batches: string[] = defaultBatches
 ): Promise<boolean> => {
   try {
+    // Save the academic configuration
     await academicConfigApi.upsert(collegeId, { courseData, subjectsData, batches });
+
+    // Extract unique departments and create department documents
+    const uniqueDepartments = new Set<string>();
+    Object.values(courseData).forEach(course => {
+      Object.values(course.yearDepartments).forEach(departments => {
+        departments.forEach(dept => uniqueDepartments.add(dept));
+      });
+    });
+
+    // Create department documents for each unique department
+    const departmentPromises = Array.from(uniqueDepartments).map(async (deptName) => {
+      // Check if department already exists for this college
+      const existingDepts = await departmentsApi.getByCollege(collegeId);
+      const existingDept = existingDepts.find(dept => dept.name === deptName);
+      
+      if (!existingDept) {
+        // Generate a department code from the name (lowercase, replace spaces with hyphens)
+        const code = deptName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+        
+        // Create new department document
+        await departmentsApi.create({
+          collegeId,
+          name: deptName,
+          code,
+          isActive: true,
+        });
+      }
+    });
+
+    await Promise.all(departmentPromises);
+
     return true;
   } catch (error) {
     console.error('Error saving academic config:', error);

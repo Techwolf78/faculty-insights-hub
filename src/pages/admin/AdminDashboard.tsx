@@ -8,11 +8,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   departmentsApi,
   facultyApi,
+  questionGroupsApi,
   feedbackSessionsApi,
   submissionsApi,
   resetDemoData,
@@ -21,19 +23,22 @@ import {
   FeedbackSession,
   FeedbackSubmission,
   College,
+  QuestionGroup,
   collegesApi,
 } from '@/lib/storage';
 import { SessionForm } from '@/components/admin/SessionForm';
 import DepartmentForm from '@/components/admin/DepartmentForm';
 import FacultyForm from '@/components/admin/FacultyForm';
 import QuestionForm from '@/components/admin/QuestionForm';
+import QuestionGroupForm from '@/components/admin/QuestionGroupForm';
 import FacultyReport from '@/components/admin/FacultyReport';
 import AcademicConfig from '@/components/admin/AcademicConfig';
 import { SessionTable } from '@/components/admin/SessionTable';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getAcademicConfig, AcademicConfigData } from '@/lib/academicConfig';
-import { BarChart3, RefreshCw, Building2, Calendar, Users, FileText, User, TrendingUp, MessageSquare, Plus, Edit, Download, Upload, Trash2, ClipboardCheck, GraduationCap } from 'lucide-react';
+import { BarChart3, RefreshCw, Building2, Calendar, Users, FileText, User, TrendingUp, MessageSquare, Plus, Edit, Download, Upload, Trash2, ClipboardCheck, GraduationCap, FileQuestion } from 'lucide-react';
 import { format, subDays, isAfter } from 'date-fns';
+import { toast } from 'sonner';
 import {
   ResponsiveContainer,
   BarChart,
@@ -60,6 +65,7 @@ const AdminDashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [faculty, setFaculty] = useState<Faculty[]>([]);
+  const [questionGroups, setQuestionGroups] = useState<QuestionGroup[]>([]);
   const [sessions, setSessions] = useState<FeedbackSession[]>([]);
   const [submissions, setSubmissions] = useState<FeedbackSubmission[]>([]);
   const [college, setCollege] = useState<College | null>(null);
@@ -72,9 +78,36 @@ const AdminDashboard = () => {
 
   // Faculty form state
   const [facultyFormOpen, setFacultyFormOpen] = useState(false);
+  const [editingFaculty, setEditingFaculty] = useState<Faculty | null>(null);
+  const [deletingFaculty, setDeletingFaculty] = useState<Faculty | null>(null);
+  const handleEditFaculty = (faculty: Faculty) => {
+    setEditingFaculty(faculty);
+    setFacultyFormOpen(true);
+  };
+
+  const handleFacultyFormClose = () => {
+    setFacultyFormOpen(false);
+    setEditingFaculty(null);
+  };
+
+  const handleDeleteFaculty = async (faculty: Faculty) => {
+    try {
+      await facultyApi.delete(faculty.id);
+      toast.success('Faculty member deleted successfully');
+      loadData(); // Refresh the data
+    } catch (error) {
+      console.error('Error deleting faculty:', error);
+      toast.error('Failed to delete faculty member');
+    } finally {
+      setDeletingFaculty(null);
+    }
+  };
 
   // Question form state
   const [questionFormOpen, setQuestionFormOpen] = useState(false);
+
+  // Question group form state
+  const [questionGroupFormOpen, setQuestionGroupFormOpen] = useState(false);
 
   // Faculty report state
   const [facultyReportOpen, setFacultyReportOpen] = useState(false);
@@ -110,7 +143,7 @@ const AdminDashboard = () => {
     if (!yearSubjects) return [];
 
     const departmentSubjects = yearSubjects[selectedDepartment as keyof typeof yearSubjects];
-    return departmentSubjects || [];
+    return Object.keys(departmentSubjects || {});
   }, [selectedCourse, selectedYear, selectedDepartment, subjectsData]);
 
   const batches = ['A', 'B', 'C', 'D'];
@@ -121,9 +154,10 @@ const AdminDashboard = () => {
   // Load data function
   const loadData = useCallback(async () => {
     try {
-      const [depts, fac, sess, subs, colleges, config] = await Promise.all([
+      const [depts, fac, qGroups, sess, subs, colleges, config] = await Promise.all([
         departmentsApi.getAll(),
         facultyApi.getAll(),
+        questionGroupsApi.getByCollege(user!.collegeId!),
         feedbackSessionsApi.getAll(),
         submissionsApi.getAll(),
         collegesApi.getAll(),
@@ -132,6 +166,7 @@ const AdminDashboard = () => {
 
       setDepartments(depts);
       setFaculty(fac);
+      setQuestionGroups(qGroups);
       setSessions(sess);
       setSubmissions(subs);
       setCourseData(config.courseData);
@@ -157,15 +192,21 @@ const AdminDashboard = () => {
   const filteredData = useMemo(() => {
     let filteredSubs = submissions;
     let filteredFac = faculty;
-    let filteredDepts = departments;
+    const filteredDepts = departments;
 
     // Filter by course/program
     if (selectedCourse !== 'all') {
-      // For now, we'll filter based on faculty department names that match course departments
-      const courseDepts = courseData[selectedCourse as keyof typeof courseData]?.departments || [];
-      filteredDepts = departments.filter(dept => courseDepts.includes(dept.name));
-      filteredFac = faculty.filter(f => filteredDepts.some(d => d.id === f.departmentId));
-      filteredSubs = submissions.filter(sub => filteredFac.some(f => f.id === sub.facultyId));
+      // Get all department names for the selected course
+      const courseInfo = courseData[selectedCourse as keyof typeof courseData];
+      if (courseInfo) {
+        const allCourseDepts = new Set<string>();
+        Object.values(courseInfo.yearDepartments).forEach(deptList => {
+          deptList.forEach(dept => allCourseDepts.add(dept));
+        });
+        // Filter faculty based on department names matching course departments
+        filteredFac = faculty.filter(f => f.departmentId && allCourseDepts.has(f.departmentId));
+        filteredSubs = submissions.filter(sub => filteredFac.some(f => f.id === sub.facultyId));
+      }
     }
 
     // Filter by year (this would require additional data structure in submissions)
@@ -173,8 +214,7 @@ const AdminDashboard = () => {
 
     // Filter by department
     if (selectedDepartment !== 'all') {
-      filteredDepts = filteredDepts.filter(dept => dept.name === selectedDepartment);
-      filteredFac = filteredFac.filter(f => filteredDepts.some(d => d.id === f.departmentId));
+      filteredFac = filteredFac.filter(f => f.departmentId === selectedDepartment);
       filteredSubs = filteredSubs.filter(sub => filteredFac.some(f => f.id === sub.facultyId));
     }
 
@@ -465,14 +505,14 @@ const AdminDashboard = () => {
                     <Select
                       value={selectedDepartment}
                       onValueChange={setSelectedDepartment}
-                      disabled={selectedCourse === 'all'}
+                      disabled={selectedCourse === 'all' || selectedYear === 'all'}
                     >
-                      <SelectTrigger id="department-select" className={`bg-background/80 backdrop-blur-sm ${selectedCourse === 'all' ? 'opacity-50' : 'border-primary/20 focus:border-primary'}`}>
+                      <SelectTrigger id="department-select" className={`bg-background/80 backdrop-blur-sm ${selectedCourse === 'all' || selectedYear === 'all' ? 'opacity-50' : 'border-primary/20 focus:border-primary'}`}>
                         <SelectValue placeholder="Select Department" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Departments</SelectItem>
-                        {selectedCourse !== 'all' && courseData[selectedCourse as keyof typeof courseData]?.departments.map(dept => (
+                        {selectedCourse !== 'all' && selectedYear !== 'all' && courseData[selectedCourse as keyof typeof courseData]?.yearDepartments?.[selectedYear]?.map(dept => (
                           <SelectItem key={dept} value={dept}>{dept}</SelectItem>
                         ))}
                       </SelectContent>
@@ -967,15 +1007,39 @@ const AdminDashboard = () => {
                           <h4 className="font-medium text-foreground">{member.name}</h4>
                           <p className="text-sm text-muted-foreground">{member.email}</p>
                           <p className="text-xs text-muted-foreground">
-                            {departments.find(d => d.id === member.departmentId)?.name || 'Unknown Department'}
+                            {member.departmentId || 'Unknown Department'}
                           </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant="secondary">Active</Badge>
-                        <Button variant="ghost" size="sm">
+                        <Button variant="ghost" size="sm" onClick={() => handleEditFaculty(member)}>
                           <Edit className="h-4 w-4" />
                         </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Faculty Member</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to delete {member.name}? This action cannot be undone and will remove all associated feedback data.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDeleteFaculty(member)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </div>
                   ))}
@@ -1061,16 +1125,81 @@ const AdminDashboard = () => {
                   </Button>
                 </div>
 
-                <div className="text-center py-12">
-                  <GraduationCap className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                  <h4 className="text-lg font-medium text-foreground mb-2">Academic Structure Management</h4>
-                  <p className="text-muted-foreground mb-4">
-                    Configure courses, years, departments, subjects, and batches for your institution.
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Click "Configure Structure" to build and manage the academic hierarchy.
-                  </p>
-                </div>
+                {/* Conditional Display: Placeholder or Current Structure */}
+                {Object.keys(courseData).length === 0 ? (
+                  <div className="text-center py-12">
+                    <GraduationCap className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                    <h4 className="text-lg font-medium text-foreground mb-2">Academic Structure Management</h4>
+                    <p className="text-muted-foreground mb-4">
+                      Configure courses, years, departments, subjects, and batches for your institution.
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Click "Configure Structure" to build and manage the academic hierarchy.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="mt-8">
+                    <h4 className="text-lg font-medium text-foreground mb-4">Current Academic Structure</h4>
+                    <div className="space-y-4">
+                      {Object.entries(courseData).map(([courseName, courseInfo]) => (
+                        <div key={courseName} className="border border-border rounded-lg p-4">
+                          <div className="flex items-center gap-2 mb-3">
+                            <GraduationCap className="h-5 w-5 text-primary" />
+                            <h5 className="font-medium text-foreground">{courseName}</h5>
+                          </div>
+                          <div className="ml-7 space-y-3">
+                            {courseInfo.years.map((yearName) => (
+                              <div key={yearName} className="border-l-2 border-primary/20 pl-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Calendar className="h-4 w-4 text-green-600" />
+                                  <span className="font-medium text-green-700">{yearName}</span>
+                                </div>
+                                <div className="ml-6 space-y-2">
+                                  {(courseInfo.yearDepartments?.[yearName] || []).map((deptName) => (
+                                    <div key={deptName} className="border-l-2 border-green-200 pl-4">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <Building2 className="h-4 w-4 text-blue-600" />
+                                        <span className="font-medium text-blue-700">{deptName}</span>
+                                      </div>
+                                      <div className="ml-6 space-y-1">
+                                        {/* Subjects */}
+                                        {subjectsData[courseName]?.[yearName]?.[deptName] && Object.keys(subjectsData[courseName][yearName][deptName]).length > 0 && (
+                                          <div>
+                                            <span className="text-xs font-medium text-muted-foreground mr-2">Subjects:</span>
+                                            <div className="flex flex-wrap gap-1 mt-1">
+                                              {Object.entries(subjectsData[courseName][yearName][deptName]).map(([subject, batches]) => (
+                                                <div key={subject} className="flex flex-col gap-1">
+                                                  <Badge variant="outline" className="text-xs">
+                                                    <FileText className="h-3 w-3 mr-1" />
+                                                    {subject}
+                                                  </Badge>
+                                                  {batches && batches.length > 0 && (
+                                                    <div className="flex flex-wrap gap-1 ml-2">
+                                                      {batches.map((batch) => (
+                                                        <Badge key={batch} variant="secondary" className="text-xs">
+                                                          <Users className="h-3 w-3 mr-1" />
+                                                          {batch}
+                                                        </Badge>
+                                                      ))}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1080,42 +1209,58 @@ const AdminDashboard = () => {
           <div className="min-h-screen">
             <DashboardHeader
               title="Question Bank"
-              subtitle="Manage feedback questions"
+              subtitle="Manage feedback question groups"
               college={college}
             />
 
             <div className="p-6">
               <div className="glass-card rounded-xl p-6">
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="font-display text-lg font-semibold text-foreground">Questions</h3>
-                  <Button className="bg-primary hover:bg-primary/90" onClick={() => setQuestionFormOpen(true)}>
+                  <h3 className="font-display text-lg font-semibold text-foreground">Question Groups</h3>
+                  <Button className="bg-primary hover:bg-primary/90" onClick={() => setQuestionGroupFormOpen(true)}>
                     <Plus className="h-4 w-4 mr-2" />
-                    Add Question
+                    Create Question Group
                   </Button>
                 </div>
 
                 <div className="space-y-4">
-                  <div className="p-4 border border-border rounded-lg">
-                    <h4 className="font-medium text-foreground mb-2">Teaching Effectiveness</h4>
-                    <p className="text-sm text-muted-foreground mb-2">
-                      How would you rate the instructor&apos;s teaching effectiveness?
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary">Rating Scale</Badge>
-                      <Badge variant="outline">Active</Badge>
+                  {questionGroups.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <FileQuestion className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>No question groups created yet.</p>
+                      <p className="text-sm">Create your first question group to get started.</p>
                     </div>
-                  </div>
-
-                  <div className="p-4 border border-border rounded-lg">
-                    <h4 className="font-medium text-foreground mb-2">Course Content</h4>
-                    <p className="text-sm text-muted-foreground mb-2">
-                      How relevant and useful was the course content?
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary">Rating Scale</Badge>
-                      <Badge variant="outline">Active</Badge>
-                    </div>
-                  </div>
+                  ) : (
+                    questionGroups.map((group) => (
+                      <div key={group.id} className="p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-medium text-foreground">{group.name}</h4>
+                          <div className="flex items-center gap-2">
+                            <Badge variant={group.isActive ? "default" : "secondary"}>
+                              {group.isActive ? "Active" : "Inactive"}
+                            </Badge>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                // TODO: Navigate to questions in this group
+                                toast.info(`View questions in "${group.name}" group`);
+                              }}
+                            >
+                              <FileQuestion className="h-4 w-4 mr-1" />
+                              View Questions
+                            </Button>
+                          </div>
+                        </div>
+                        {group.description && (
+                          <p className="text-sm text-muted-foreground mb-2">{group.description}</p>
+                        )}
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                          <span>Created: {format(new Date(group.createdAt.toDate()), 'MMM d, yyyy')}</span>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </div>
@@ -1274,12 +1419,18 @@ const AdminDashboard = () => {
       />
       <FacultyForm
         open={facultyFormOpen}
-        onOpenChange={setFacultyFormOpen}
+        onOpenChange={handleFacultyFormClose}
         onSuccess={loadData}
+        editingFaculty={editingFaculty}
       />
       <QuestionForm
         open={questionFormOpen}
         onOpenChange={setQuestionFormOpen}
+        onSuccess={loadData}
+      />
+      <QuestionGroupForm
+        open={questionGroupFormOpen}
+        onOpenChange={setQuestionGroupFormOpen}
         onSuccess={loadData}
       />
       <FacultyReport

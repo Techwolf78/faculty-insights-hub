@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
-import { questionsApi } from '@/lib/storage';
+import { questionsApi, questionGroupsApi, QuestionGroup } from '@/lib/storage';
 import { toast } from 'sonner';
 
 interface QuestionFormProps {
@@ -18,7 +18,9 @@ interface QuestionFormProps {
 const QuestionForm: React.FC<QuestionFormProps> = ({ open, onOpenChange, onSuccess }) => {
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [questionGroups, setQuestionGroups] = useState<QuestionGroup[]>([]);
   const [formData, setFormData] = useState({
+    groupId: '',
     category: '',
     text: '',
     responseType: 'rating' as 'rating' | 'text' | 'both' | 'select' | 'boolean',
@@ -27,10 +29,16 @@ const QuestionForm: React.FC<QuestionFormProps> = ({ open, onOpenChange, onSucce
     options: '',
   });
 
+  useEffect(() => {
+    if (open && user?.collegeId) {
+      questionGroupsApi.getByCollege(user.collegeId).then(setQuestionGroups).catch(console.error);
+    }
+  }, [open, user?.collegeId]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.category.trim() || !formData.text.trim()) {
+    if (!formData.groupId || !formData.category.trim() || !formData.text.trim()) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -53,6 +61,7 @@ const QuestionForm: React.FC<QuestionFormProps> = ({ open, onOpenChange, onSucce
 
       await questionsApi.create({
         collegeId: user.collegeId,
+        groupId: formData.groupId,
         category: formData.category.trim(),
         text: formData.text.trim(),
         responseType: formData.responseType,
@@ -63,6 +72,7 @@ const QuestionForm: React.FC<QuestionFormProps> = ({ open, onOpenChange, onSucce
 
       toast.success('Question added successfully');
       setFormData({
+        groupId: '',
         category: '',
         text: '',
         responseType: 'rating',
@@ -82,6 +92,7 @@ const QuestionForm: React.FC<QuestionFormProps> = ({ open, onOpenChange, onSucce
 
   const handleClose = () => {
     setFormData({
+      groupId: '',
       category: '',
       text: '',
       responseType: 'rating',
@@ -103,6 +114,26 @@ const QuestionForm: React.FC<QuestionFormProps> = ({ open, onOpenChange, onSucce
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="groupId" className="text-right">
+                Question Group *
+              </Label>
+              <Select 
+                value={formData.groupId} 
+                onValueChange={(value) => setFormData(prev => ({ ...prev, groupId: value }))}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select question group" />
+                </SelectTrigger>
+                <SelectContent>
+                  {questionGroups.map((group) => (
+                    <SelectItem key={group.id} value={group.id}>
+                      {group.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="category" className="text-right">
                 Category *

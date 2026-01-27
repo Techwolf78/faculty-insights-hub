@@ -38,7 +38,7 @@ export const AnonymousFeedback: React.FC = () => {
   const [responses, setResponses] = useState<FeedbackResponse[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Group questions by category
+  // Group questions by category and sort within categories
   const groupedQuestions = questions.reduce((acc, q) => {
     if (!acc[q.category]) {
       acc[q.category] = [];
@@ -47,7 +47,17 @@ export const AnonymousFeedback: React.FC = () => {
     return acc;
   }, {} as Record<string, Question[]>);
 
-  const categories = Object.keys(groupedQuestions);
+  // Sort questions within each category by order
+  Object.keys(groupedQuestions).forEach(category => {
+    groupedQuestions[category].sort((a, b) => a.order - b.order);
+  });
+
+  // Sort categories by the minimum order of questions in each category
+  const categories = Object.keys(groupedQuestions).sort((a, b) => {
+    const minOrderA = Math.min(...groupedQuestions[a].map(q => q.order));
+    const minOrderB = Math.min(...groupedQuestions[b].map(q => q.order));
+    return minOrderA - minOrderB;
+  });
 
   // Auto-save every 30 seconds
   useEffect(() => {
@@ -117,6 +127,9 @@ export const AnonymousFeedback: React.FC = () => {
           questionsApi.getByCollege(session.collegeId),
         ]);
 
+        // Sort questions by order field
+        const sortedQuestions = qs.sort((a, b) => a.order - b.order);
+
         const facultyMember = allFaculty.find(f => f.id === session.facultyId);
 
         if (!facultyMember) {
@@ -127,8 +140,8 @@ export const AnonymousFeedback: React.FC = () => {
 
         setValidatedSession(session);
         setFaculty(facultyMember);
-        setQuestions(qs);
-        setResponses(qs.map(q => ({ questionId: q.id })));
+        setQuestions(sortedQuestions);
+        setResponses(sortedQuestions.map(q => ({ questionId: q.id, questionCategory: q.category })));
         setStep('feedback');
       } catch (error) {
         setSessionError('An error occurred while loading the session. Please try again later.');
@@ -186,11 +199,25 @@ export const AnonymousFeedback: React.FC = () => {
     setIsSubmitting(true);
 
     try {
+      // Clean responses by removing undefined values
+      const cleanResponses = responses
+        .filter(r => r.rating !== undefined || r.selectValue || r.booleanValue !== undefined || (r.comment && r.comment.trim()))
+        .map(r => {
+          const cleanResponse: any = { questionId: r.questionId };
+          if (r.rating !== undefined) cleanResponse.rating = r.rating;
+          if (r.comment && r.comment.trim()) cleanResponse.comment = r.comment.trim();
+          if (r.selectValue && r.selectValue.trim()) cleanResponse.selectValue = r.selectValue.trim();
+          if (r.booleanValue !== undefined) cleanResponse.booleanValue = r.booleanValue;
+          if (r.questionCategory) cleanResponse.questionCategory = r.questionCategory;
+          return cleanResponse;
+        });
+
       await submissionsApi.create({
         sessionId: validatedSession.id,
         facultyId: faculty.id,
         collegeId: validatedSession.collegeId,
-        responses: responses.filter(r => r.rating !== undefined || r.selectValue || r.booleanValue !== undefined),
+        departmentId: validatedSession.departmentId,
+        responses: cleanResponses,
       });
 
       localStorage.removeItem('ffs_draft_feedback');

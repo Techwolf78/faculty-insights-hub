@@ -29,9 +29,15 @@ const adminLinks: SidebarLink[] = [
   { to: '/admin/sessions', icon: RefreshCw, label: 'Feedback Sessions' },
   { to: '/admin/departments', icon: GraduationCap, label: 'Academic Config' },
   { to: '/admin/faculty', icon: Users, label: 'Faculty' },
-  { to: '/admin/questions', icon: FileQuestion, label: 'Question Bank' },
   { to: '/admin/reports', icon: BarChart3, label: 'Reports' },
   { to: '/admin/settings', icon: Settings, label: 'Settings' },
+];
+
+const superAdminLinks: SidebarLink[] = [
+  { to: '/super-admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/super-admin/questions', icon: FileQuestion, label: 'Question Bank' },
+  { to: '/super-admin/colleges', icon: Building2, label: 'Colleges' },
+  { to: '/super-admin/settings', icon: Settings, label: 'Settings' },
 ];
 
 const hodLinks: SidebarLink[] = [
@@ -70,6 +76,8 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
 
   const getLinks = (): SidebarLink[] => {
     switch (user?.role) {
+      case 'superAdmin':
+        return superAdminLinks;
       case 'admin':
         return adminLinks;
       case 'hod':
@@ -83,6 +91,8 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
 
   const getRoleIcon = () => {
     switch (user?.role) {
+      case 'superAdmin':
+        return Building2;
       case 'admin':
         return GraduationCap;
       case 'hod':
@@ -96,6 +106,8 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
 
   const getRoleLabel = () => {
     switch (user?.role) {
+      case 'superAdmin':
+        return 'Super Admin';
       case 'admin':
         return 'College Admin';
       case 'hod':

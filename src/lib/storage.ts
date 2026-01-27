@@ -94,6 +94,8 @@ export interface Faculty {
   researchInterests: string[];
   publications: number;
   achievements: string[];
+  course: string;
+  academicYear: string;
   stats: {
     totalSessions: number;
     totalSubmissions: number;
@@ -110,6 +112,7 @@ export interface FeedbackSession {
   collegeId: string;
   departmentId: string;
   facultyId: string;
+  questionGroupId: string;
   course: string;
   academicYear: string;
   subject: string;
@@ -132,9 +135,20 @@ export interface FeedbackSession {
   updatedAt: Timestamp;
 }
 
+export interface QuestionGroup {
+  id: string;
+  collegeId: string;
+  name: string;
+  description?: string;
+  isActive: boolean;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
 export interface Question {
   id: string;
   collegeId: string;
+  groupId: string;
   category: string;
   text: string;
   helpText?: string;
@@ -209,10 +223,10 @@ export interface AcademicConfig {
   collegeId: string;
   courseData: Record<string, {
     years: string[];
-    departments: string[];
+    yearDepartments: Record<string, string[]>;
     semesters?: string[];
   }>;
-  subjectsData: Record<string, Record<string, Record<string, string[]>>>;
+  subjectsData: Record<string, Record<string, Record<string, Record<string, string[]>>>>;
   batches: string[];
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -529,6 +543,15 @@ export const facultyApi = {
       });
     }
   },
+
+  delete: async (id: string): Promise<void> => {
+    const faculty = await facultyApi.getById(id);
+    if (faculty) {
+      // Decrement department faculty count before deleting
+      await departmentsApi.incrementFacultyCount(faculty.departmentId, -1);
+    }
+    await deleteDoc(doc(db, 'faculty', id));
+  },
 };
 
 // ============================================================================
@@ -625,7 +648,7 @@ export const feedbackSessionsApi = {
     
     // Increment faculty session count
     await facultyApi.updateStats(session.facultyId, {
-      totalSessions: (await facultyApi.getById(session.facultyId))?.stats.totalSessions ?? 0 + 1,
+      totalSessions: ((await facultyApi.getById(session.facultyId))?.stats?.totalSessions ?? 0) + 1,
     });
     
     return { id: docRef.id, ...sessionData };
@@ -680,77 +703,6 @@ export const feedbackSessionsApi = {
     const q = query(collection(db, 'feedbackSessions'), where('subject', '==', subject));
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FeedbackSession));
-  },
-};
-
-// ============================================================================
-// QUESTIONS API
-// ============================================================================
-
-export const questionsApi = {
-  getAll: async (): Promise<Question[]> => {
-    const querySnapshot = await getDocs(collection(db, 'questions'));
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Question));
-  },
-
-  getById: async (id: string): Promise<Question | null> => {
-    const docSnap = await getDoc(doc(db, 'questions', id));
-    if (docSnap.exists()) {
-      return { id: docSnap.id, ...docSnap.data() } as Question;
-    }
-    return null;
-  },
-
-  getByCollege: async (collegeId: string): Promise<Question[]> => {
-    const q = query(
-      collection(db, 'questions'),
-      where('collegeId', '==', collegeId),
-      orderBy('categoryOrder'),
-      orderBy('order')
-    );
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Question));
-  },
-
-  getActiveByCollege: async (collegeId: string): Promise<Question[]> => {
-    const q = query(
-      collection(db, 'questions'),
-      where('collegeId', '==', collegeId),
-      where('isActive', '==', true),
-      orderBy('categoryOrder'),
-      orderBy('order')
-    );
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Question));
-  },
-
-  create: async (question: Omit<Question, 'id' | 'createdAt' | 'updatedAt'>): Promise<Question> => {
-    const now = Timestamp.now();
-    const docRef = await addDoc(collection(db, 'questions'), {
-      ...question,
-      createdAt: now,
-      updatedAt: now,
-    });
-    return { id: docRef.id, ...question, createdAt: now, updatedAt: now };
-  },
-
-  update: async (id: string, updates: Partial<Omit<Question, 'id' | 'createdAt'>>): Promise<Question | null> => {
-    const docRef = doc(db, 'questions', id);
-    await updateDoc(docRef, { ...updates, updatedAt: Timestamp.now() });
-    const updatedDoc = await getDoc(docRef);
-    if (updatedDoc.exists()) {
-      return { id: updatedDoc.id, ...updatedDoc.data() } as Question;
-    }
-    return null;
-  },
-
-  delete: async (id: string): Promise<boolean> => {
-    try {
-      await deleteDoc(doc(db, 'questions', id));
-      return true;
-    } catch {
-      return false;
-    }
   },
 };
 
@@ -856,13 +808,19 @@ export const submissionsApi = {
     
     // Use transaction to update stats atomically
     const docRef = await runTransaction(db, async (transaction) => {
+      // First, read all documents we need to update
+      const sessionRef = doc(db, 'feedbackSessions', submission.sessionId);
+      const sessionDoc = await transaction.get(sessionRef);
+      
+      const facultyRef = doc(db, 'faculty', submission.facultyId);
+      const facultyDoc = await transaction.get(facultyRef);
+      
+      // Now perform all writes
       // Create submission
       const subRef = doc(collection(db, 'feedbackSubmissions'));
       transaction.set(subRef, submissionData);
       
       // Update session stats
-      const sessionRef = doc(db, 'feedbackSessions', submission.sessionId);
-      const sessionDoc = await transaction.get(sessionRef);
       if (sessionDoc.exists()) {
         const sessionData = sessionDoc.data() as FeedbackSession;
         const newCount = (sessionData.stats?.submissionCount || 0) + 1;
@@ -878,8 +836,6 @@ export const submissionsApi = {
       }
       
       // Update faculty stats
-      const facultyRef = doc(db, 'faculty', submission.facultyId);
-      const facultyDoc = await transaction.get(facultyRef);
       if (facultyDoc.exists()) {
         const facultyData = facultyDoc.data() as Faculty;
         const newCount = (facultyData.stats?.totalSubmissions || 0) + 1;
@@ -923,10 +879,16 @@ async function updateFeedbackStats(
   
   const statsUpdates = [
     { type: 'college', entityId: collegeId, collegeId },
-    { type: 'department', entityId: departmentId, collegeId, departmentId },
-    { type: 'faculty', entityId: facultyId, collegeId, departmentId, facultyId },
-    { type: 'session', entityId: sessionId, collegeId, departmentId, facultyId },
   ];
+  
+  // Only add department-dependent stats if departmentId is valid
+  if (departmentId) {
+    statsUpdates.push(
+      { type: 'department', entityId: departmentId, collegeId, departmentId },
+      { type: 'faculty', entityId: facultyId, collegeId, departmentId, facultyId },
+      { type: 'session', entityId: sessionId, collegeId, departmentId, facultyId }
+    );
+  }
   
   const batch = writeBatch(db);
   
@@ -1152,8 +1114,189 @@ export const academicConfigApi = {
 };
 
 // ============================================================================
-// ACCESS CODES API
+// QUESTION GROUPS API
 // ============================================================================
+
+export const questionGroupsApi = {
+  getAll: async (): Promise<QuestionGroup[]> => {
+    const querySnapshot = await getDocs(collection(db, 'questionGroups'));
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as QuestionGroup));
+  },
+
+  getById: async (id: string): Promise<QuestionGroup | null> => {
+    const docSnap = await getDoc(doc(db, 'questionGroups', id));
+    if (docSnap.exists()) {
+      return { id: docSnap.id, ...docSnap.data() } as QuestionGroup;
+    }
+    return null;
+  },
+
+  getByCollege: async (collegeId: string): Promise<QuestionGroup[]> => {
+    const q = query(collection(db, 'questionGroups'), where('collegeId', '==', collegeId));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as QuestionGroup));
+  },
+
+  create: async (group: Omit<QuestionGroup, 'id' | 'createdAt' | 'updatedAt'>): Promise<QuestionGroup> => {
+    const now = Timestamp.now();
+    
+    // Filter out undefined values to prevent Firestore errors
+    const cleanGroup: any = {};
+    Object.entries(group).forEach(([key, value]) => {
+      if (value !== undefined) {
+        cleanGroup[key] = value;
+      }
+    });
+    
+    const docRef = await addDoc(collection(db, 'questionGroups'), {
+      ...cleanGroup,
+      createdAt: now,
+      updatedAt: now,
+    });
+    return { id: docRef.id, ...group, createdAt: now, updatedAt: now };
+  },
+
+  update: async (id: string, updates: Partial<Omit<QuestionGroup, 'id' | 'createdAt'>>): Promise<QuestionGroup | null> => {
+    const docRef = doc(db, 'questionGroups', id);
+    
+    // Filter out undefined values to prevent Firestore errors
+    const cleanUpdates: any = { updatedAt: Timestamp.now() };
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value !== undefined) {
+        cleanUpdates[key] = value;
+      }
+    });
+    
+    await updateDoc(docRef, cleanUpdates);
+    const updatedDoc = await getDoc(docRef);
+    if (updatedDoc.exists()) {
+      return { id: updatedDoc.id, ...updatedDoc.data() } as QuestionGroup;
+    }
+    return null;
+  },
+
+  delete: async (id: string): Promise<void> => {
+    await deleteDoc(doc(db, 'questionGroups', id));
+  },
+
+  cloneToCollege: async (groupId: string, targetCollegeId: string): Promise<QuestionGroup> => {
+    // Get the original group
+    const originalGroup = await questionGroupsApi.getById(groupId);
+    if (!originalGroup) {
+      throw new Error('Question group not found');
+    }
+
+    // Create new group for target college
+    const newGroup = await questionGroupsApi.create({
+      collegeId: targetCollegeId,
+      name: originalGroup.name,
+      description: originalGroup.description || undefined,
+      isActive: true,
+    });
+
+    // Get all questions from the original group
+    const originalQuestions = await questionsApi.getByGroup(groupId);
+
+    // Clone each question to the new group
+    for (const question of originalQuestions) {
+      await questionsApi.create({
+        collegeId: targetCollegeId,
+        groupId: newGroup.id,
+        category: question.category,
+        text: question.text,
+        helpText: question.helpText,
+        responseType: question.responseType,
+        options: question.options,
+        required: question.required,
+        minLength: question.minLength,
+        maxLength: question.maxLength,
+        order: question.order,
+        categoryOrder: question.categoryOrder,
+        isActive: true,
+      });
+    }
+
+    return newGroup;
+  },
+};
+
+// ============================================================================
+// QUESTIONS API
+// ============================================================================
+
+export const questionsApi = {
+  getAll: async (): Promise<Question[]> => {
+    const querySnapshot = await getDocs(collection(db, 'questions'));
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Question));
+  },
+
+  getById: async (id: string): Promise<Question | null> => {
+    const docSnap = await getDoc(doc(db, 'questions', id));
+    if (docSnap.exists()) {
+      return { id: docSnap.id, ...docSnap.data() } as Question;
+    }
+    return null;
+  },
+
+  getByCollege: async (collegeId: string): Promise<Question[]> => {
+    const q = query(collection(db, 'questions'), where('collegeId', '==', collegeId));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Question));
+  },
+
+  getByGroup: async (groupId: string): Promise<Question[]> => {
+    const q = query(
+      collection(db, 'questions'), 
+      where('groupId', '==', groupId),
+      where('isActive', '==', true),
+      orderBy('order', 'asc')
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Question));
+  },
+
+  create: async (question: Omit<Question, 'id' | 'createdAt' | 'updatedAt'>): Promise<Question> => {
+    const now = Timestamp.now();
+    
+    // Filter out undefined values to prevent Firestore errors
+    const cleanQuestion: any = {};
+    Object.entries(question).forEach(([key, value]) => {
+      if (value !== undefined) {
+        cleanQuestion[key] = value;
+      }
+    });
+    
+    const docRef = await addDoc(collection(db, 'questions'), {
+      ...cleanQuestion,
+      createdAt: now,
+      updatedAt: now,
+    });
+    return { id: docRef.id, ...question, createdAt: now, updatedAt: now };
+  },
+
+  update: async (id: string, updates: Partial<Omit<Question, 'id' | 'createdAt'>>): Promise<Question | null> => {
+    const docRef = doc(db, 'questions', id);
+    
+    // Filter out undefined values to prevent Firestore errors
+    const cleanUpdates: any = { updatedAt: Timestamp.now() };
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value !== undefined) {
+        cleanUpdates[key] = value;
+      }
+    });
+    
+    await updateDoc(docRef, cleanUpdates);
+    const updatedDoc = await getDoc(docRef);
+    if (updatedDoc.exists()) {
+      return { id: updatedDoc.id, ...updatedDoc.data() } as Question;
+    }
+    return null;
+  },
+
+  delete: async (id: string): Promise<void> => {
+    await deleteDoc(doc(db, 'questions', id));
+  },
+};
 
 export const accessCodesApi = {
   getAll: async (): Promise<AccessCode[]> => {

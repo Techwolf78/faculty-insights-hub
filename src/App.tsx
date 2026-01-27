@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 
@@ -40,10 +40,16 @@ const App = () => {
             <Route path="/feedback/anonymous/:sessionId" element={<AnonymousFeedback />} />
             <Route path="/seed-data" element={<SeedData />} />
 
-            {/* Super Admin Route (hidden) */}
-            <Route path="/super-admin" element={<SuperAdminDashboard />} />
+            {/* Super Admin Routes */}
+            <Route path="/super-admin" element={<Navigate to="/super-admin/dashboard" replace />} />
+            <Route path="/super-admin/dashboard" element={<SuperAdminDashboard />} />
+            <Route path="/super-admin/colleges" element={<SuperAdminDashboard />} />
+            <Route path="/super-admin/admins" element={<SuperAdminDashboard />} />
+            <Route path="/super-admin/sessions" element={<SuperAdminDashboard />} />
+            <Route path="/super-admin/question-bank" element={<SuperAdminDashboard />} />
 
             {/* Admin Routes */}
+            <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
             <Route element={<DashboardLayout allowedRoles={['admin']} />}>
               <Route path="/admin/dashboard" element={<AdminDashboard />} />
               <Route path="/admin/sessions" element={<AdminDashboard />} />
