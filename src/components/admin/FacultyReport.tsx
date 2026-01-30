@@ -7,29 +7,27 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import { useAuth } from '@/contexts/AuthContext';
+import { useQueryClient } from '@tanstack/react-query';
+import { useFacultyMemberStats } from '@/hooks/useCollegeData';
 import { facultyApi, submissionsApi, questionsApi, Faculty, FeedbackSubmission, Question } from '@/lib/storage';
 import { format } from 'date-fns';
 import { Star, Users, MessageSquare, TrendingUp, Download } from 'lucide-react';
+import { FacultyExcelReport } from '@/components/reports/FacultyExcelReport';
 
 interface FacultyReportProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-interface FacultyStats {
-  totalResponses: number;
-  averageRating: number;
-  ratingDistribution: { [key: number]: number };
-  questionAverages: { [questionId: string]: { average: number; count: number; question: Question } };
-  recentComments: { comment: string; date: Date; sessionName?: string }[];
-}
-
 const FacultyReport: React.FC<FacultyReportProps> = ({ open, onOpenChange }) => {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [faculty, setFaculty] = useState<Faculty[]>([]);
   const [selectedFacultyId, setSelectedFacultyId] = useState<string>('');
-  const [stats, setStats] = useState<FacultyStats | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Use pre-computed stats
+  const { data: facultyStats } = useFacultyMemberStats(selectedFacultyId);
 
   useEffect(() => {
     if (open && user?.collegeId) {
@@ -37,93 +35,12 @@ const FacultyReport: React.FC<FacultyReportProps> = ({ open, onOpenChange }) => 
     }
   }, [open, user?.collegeId]);
 
-  useEffect(() => {
-    if (selectedFacultyId) {
-      generateReport();
-    }
-  }, [selectedFacultyId]);
-
   const loadFaculty = async () => {
     try {
       const fac = await facultyApi.getByCollege(user!.collegeId!);
       setFaculty(fac);
     } catch (error) {
       console.error('Error loading faculty:', error);
-    }
-  };
-
-  const generateReport = async () => {
-    if (!selectedFacultyId) return;
-
-    setIsLoading(true);
-    try {
-      // Get submissions for this faculty
-      const submissions = await submissionsApi.getByFaculty(selectedFacultyId);
-
-      // Get all questions
-      const questions = await questionsApi.getByCollege(user!.collegeId!);
-      const questionMap = new Map(questions.map(q => [q.id, q]));
-
-      // Calculate stats
-      const ratingDistribution: { [key: number]: number } = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-      const questionAverages: { [questionId: string]: { average: number; count: number; question: Question } } = {};
-      const recentComments: { comment: string; date: Date; sessionName?: string }[] = [];
-
-      let totalRating = 0;
-      let totalResponses = 0;
-
-      submissions.forEach(submission => {
-        submission.responses.forEach(response => {
-          const question = questionMap.get(response.questionId);
-          if (!question) return;
-
-          // Handle ratings
-          if (response.rating !== undefined) {
-            totalRating += response.rating;
-            totalResponses++;
-
-            if (ratingDistribution[response.rating] !== undefined) {
-              ratingDistribution[response.rating]++;
-            }
-
-            // Track question averages
-            if (!questionAverages[response.questionId]) {
-              questionAverages[response.questionId] = { average: 0, count: 0, question };
-            }
-            questionAverages[response.questionId].average += response.rating;
-            questionAverages[response.questionId].count++;
-          }
-
-          // Collect comments
-          if (response.comment && response.comment.trim()) {
-            recentComments.push({
-              comment: response.comment,
-              date: submission.submittedAt.toDate(),
-            });
-          }
-        });
-      });
-
-      // Calculate averages
-      Object.keys(questionAverages).forEach(questionId => {
-        const qa = questionAverages[questionId];
-        qa.average = qa.count > 0 ? qa.average / qa.count : 0;
-      });
-
-      // Sort comments by date (most recent first)
-      recentComments.sort((a, b) => b.date.getTime() - a.date.getTime());
-
-      setStats({
-        totalResponses,
-        averageRating: totalResponses > 0 ? totalRating / totalResponses : 0,
-        ratingDistribution,
-        questionAverages,
-        recentComments: recentComments.slice(0, 10), // Show last 10 comments
-      });
-    } catch (error) {
-      console.error('Error generating report:', error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -159,17 +76,20 @@ const FacultyReport: React.FC<FacultyReportProps> = ({ open, onOpenChange }) => 
                 <SelectContent>
                   {faculty.map((member) => (
                     <SelectItem key={member.id} value={member.id}>
-                      {member.name} - {member.designation}
+                      {member.name}{member.designation ? ` - ${member.designation}` : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            {stats && (
-              <Button variant="outline" size="sm">
-                <Download className="h-4 w-4 mr-2" />
-                Export PDF
-              </Button>
+            {facultyStats && selectedFaculty && (
+              <FacultyExcelReport
+                facultyId={selectedFacultyId}
+                facultyName={selectedFaculty.name}
+                stats={facultyStats}
+                comments={facultyStats.recentComments}
+                loading={isLoading}
+              />
             )}
           </div>
 
@@ -180,15 +100,23 @@ const FacultyReport: React.FC<FacultyReportProps> = ({ open, onOpenChange }) => 
             </div>
           )}
 
-          {stats && selectedFaculty && (
+          {facultyStats && selectedFaculty && (
             <>
               {/* Faculty Info */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="h-5 w-5" />
-                    {selectedFaculty.name}
-                  </CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <Users className="h-5 w-5" />
+                      {selectedFaculty.name}
+                    </CardTitle>
+                    <FacultyExcelReport
+                      facultyId={selectedFacultyId}
+                      facultyName={selectedFaculty.name}
+                      stats={facultyStats}
+                      comments={facultyStats?.recentComments || []}
+                    />
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -219,12 +147,12 @@ const FacultyReport: React.FC<FacultyReportProps> = ({ open, onOpenChange }) => 
                     <div className="flex items-center gap-2">
                       <TrendingUp className="h-4 w-4 text-primary" />
                       <div>
-                        <p className="text-2xl font-bold">{stats.averageRating.toFixed(1)}</p>
+                        <p className="text-2xl font-bold">{facultyStats.averageRating.toFixed(1)}</p>
                         <p className="text-xs text-muted-foreground">Average Rating</p>
                       </div>
                     </div>
                     <div className="mt-2">
-                      {renderStars(stats.averageRating)}
+                      {renderStars(facultyStats.averageRating)}
                     </div>
                   </CardContent>
                 </Card>
@@ -234,7 +162,7 @@ const FacultyReport: React.FC<FacultyReportProps> = ({ open, onOpenChange }) => 
                     <div className="flex items-center gap-2">
                       <Users className="h-4 w-4 text-primary" />
                       <div>
-                        <p className="text-2xl font-bold">{stats.totalResponses}</p>
+                        <p className="text-2xl font-bold">{facultyStats.totalSubmissions}</p>
                         <p className="text-xs text-muted-foreground">Total Responses</p>
                       </div>
                     </div>
@@ -246,7 +174,7 @@ const FacultyReport: React.FC<FacultyReportProps> = ({ open, onOpenChange }) => 
                     <div className="flex items-center gap-2">
                       <MessageSquare className="h-4 w-4 text-primary" />
                       <div>
-                        <p className="text-2xl font-bold">{stats.recentComments.length}</p>
+                        <p className="text-2xl font-bold">{facultyStats.recentComments.length}</p>
                         <p className="text-xs text-muted-foreground">Recent Comments</p>
                       </div>
                     </div>
@@ -268,11 +196,11 @@ const FacultyReport: React.FC<FacultyReportProps> = ({ open, onOpenChange }) => 
                           <Star className="h-3 w-3 text-yellow-400 fill-current" />
                         </div>
                         <Progress
-                          value={(stats.ratingDistribution[rating] / stats.totalResponses) * 100}
+                          value={(facultyStats.ratingDistribution[rating] / facultyStats.totalSubmissions) * 100}
                           className="flex-1"
                         />
                         <span className="text-sm text-muted-foreground min-w-[40px]">
-                          {stats.ratingDistribution[rating]}
+                          {facultyStats.ratingDistribution[rating]}
                         </span>
                       </div>
                     ))}
@@ -280,32 +208,28 @@ const FacultyReport: React.FC<FacultyReportProps> = ({ open, onOpenChange }) => 
                 </CardContent>
               </Card>
 
-              {/* Question-wise Analysis */}
-              {Object.keys(stats.questionAverages).length > 0 && (
+              {/* Category-wise Analysis */}
+              {facultyStats.categoryScores && Object.keys(facultyStats.categoryScores).length > 0 && (
                 <Card>
                   <CardHeader>
-                    <CardTitle>Question-wise Performance</CardTitle>
+                    <CardTitle>Category-wise Performance</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {Object.values(stats.questionAverages)
-                        .sort((a, b) => a.question.order - b.question.order)
-                        .map(({ question, average, count }) => (
-                        <div key={question.id} className="space-y-2">
+                      {Object.entries(facultyStats.categoryScores)
+                        .map(([category, score]) => (
+                        <div key={category} className="space-y-2">
                           <div className="flex items-center justify-between">
-                            <p className="font-medium">{question.text}</p>
-                            <Badge variant="secondary">{question.category}</Badge>
+                            <p className="font-medium">{category}</p>
+                            <Badge variant="secondary">{score.count} responses</Badge>
                           </div>
                           <div className="flex items-center gap-3">
                             <div className="flex items-center gap-1">
-                              {renderStars(average)}
+                              {renderStars(score.average)}
                               <span className="text-sm font-medium ml-2">
-                                {average.toFixed(1)}
+                                {score.average.toFixed(1)}
                               </span>
                             </div>
-                            <span className="text-sm text-muted-foreground">
-                              ({count} responses)
-                            </span>
                           </div>
                         </div>
                       ))}
@@ -315,18 +239,18 @@ const FacultyReport: React.FC<FacultyReportProps> = ({ open, onOpenChange }) => 
               )}
 
               {/* Recent Comments */}
-              {stats.recentComments.length > 0 && (
+              {facultyStats.recentComments.length > 0 && (
                 <Card>
                   <CardHeader>
                     <CardTitle>Recent Comments</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
-                      {stats.recentComments.map((item, index) => (
+                      {facultyStats.recentComments.map((item, index) => (
                         <div key={index} className="border-l-2 border-primary/20 pl-4">
-                          <p className="text-sm italic">"{item.comment}"</p>
+                          <p className="text-sm italic">"{item.text}"</p>
                           <p className="text-xs text-muted-foreground mt-1">
-                            {format(item.date, 'MMM dd, yyyy')}
+                            {format(item.submittedAt.toDate(), 'MMM dd, yyyy')}
                           </p>
                         </div>
                       ))}

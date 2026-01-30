@@ -13,6 +13,7 @@ interface SessionTableProps {
   departments: Department[];
   onEdit?: (session: FeedbackSession) => void;
   onRefresh?: () => void;
+  onOptimisticUpdate?: (sessionId: string, updates: Partial<FeedbackSession>) => void;
 }
 
 export const SessionTable: React.FC<SessionTableProps> = ({
@@ -20,19 +21,38 @@ export const SessionTable: React.FC<SessionTableProps> = ({
   faculty,
   departments,
   onEdit,
-  onRefresh
+  onRefresh,
+  onOptimisticUpdate
 }) => {
   const [updatingIds, setUpdatingIds] = useState<Set<string>>(new Set());
 
   const handleToggleActive = async (session: FeedbackSession) => {
+    const newActiveState = !session.isActive;
+
+    // Check if trying to activate an expired session
+    if (newActiveState && session.expiresAt) {
+      const now = new Date();
+      const expiryDate = session.expiresAt.toDate ? session.expiresAt.toDate() : new Date(session.expiresAt);
+      if (expiryDate <= now) {
+        toast.error('Cannot activate session: expiry date has already passed');
+        return;
+      }
+    }
+
+    // Optimistic update - immediately update UI
+    onOptimisticUpdate?.(session.id, { isActive: newActiveState });
+
     setUpdatingIds(prev => new Set(prev).add(session.id));
     try {
-      await feedbackSessionsApi.update(session.id, { isActive: !session.isActive });
-      toast.success(`Session ${!session.isActive ? 'activated' : 'deactivated'}`);
+      await feedbackSessionsApi.update(session.id, { isActive: newActiveState });
+      toast.success(`Session ${newActiveState ? 'activated' : 'deactivated'}`);
+      // Only refresh if optimistic update might have been wrong
       onRefresh?.();
     } catch (error) {
       console.error('Error updating session:', error);
       toast.error('Failed to update session');
+      // Revert optimistic update on error
+      onOptimisticUpdate?.(session.id, { isActive: session.isActive });
     } finally {
       setUpdatingIds(prev => {
         const newSet = new Set(prev);

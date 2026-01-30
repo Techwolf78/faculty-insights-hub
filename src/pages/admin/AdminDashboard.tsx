@@ -11,6 +11,20 @@ import { Switch } from '@/components/ui/switch';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAuth } from '@/contexts/AuthContext';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  useDepartments,
+  useFaculty,
+  useQuestionGroups,
+  useQuestions,
+  useSessions,
+  useRecentSubmissions,
+  useCollege,
+  useAcademicConfig,
+  useCollegeStats,
+  useAllDepartmentStats,
+  useAllFacultyStats,
+} from '@/hooks/useCollegeData';
 import {
   departmentsApi,
   facultyApi,
@@ -34,6 +48,8 @@ import FacultyForm from '@/components/admin/FacultyForm';
 import QuestionForm from '@/components/admin/QuestionForm';
 import QuestionGroupForm from '@/components/admin/QuestionGroupForm';
 import FacultyReport from '@/components/admin/FacultyReport';
+import { DepartmentExcelReport } from '@/components/reports/DepartmentExcelReport';
+import { CollegeExcelReport } from '@/components/reports/CollegeExcelReport';
 import AcademicConfig from '@/components/admin/AcademicConfig';
 import { SessionTable } from '@/components/admin/SessionTable';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -64,14 +80,74 @@ const AdminDashboard = () => {
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(true);
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [faculty, setFaculty] = useState<Faculty[]>([]);
-  const [questionGroups, setQuestionGroups] = useState<QuestionGroup[]>([]);
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [sessions, setSessions] = useState<FeedbackSession[]>([]);
-  const [submissions, setSubmissions] = useState<FeedbackSubmission[]>([]);
-  const [college, setCollege] = useState<College | null>(null);
+  const queryClient = useQueryClient();
+
+  // React Query hooks for optimized data fetching
+  const { data: departments = [], isLoading: departmentsLoading } = useDepartments(user?.collegeId);
+  const { data: faculty = [], isLoading: facultyLoading } = useFaculty(user?.collegeId);
+  const { data: questionGroups = [], isLoading: questionGroupsLoading } = useQuestionGroups(user?.collegeId);
+  const { data: questions = [], isLoading: questionsLoading } = useQuestions(user?.collegeId);
+  const { data: sessions = [], isLoading: sessionsLoading } = useSessions(user?.collegeId);
+  const { data: submissions = [], isLoading: submissionsLoading } = useRecentSubmissions(user?.collegeId);
+  const { data: college, isLoading: collegeLoading } = useCollege(user?.collegeId);
+  const { data: academicConfig, isLoading: academicConfigLoading } = useAcademicConfig(user?.collegeId);
+
+  // Stats hooks for pre-computed analytics
+  const { data: collegeStats, isLoading: collegeStatsLoading } = useCollegeStats(user?.collegeId);
+  const { data: departmentStats = [], isLoading: departmentStatsLoading } = useAllDepartmentStats(user?.collegeId);
+  const { data: facultyStats = [], isLoading: facultyStatsLoading } = useAllFacultyStats(user?.collegeId);
+
+  const isLoading = departmentsLoading || facultyLoading || questionGroupsLoading || questionsLoading || sessionsLoading || submissionsLoading || collegeLoading || academicConfigLoading || collegeStatsLoading || departmentStatsLoading || facultyStatsLoading;
+
+  // Get current user's department name
+  const userDepartmentName = useMemo(() => {
+    if (!user?.departmentId || !departments.length) return 'Department';
+    const dept = departments.find(d => d.id === user.departmentId);
+    return dept?.name || 'Department';
+  }, [user?.departmentId, departments]);
+
+  // Refresh function for invalidating queries
+  const refreshData = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['departments'] });
+    queryClient.invalidateQueries({ queryKey: ['faculty'] });
+    queryClient.invalidateQueries({ queryKey: ['questionGroups'] });
+    queryClient.invalidateQueries({ queryKey: ['questions'] });
+    queryClient.invalidateQueries({ queryKey: ['sessions'] });
+    queryClient.invalidateQueries({ queryKey: ['submissions'] });
+    queryClient.invalidateQueries({ queryKey: ['stats'] });
+  }, [queryClient]);
+
+  // Optimized refresh for session operations only
+  const refreshSessions = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['sessions', 'college', user?.collegeId] });
+    queryClient.invalidateQueries({ queryKey: ['sessions', 'college', user?.collegeId, 'active'] });
+  }, [queryClient, user?.collegeId]);
+
+  // Optimistic update for session changes
+  const handleOptimisticSessionUpdate = useCallback((sessionId: string, updates: Partial<FeedbackSession>) => {
+    // Update the sessions query cache optimistically
+    queryClient.setQueryData(
+      ['sessions', 'college', user?.collegeId],
+      (oldData: FeedbackSession[] | undefined) => {
+        if (!oldData) return oldData;
+        return oldData.map(session =>
+          session.id === sessionId ? { ...session, ...updates } : session
+        );
+      }
+    );
+
+    // Also update the active sessions query cache
+    queryClient.setQueryData(
+      ['sessions', 'college', user?.collegeId, 'active'],
+      (oldData: FeedbackSession[] | undefined) => {
+        if (!oldData) return oldData;
+        const updatedSessions = oldData.map(session =>
+          session.id === sessionId ? { ...session, ...updates } : session
+        );
+        return updatedSessions.filter(session => session.isActive);
+      }
+    );
+  }, [queryClient, user?.collegeId]);
 
   // Session form state
   const [sessionFormOpen, setSessionFormOpen] = useState(false);
@@ -97,13 +173,43 @@ const AdminDashboard = () => {
     try {
       await facultyApi.delete(faculty.id);
       toast.success('Faculty member deleted successfully');
-      loadData(); // Refresh the data
+      // Invalidate and refetch faculty data
+      queryClient.invalidateQueries({ queryKey: ['faculty', 'college', user?.collegeId] });
     } catch (error) {
       console.error('Error deleting faculty:', error);
       toast.error('Failed to delete faculty member');
     } finally {
       setDeletingFaculty(null);
     }
+  };
+
+  const handleExportFaculty = () => {
+    // Create CSV content
+    const headers = ['Name', 'Email', 'Department', 'Role'];
+    const rows = faculty.map(member => {
+      const dept = departments.find(d => d.id === member.departmentId);
+      return [
+        member.name,
+        member.email,
+        dept?.name || 'Unknown Department',
+        member.role === 'hod' ? 'Head of Department' : 'Faculty Member'
+      ];
+    });
+
+    const csvContent = [headers, ...rows]
+      .map(row => row.map(field => `"${field}"`).join(','))
+      .join('\n');
+
+    // Create and download the file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'faculty_members.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   // Question form state
@@ -118,9 +224,9 @@ const AdminDashboard = () => {
   // Academic config state
   const [academicConfigOpen, setAcademicConfigOpen] = useState(false);
 
-  // Academic config data state
-  const [courseData, setCourseData] = useState<AcademicConfigData['courseData']>({});
-  const [subjectsData, setSubjectsData] = useState<AcademicConfigData['subjectsData']>({});
+  // Derive academic config data from hook
+  const courseData = useMemo(() => academicConfig?.courseData || {}, [academicConfig?.courseData]);
+  const subjectsData = useMemo(() => academicConfig?.subjectsData || {}, [academicConfig?.subjectsData]);
 
   // Filtering state
   const [selectedCourse, setSelectedCourse] = useState<string>('all');
@@ -170,52 +276,6 @@ const AdminDashboard = () => {
 
   // Get current section from URL
   const currentSection = location.pathname.split('/').pop() || 'dashboard';
-
-  // Load data function
-  const loadData = useCallback(async () => {
-    try {
-      const [depts, fac, qGroups, qsts, sess, subs, colleges, config] = await Promise.all([
-        departmentsApi.getByCollege(user!.collegeId!),
-        facultyApi.getByCollege(user!.collegeId!),
-        questionGroupsApi.getByCollege(user!.collegeId!),
-        questionsApi.getByCollege(user!.collegeId!),
-        feedbackSessionsApi.getAll(),
-        submissionsApi.getAll(),
-        collegesApi.getAll(),
-        user?.collegeId ? getAcademicConfig(user.collegeId) : Promise.resolve({ courseData: {}, subjectsData: {} }),
-      ]);
-
-      setDepartments(depts);
-      setFaculty(fac);
-      setQuestionGroups(qGroups);
-      setQuestions(qsts);
-      
-      // Filter sessions and submissions by college departments
-      const collegeDepartmentIds = depts.map(d => d.id);
-      const filteredSessions = sess.filter(s => collegeDepartmentIds.includes(s.departmentId));
-      const sessionIds = filteredSessions.map(s => s.id);
-      const filteredSubmissions = subs.filter(sub => sessionIds.includes(sub.sessionId));
-      
-      setSessions(filteredSessions);
-      setSubmissions(filteredSubmissions);
-      setCourseData(config.courseData);
-      setSubjectsData(config.subjectsData);
-
-      // Find user's college
-      if (user?.collegeId) {
-        const userCollege = colleges.find(c => c.id === user.collegeId);
-        setCollege(userCollege || null);
-      }
-    } catch (error) {
-      console.error('Error loading dashboard data:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [user?.collegeId]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
 
   // Filtered data based on selections
   const filteredData = useMemo(() => {
@@ -298,47 +358,23 @@ const AdminDashboard = () => {
     s.submittedAt && isAfter(s.submittedAt.toDate(), subDays(new Date(), 7))
   );
 
-  // Calculate average rating
-  const avgRating = filteredData.submissions.length > 0
-    ? filteredData.submissions.reduce((acc, sub) => {
-        const ratings = sub.responses.filter(r => r.rating).map(r => r.rating || 0);
-        return acc + (ratings.reduce((sum, r) => sum + r, 0) / ratings.length || 0);
-      }, 0) / filteredData.submissions.length
-    : 0;
+  // Calculate average rating - using pre-computed stats
+  const avgRating = collegeStats?.averageRating || 0;
 
-  // Calculate trend (compare with previous week)
-  const previousWeekSubmissions = submissions.filter(s =>
-    s.submittedAt && isAfter(s.submittedAt.toDate(), subDays(new Date(), 14)) && !isAfter(s.submittedAt.toDate(), subDays(new Date(), 7))
-  );
-  const previousAvgRating = previousWeekSubmissions.length > 0
-    ? previousWeekSubmissions.reduce((acc, sub) => {
-        const ratings = sub.responses.filter(r => r.rating).map(r => r.rating || 0);
-        return acc + (ratings.reduce((sum, r) => sum + r, 0) / ratings.length || 0);
-      }, 0) / previousWeekSubmissions.length
-    : 0;
-  
-  const trendValue = previousAvgRating > 0 ? ((avgRating - previousAvgRating) / previousAvgRating) * 100 : 0;
+  // Calculate trend - using pre-computed trend data
+  const trendValue = collegeStats?.trend?.last30Days || 0;
   const isPositive = trendValue >= 0;
 
-  // Department performance data
-  const deptPerformance = filteredData.departments.map(dept => {
-    const deptFaculty = filteredData.faculty.filter(f => f.departmentId === dept.id);
-    const deptSubs = filteredData.submissions.filter(sub =>
-      deptFaculty.some(f => f.id === sub.facultyId)
-    );
-
-    const avg = deptSubs.length > 0
-      ? deptSubs.reduce((acc, sub) => {
-          const ratings = sub.responses.filter(r => r.rating).map(r => r.rating || 0);
-          return acc + (ratings.reduce((sum, r) => sum + r, 0) / ratings.length || 0);
-        }, 0) / deptSubs.length
-      : 0;
-
-    return {
-      department: dept.name,
-      average: Math.round(avg * 10) / 10,
-    };
-  }).filter(d => d.average > 0);
+  // Department performance data - using pre-computed stats
+  const deptPerformance = useMemo(() => {
+    return departmentStats.map(stat => {
+      const dept = departments.find(d => d.id === stat.entityId);
+      return {
+        department: dept?.name || 'Unknown',
+        average: Math.round(stat.averageRating * 10) / 10,
+      };
+    }).filter(d => d.average > 0);
+  }, [departmentStats, departments]);
 
   // Response trend data (last 7 days)
   const trendData = Array.from({ length: 7 }, (_, i) => {
@@ -359,57 +395,40 @@ const AdminDashboard = () => {
     { name: 'Inactive', value: sessions.filter(s => !s.isActive).length },
   ].filter(d => d.value > 0);
 
-  // Performance Trend data (last 6 months)
+  // Performance Trend data (last 6 months) - using pre-computed stats
   const performanceTrendData = useMemo(() => {
+    if (!collegeStats?.monthly) return [];
+
     const months = [];
     for (let i = 5; i >= 0; i--) {
       const date = new Date();
       date.setMonth(date.getMonth() - i);
-      const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
-      const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       
-      const monthSubs = filteredData.submissions.filter(sub => {
-        if (!sub.submittedAt) return false;
-        const subDate = sub.submittedAt.toDate();
-        return subDate >= monthStart && subDate <= monthEnd;
-      });
-      
+      const monthData = collegeStats.monthly[monthKey];
       months.push({
         month: format(date, 'MMM'),
-        responses: monthSubs.length,
+        responses: monthData?.submissions || 0,
       });
     }
     return months;
-  }, [filteredData.submissions]);
+  }, [collegeStats?.monthly]);
 
-  // Category Breakdown data
+  // Category Breakdown data - using pre-computed stats
   const categoryBreakdownData = useMemo(() => {
-    const categoryMap = new Map<string, { total: number; count: number }>();
-    
-    filteredData.submissions.forEach(sub => {
-      sub.responses.forEach(response => {
-        if (response.rating) {
-          const category = response.questionCategory;
-          if (!categoryMap.has(category)) {
-            categoryMap.set(category, { total: 0, count: 0 });
-          }
-          const current = categoryMap.get(category)!;
-          current.total += response.rating;
-          current.count += 1;
-        }
-      });
-    });
-    
-    return Array.from(categoryMap.entries()).map(([category, data]) => ({
+    if (!collegeStats?.categoryScores) return [];
+
+    return Object.entries(collegeStats.categoryScores).map(([category, data]) => ({
       category,
-      score: data.count > 0 ? Math.round((data.total / data.count) * 10) / 10 : 0,
+      score: Math.round(data.average * 10) / 10,
     })).filter(item => item.score > 0);
-  }, [filteredData.submissions]);
+  }, [collegeStats?.categoryScores]);
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex flex-col items-center justify-center min-h-screen space-y-4">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        <p className="text-muted-foreground text-sm">Almost there. Just a moment…</p>
       </div>
     );
   }
@@ -708,7 +727,7 @@ const AdminDashboard = () => {
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
                 <StatsCard
                   title="Total Responses"
-                  value={filteredData.submissions.length}
+                  value={collegeStats?.totalSubmissions || 0}
                   subtitle={`${todaySubmissions.length} today, ${weekSubmissions.length} this week`}
                   icon={ClipboardCheck}
                 />
@@ -731,6 +750,29 @@ const AdminDashboard = () => {
                   subtitle={`Across ${filteredData.departments.length} departments`}
                   icon={Users}
                 />
+              </div>
+
+              {/* Report Export Section */}
+              <div className="flex items-center justify-between p-4 bg-secondary/20 rounded-lg border">
+                <div>
+                  <h3 className="font-medium text-foreground">Export Reports</h3>
+                  <p className="text-sm text-muted-foreground">Download comprehensive Excel reports for analysis</p>
+                </div>
+                <div className="flex gap-3">
+                  <CollegeExcelReport
+                    collegeName={college?.name || 'College'}
+                    collegeStats={collegeStats}
+                    departmentStats={departmentStats}
+                    facultyStats={facultyStats}
+                    loading={collegeStatsLoading || departmentStatsLoading || facultyStatsLoading}
+                  />
+                  <DepartmentExcelReport
+                    departmentName={userDepartmentName}
+                    facultyStats={facultyStats.filter(f => f.departmentId === user?.departmentId)}
+                    departmentStats={departmentStats.find(d => d.departmentId === user?.departmentId)}
+                    loading={facultyStatsLoading || departmentStatsLoading}
+                  />
+                </div>
               </div>
 
               {/* Main Analytics Grid */}
@@ -913,29 +955,15 @@ const AdminDashboard = () => {
                     </Button>
                   </div>
                   <div className="space-y-6 max-h-96 overflow-y-auto">
-                    {filteredData.faculty.slice(0, 8).map((member, index) => {
-                      const memberSubmissions = filteredData.submissions.filter(sub => sub.facultyId === member.id);
-                      const avgRating = memberSubmissions.length > 0
-                        ? memberSubmissions.reduce((acc, sub) => {
-                            const ratings = sub.responses.filter(r => r.rating).map(r => r.rating || 0);
-                            return acc + (ratings.reduce((sum, r) => sum + r, 0) / ratings.length || 0);
-                          }, 0) / memberSubmissions.length
-                        : 0;
+                    {faculty.slice(0, 8).map((member, index) => {
+                      const memberStats = facultyStats.find(stat => stat.entityId === member.id);
+                      const avgRating = memberStats?.averageRating || 0;
 
-                      const allComments = memberSubmissions
-                        .flatMap(sub => sub.responses
-                          .filter(r => r.comment && r.comment.trim() !== '')
-                          .map(r => ({
-                            comment: r.comment!.trim(),
-                            date: sub.submittedAt?.toDate(),
-                            rating: r.rating
-                          }))
-                        )
-                        .filter(item => item.comment.length > 0)
-                        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                      // Get comments from pre-computed stats
+                      const allComments = memberStats?.recentComments || [];
 
                       // Sort all comments by rating to get highest and lowest
-                      const sortedByRating = [...allComments].sort((a, b) => (b.rating || 0) - (a.rating || 0));
+                      const sortedByRating = [...allComments].sort((a, b) => b.rating - a.rating);
 
                       // Take top 2 highest rated as positive feedback
                       const positiveComments = sortedByRating.slice(0, 2);
@@ -976,7 +1004,7 @@ const AdminDashboard = () => {
                                   </span>
                                 ))}
                               </div>
-                              <p className="text-xs text-muted-foreground mt-1">{memberSubmissions.length} responses</p>
+                              <p className="text-xs text-muted-foreground mt-1">{weekSubmissions.length} responses</p>
                             </div>
                           </div>
 
@@ -1004,7 +1032,7 @@ const AdminDashboard = () => {
                                         >
                                           <div className="flex items-start justify-between mb-2">
                                             <span className="text-xs text-green-600">
-                                              {format(new Date(item.date), 'MMM d, yyyy')}
+                                              {format(item.submittedAt.toDate(), 'MMM d, yyyy')}
                                             </span>
                                             {item.rating && (
                                               <span className="text-xs font-medium text-green-700 bg-green-100 px-2 py-1 rounded">
@@ -1013,7 +1041,7 @@ const AdminDashboard = () => {
                                             )}
                                           </div>
                                           <p className="text-sm text-green-800 leading-relaxed">
-                                            "{item.comment}"
+                                            "{item.text}"
                                           </p>
                                         </div>
                                       ))}
@@ -1036,7 +1064,7 @@ const AdminDashboard = () => {
                                         >
                                           <div className="flex items-start justify-between mb-2">
                                             <span className="text-xs text-red-600">
-                                              {format(new Date(item.date), 'MMM d, yyyy')}
+                                              {format(item.submittedAt.toDate(), 'MMM d, yyyy')}
                                             </span>
                                             {item.rating && (
                                               <span className="text-xs font-medium text-red-700 bg-red-100 px-2 py-1 rounded">
@@ -1045,7 +1073,7 @@ const AdminDashboard = () => {
                                             )}
                                           </div>
                                           <p className="text-sm text-red-800 leading-relaxed">
-                                            "{item.comment}"
+                                            "{item.text}"
                                           </p>
                                         </div>
                                       ))}
@@ -1088,10 +1116,16 @@ const AdminDashboard = () => {
               <div className="glass-card rounded-xl p-6">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="font-display text-lg font-semibold text-foreground">Faculty Members</h3>
-                  <Button className="bg-primary hover:bg-primary/90" onClick={() => setFacultyFormOpen(true)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Faculty
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={handleExportFaculty}>
+                      <Download className="h-4 w-4 mr-2" />
+                      Export Faculty
+                    </Button>
+                    <Button className="bg-primary hover:bg-primary/90" onClick={() => setFacultyFormOpen(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Faculty
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="space-y-4">
@@ -1105,11 +1139,14 @@ const AdminDashboard = () => {
                           <h4 className="font-medium text-foreground">{member.name}</h4>
                           <p className="text-sm text-muted-foreground">{member.email}</p>
                           <p className="text-xs text-muted-foreground">
-                            {member.departmentId || 'Unknown Department'}
+                            {departments.find(d => d.id === member.departmentId)?.name || 'Unknown Department'}
                           </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
+                        <Badge variant={member.role === 'hod' ? 'default' : 'secondary'}>
+                          {member.role === 'hod' ? 'Head of Department' : 'Faculty Member'}
+                        </Badge>
                         <Badge variant="secondary">Active</Badge>
                         <Button variant="ghost" size="sm" onClick={() => handleEditFaculty(member)}>
                           <Edit className="h-4 w-4" />
@@ -1179,7 +1216,8 @@ const AdminDashboard = () => {
                     sessions={sessions}
                     faculty={faculty}
                     departments={departments}
-                    onRefresh={loadData}
+                    onRefresh={refreshSessions}
+                    onOptimisticUpdate={handleOptimisticSessionUpdate}
                   />
                 </TabsContent>
 
@@ -1188,7 +1226,8 @@ const AdminDashboard = () => {
                     sessions={sessions.filter(s => s.isActive)}
                     faculty={faculty}
                     departments={departments}
-                    onRefresh={loadData}
+                    onRefresh={refreshSessions}
+                    onOptimisticUpdate={handleOptimisticSessionUpdate}
                   />
                 </TabsContent>
 
@@ -1197,7 +1236,8 @@ const AdminDashboard = () => {
                     sessions={sessions.filter(s => !s.isActive)}
                     faculty={faculty}
                     departments={departments}
-                    onRefresh={loadData}
+                    onRefresh={refreshSessions}
+                    onOptimisticUpdate={handleOptimisticSessionUpdate}
                   />
                 </TabsContent>
               </Tabs>
@@ -1436,28 +1476,43 @@ const AdminDashboard = () => {
       <SessionForm
         open={sessionFormOpen}
         onOpenChange={setSessionFormOpen}
-        onSuccess={loadData}
+        onSuccess={() => {
+          // Refresh only session-related data
+          refreshSessions();
+        }}
       />
       <DepartmentForm
         open={departmentFormOpen}
         onOpenChange={setDepartmentFormOpen}
-        onSuccess={loadData}
+        onSuccess={() => {
+          // Invalidate departments data
+          queryClient.invalidateQueries({ queryKey: ['departments', 'college', user?.collegeId] });
+        }}
       />
       <FacultyForm
         open={facultyFormOpen}
         onOpenChange={handleFacultyFormClose}
-        onSuccess={loadData}
+        onSuccess={() => {
+          // Invalidate faculty data
+          queryClient.invalidateQueries({ queryKey: ['faculty', 'college', user?.collegeId] });
+        }}
         editingFaculty={editingFaculty}
       />
       <QuestionForm
         open={questionFormOpen}
         onOpenChange={setQuestionFormOpen}
-        onSuccess={loadData}
+        onSuccess={() => {
+          // Invalidate questions data
+          queryClient.invalidateQueries({ queryKey: ['questions', 'college', user?.collegeId] });
+        }}
       />
       <QuestionGroupForm
         open={questionGroupFormOpen}
         onOpenChange={setQuestionGroupFormOpen}
-        onSuccess={loadData}
+        onSuccess={() => {
+          // Invalidate question groups data
+          queryClient.invalidateQueries({ queryKey: ['questionGroups', 'college', user?.collegeId] });
+        }}
       />
       <FacultyReport
         open={facultyReportOpen}
@@ -1466,7 +1521,10 @@ const AdminDashboard = () => {
       <AcademicConfig
         open={academicConfigOpen}
         onOpenChange={setAcademicConfigOpen}
-        onSuccess={() => loadData()}
+        onSuccess={() => {
+          // Invalidate academic config data
+          queryClient.invalidateQueries({ queryKey: ['academicConfig', user?.collegeId] });
+        }}
       />
     </>
   );

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useLocation, useParams } from 'react-router-dom';
+import { useNavigate, useLocation, useParams, Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { firebaseConfig, auth } from '@/lib/firebase';
+import { createUserWithEmailAndPassword, updatePassword } from 'firebase/auth';
 import {
   collegesApi,
   usersApi,
@@ -28,6 +30,7 @@ import {
   ChevronRight,
   X,
   Eye,
+  EyeOff,
   Share,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -224,12 +227,6 @@ export const SuperAdminDashboard: React.FC = () => {
   };
 
   useEffect(() => {
-    // Redirect non-superAdmin users
-    if (user && user.role !== 'superAdmin') {
-      navigate('/');
-      return;
-    }
-
     loadData();
   }, [user, navigate]);
 
@@ -268,7 +265,7 @@ export const SuperAdminDashboard: React.FC = () => {
       }
 
       setColleges(collegeList);
-      setAdmins(userList.filter(u => u.role === 'admin'));
+      setAdmins(userList.filter(u => u.role === 'admin' && u.isActive));
       setFeedbackSessions(updatedSessions);
       setQuestionGroups(groupList);
       setQuestions(questionList);
@@ -313,24 +310,56 @@ export const SuperAdminDashboard: React.FC = () => {
       return;
     }
 
+    if (adminPassword.length < 6) {
+      toast.error('Password must be at least 6 characters long');
+      return;
+    }
+
     try {
+      // Create admin user in Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(auth, adminEmail.trim().toLowerCase(), adminPassword);
+      const firebaseUser = userCredential.user;
+
+      // Create admin user document in Firestore
       await usersApi.create({
         name: adminName.trim(),
         email: adminEmail.trim().toLowerCase(),
         role: 'admin',
         collegeId: adminCollegeId,
         isActive: true,
-      });
+      }, firebaseUser.uid);
 
-      toast.success('College Admin created successfully');
+      toast.success('College Admin created successfully!');
       setAdminDialogOpen(false);
       setAdminName('');
       setAdminEmail('');
       setAdminPassword('');
       setAdminCollegeId('');
       loadData();
-    } catch (error) {
-      toast.error('Failed to create admin');
+    } catch (error: unknown) {
+      console.error('Error creating admin:', error);
+      const errorMessage = error instanceof Error && 'code' in error ? (error as { code: string }).code : '';
+      if (errorMessage === 'auth/email-already-in-use') {
+        toast.error('This email is already registered. Please use a different email.');
+      } else if (errorMessage === 'auth/weak-password') {
+        toast.error('Password is too weak. Please choose a stronger password.');
+      } else {
+        toast.error('Failed to create admin');
+      }
+    }
+  };
+
+  const handleDeleteAdmin = async (adminId: string, adminEmail: string) => {
+    try {
+      // For security, we can't delete other users from Firebase Auth via client SDK
+      // Instead, we'll deactivate the user in Firestore
+      await usersApi.update(adminId, { isActive: false });
+      
+      toast.success('Admin deactivated successfully. Note: Firebase Auth user remains active for security reasons.');
+      loadData();
+    } catch (error: unknown) {
+      console.error('Error deactivating admin:', error);
+      toast.error('Failed to deactivate admin');
     }
   };
 
@@ -553,22 +582,19 @@ export const SuperAdminDashboard: React.FC = () => {
     navigate('/');
   };
 
-  if (!user || user.role !== 'superAdmin') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <Shield className="h-12 w-12 text-destructive mx-auto mb-4" />
-          <h1 className="text-xl font-semibold text-foreground mb-2">Access Denied</h1>
-          <p className="text-muted-foreground">You don't have permission to access this page.</p>
-        </div>
-      </div>
-    );
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user.role !== 'superAdmin') {
+    return <Navigate to="/" replace />;
   }
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background space-y-4">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        <p className="text-muted-foreground text-sm">Almost there. Just a moment…</p>
       </div>
     );
   }
@@ -580,22 +606,20 @@ export const SuperAdminDashboard: React.FC = () => {
   return (
     <div className="h-screen flex bg-background">
       {/* Sidebar - Full height */}
-      <aside className="w-64 bg-card border-r border-border flex flex-col">
+      <aside className="w-auto bg-card border-r border-border flex flex-col">
         {/* Sidebar Header with Title */}
-        <div className="p-4 border-b border-border">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg gradient-hero">
-              <Shield className="h-6 w-6 text-primary-foreground" />
-            </div>
-            <div>
-              <span className="font-display text-xl font-semibold text-foreground">Super Admin</span> <br />
-              <span className="text-sm text-muted-foreground">Platform Management</span>
-            </div>
+        <div className="h-20 p-2 border-b border-border flex items-center justify-start">
+          <div className="flex h-auto w-auto items-center justify-center p-1">
+            <img
+              src="https://res.cloudinary.com/dcjmaapvi/image/upload/v1749719287/juqqmxevqyys5fbavatm.png"
+              alt="Gryphon Academy Logo"
+              className="h-auto w-36"
+            />
           </div>
         </div>
 
         {/* Sidebar Navigation */}
-        <div className="flex-1 p-4 overflow-y-auto">
+        <div className="flex-1 p-2 overflow-y-auto">
           <nav className="space-y-1">
             <div className="grid w-full grid-rows-5 h-auto gap-1">
               <Button
@@ -603,7 +627,7 @@ export const SuperAdminDashboard: React.FC = () => {
                 className={`w-full justify-start gap-3 h-10 px-3 text-sm ${
                   activeTab === 'overview' 
                     ? 'bg-primary text-primary-foreground' 
-                    : 'hover:bg-primary/10'
+                    : 'hover:bg-primary/30 hover:text-primary'
                 }`}
                 onClick={() => navigate('/super-admin/dashboard')}
               >
@@ -615,7 +639,7 @@ export const SuperAdminDashboard: React.FC = () => {
                 className={`w-full justify-start gap-3 h-10 px-3 text-sm ${
                   activeTab === 'colleges' 
                     ? 'bg-primary text-primary-foreground' 
-                    : 'hover:bg-primary/10'
+                    : 'hover:bg-primary/30 hover:text-primary'
                 }`}
                 onClick={() => navigate('/super-admin/colleges')}
               >
@@ -627,7 +651,7 @@ export const SuperAdminDashboard: React.FC = () => {
                 className={`w-full justify-start gap-3 h-10 px-3 text-sm ${
                   activeTab === 'admins' 
                     ? 'bg-primary text-primary-foreground' 
-                    : 'hover:bg-primary/10'
+                    : 'hover:bg-primary/30 hover:text-primary'
                 }`}
                 onClick={() => navigate('/super-admin/admins')}
               >
@@ -639,7 +663,7 @@ export const SuperAdminDashboard: React.FC = () => {
                 className={`w-full justify-start gap-3 h-10 px-3 text-sm ${
                   activeTab === 'sessions' 
                     ? 'bg-primary text-primary-foreground' 
-                    : 'hover:bg-primary/10'
+                    : 'hover:bg-primary/30 hover:text-primary'
                 }`}
                 onClick={() => navigate('/super-admin/sessions')}
               >
@@ -651,7 +675,7 @@ export const SuperAdminDashboard: React.FC = () => {
                 className={`w-full justify-start gap-3 h-10 px-3 text-sm ${
                   activeTab === 'questionBank' 
                     ? 'bg-primary text-primary-foreground' 
-                    : 'hover:bg-primary/10'
+                    : 'hover:bg-primary/30 hover:text-primary'
                 }`}
                 onClick={() => navigate('/super-admin/question-bank')}
               >
@@ -666,7 +690,11 @@ export const SuperAdminDashboard: React.FC = () => {
       {/* Right Side */}
       <div className="flex-1 flex flex-col">
         {/* Top Header with Buttons */}
-        <header className="border-b border-border bg-card p-4 flex justify-end gap-4">
+        <header className="h-20 border-b border-border bg-card p-4 flex justify-between items-center gap-4">
+          <div>
+            <h1 className="font-display text-xl font-semibold text-foreground">Super Admin</h1>
+            <p className="text-sm text-muted-foreground">Platform Management</p>
+          </div>
           <Button variant="ghost" onClick={handleLogout} className="gap-2">
             <LogOut className="h-4 w-4" />
             Sign Out
@@ -674,7 +702,7 @@ export const SuperAdminDashboard: React.FC = () => {
         </header>
 
         {/* Main Content */}
-        <main className="flex-1 p-6 overflow-y-auto">
+        <main className="flex-1 p-4 overflow-y-auto">
           {/* Overview Tab */}
           {activeTab === 'overview' && (
             <div className="space-y-6">
@@ -959,7 +987,30 @@ export const SuperAdminDashboard: React.FC = () => {
                         <span className="px-2 py-1 rounded-full bg-primary/10 text-primary text-xs">
                           {college?.code || 'N/A'}
                         </span>
-                        <span className="text-xs text-muted-foreground">Admin</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">Admin</span>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive hover:text-destructive">
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Admin</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete {admin.name}? This will permanently remove their account from both the system and authentication.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDeleteAdmin(admin.id, admin.email)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
                       </div>
                     </div>
                   );

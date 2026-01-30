@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signOut, sendPasswordResetEmail, AuthError } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { usersApi } from '@/lib/storage';
 
@@ -66,6 +66,30 @@ export const Login: React.FC = () => {
     // On success, navigation will be handled by the useEffect above
   };
 
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      setError('Please enter your email address first');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError('');
+
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+      setError('Password reset email sent! Check your inbox.');
+    } catch (err) {
+      const error = err as AuthError;
+      if (error.code === 'auth/user-not-found') {
+        setError('No account found with this email address');
+      } else {
+        setError('Failed to send password reset email. Please try again.');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleRegistration = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -94,6 +118,7 @@ export const Login: React.FC = () => {
         password: registerPassword,
         role: 'superAdmin' as const,
         name: registerName,
+        isActive: true, // Added the missing required field
       };
 
       await usersApi.create(userData, userId);
@@ -112,14 +137,14 @@ export const Login: React.FC = () => {
       // Show success message in login form
       setError('Super admin account created successfully! Please sign in.');
 
-    } catch (error: unknown) {
-      console.error('Registration error:', error);
-      const firebaseError = error as { code?: string };
-      if (firebaseError.code === 'auth/email-already-in-use') {
+    } catch (err) {
+      console.error('Registration error:', err);
+      const error = err as AuthError;
+      if (error.code === 'auth/email-already-in-use') {
         setError('An account with this email already exists');
-      } else if (firebaseError.code === 'auth/weak-password') {
+      } else if (error.code === 'auth/weak-password') {
         setError('Password is too weak');
-      } else if (firebaseError.code === 'auth/invalid-email') {
+      } else if (error.code === 'auth/invalid-email') {
         setError('Invalid email address');
       } else {
         setError('Failed to create account. Please try again.');
@@ -148,37 +173,19 @@ export const Login: React.FC = () => {
         
         <div className="relative z-10 flex flex-col justify-center px-12 xl:px-20">
           <div className="flex items-center gap-4 mb-8">
-            <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm">
-              <GraduationCap className="h-8 w-8 text-primary-foreground" />
-            </div>
-            <div>
-              <h1 className="font-display text-3xl font-bold text-primary-foreground">Gryphon</h1>
-              <p className="text-primary-foreground/70">Faculty Feedback System</p>
-            </div>
+            <img
+              src="https://res.cloudinary.com/dcjmaapvi/image/upload/v1740489025/ga-hori_ylcnm3.png"
+              alt="Gryphon Academy Logo"
+              className="h-auto w-36"
+            />
           </div>
 
           <h2 className="font-display text-4xl font-bold text-primary-foreground leading-tight mb-6">
             Transforming Education Through Feedback
           </h2>
-          <p className="text-lg text-primary-foreground/80 max-w-md">
+          <p className="text-lg text-primary-foreground/80 max-w-xl">
             Access your personalized dashboard to view feedback analytics, manage cycles, and drive continuous improvement in teaching excellence.
           </p>
-
-          <div className="mt-12 flex items-center gap-4">
-            <div className="flex -space-x-3">
-              {[1, 2, 3, 4].map((i) => (
-                <div
-                  key={i}
-                  className="h-10 w-10 rounded-full bg-white/20 border-2 border-primary flex items-center justify-center text-xs font-medium text-primary-foreground"
-                >
-                  {String.fromCharCode(64 + i)}
-                </div>
-              ))}
-            </div>
-            <p className="text-sm text-primary-foreground/70">
-              Join 500+ faculty members already using our platform
-            </p>
-          </div>
         </div>
       </div>
 
@@ -186,11 +193,12 @@ export const Login: React.FC = () => {
       <div className="flex-1 flex items-center justify-center p-6 bg-background">
         <div className="w-full max-w-md">
           {/* Mobile Logo */}
-          <div className="lg:hidden flex items-center justify-center gap-3 mb-8">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl gradient-hero">
-              <GraduationCap className="h-7 w-7 text-primary-foreground" />
-            </div>
-            <span className="font-display text-2xl font-bold text-foreground">Gryphon</span>
+          <div className="lg:hidden flex items-center justify-center mb-8 px-4">
+            <img
+              src="https://res.cloudinary.com/dcjmaapvi/image/upload/v1741244343/fohrywgrqu2ph2iec2bb.png"
+              alt="Gryphon Academy Logo"
+              className="h-auto w-36"
+            />
           </div>
 
           <div className="text-center mb-8">
@@ -360,6 +368,19 @@ export const Login: React.FC = () => {
                 )}
               </Button>
             </form>
+          )}
+
+          {!isRegistrationMode && (
+            <div className="mt-4 text-center">
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                disabled={isSubmitting || isLoading}
+                className="text-sm text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
+              >
+                Forgot your password?
+              </button>
+            </div>
           )}
 
           <div className="mt-6 text-center">

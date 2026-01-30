@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
-import { User } from '@/lib/storage';
+import { User, usersApi, facultyApi } from '@/lib/storage';
 
 /* eslint-disable react-refresh/only-export-components */
 
@@ -23,16 +23,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
       if (firebaseUser) {
         // Fetch user data from Firestore
-        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-        if (userDoc.exists()) {
-          const userData = userDoc.data() as User;
-          setUser({ ...userData, id: firebaseUser.uid });
-        } else {
-          // Handle case where user doc doesn't exist
-          setUser(null);
+        try {
+          const usersRef = collection(db, 'users');
+          const q = query(usersRef, where('email', '==', firebaseUser.email));
+          const querySnapshot = await getDocs(q);
+
+          if (!querySnapshot.empty) {
+            const userDoc = querySnapshot.docs[0];
+            const userData = userDoc.data() as User;
+            const fullUserData = { ...userData, id: userDoc.id };
+            setUser(fullUserData);
+            localStorage.setItem('currentUser', JSON.stringify(fullUserData));
+          }
+        } catch (error) {
+          console.error('Error fetching user data:', error);
         }
       } else {
         setUser(null);
+        localStorage.removeItem('currentUser');
       }
       setIsLoading(false);
     });
@@ -41,19 +49,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
+    console.log('Attempting login for:', email);
     setIsLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
       return { success: true };
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Login error:', error);
       let errorMessage = 'An error occurred during login';
-      if (error && typeof error === 'object' && 'code' in error) {
-        const firebaseError = error as { code: string };
-        if (firebaseError.code === 'auth/user-not-found') {
-          errorMessage = 'User not found';
-        } else if (firebaseError.code === 'auth/wrong-password') {
-          errorMessage = 'Invalid password';
-        }
+      if (error.code === 'auth/user-not-found') {
+        errorMessage = 'User not found';
+      } else if (error.code === 'auth/wrong-password') {
+        errorMessage = 'Invalid password';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Invalid email';
       }
       return { success: false, error: errorMessage };
     } finally {
@@ -64,6 +73,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = useCallback(async () => {
     try {
       await signOut(auth);
+      setUser(null);
+      localStorage.removeItem('currentUser');
     } catch (error) {
       console.error('Logout error:', error);
     }

@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { GraduationCap, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { departmentsApi, facultyApi, feedbackSessionsApi, Department, Faculty, questionGroupsApi, QuestionGroup } from '@/lib/storage';
 import { getAcademicConfig } from '@/lib/academicConfig';
@@ -160,7 +161,7 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="course">Course/Program</Label>
               <Select value={course} onValueChange={(value) => {
@@ -231,9 +232,7 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
                 </SelectContent>
               </Select>
             </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="subject">Subject</Label>
               <Select value={subject} onValueChange={(value) => {
@@ -278,32 +277,32 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="questionGroup">Question Group</Label>
+              <Select value={questionGroup} onValueChange={(value) => {
+                setQuestionGroup(value);
+                // Close the dropdown after selection
+                setTimeout(() => {
+                  questionGroupSelectRef.current?.click();
+                }, 100);
+              }} disabled={!course || !academicYear || !department || !subject || !batch}>
+                <SelectTrigger ref={questionGroupSelectRef}>
+                  <SelectValue placeholder="Select question group" />
+                </SelectTrigger>
+                <SelectContent>
+                  {questionGroups.map((group) => (
+                    <SelectItem key={group.id} value={group.id}>
+                      {group.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="questionGroup">Question Group</Label>
-            <Select value={questionGroup} onValueChange={(value) => {
-              setQuestionGroup(value);
-              // Close the dropdown after selection
-              setTimeout(() => {
-                questionGroupSelectRef.current?.click();
-              }, 100);
-            }} disabled={!course || !academicYear || !department || !subject || !batch}>
-              <SelectTrigger ref={questionGroupSelectRef}>
-                <SelectValue placeholder="Select question group" />
-              </SelectTrigger>
-              <SelectContent>
-                {questionGroups.map((group) => (
-                  <SelectItem key={group.id} value={group.id}>
-                    {group.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="faculty">Faculty</Label>
+            <Label htmlFor="faculty">Faculty Member</Label>
             <Select value={selectedFaculty} onValueChange={(value) => {
               setSelectedFaculty(value);
               // Close the dropdown after selection
@@ -312,12 +311,12 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
               }, 100);
             }} disabled={!course || !academicYear || !department || !subject || !batch}>
               <SelectTrigger ref={facultySelectRef}>
-                <SelectValue placeholder="Select faculty" />
+                <SelectValue placeholder="Select faculty member" />
               </SelectTrigger>
               <SelectContent>
                 {availableFaculty.map((f) => (
                   <SelectItem key={f.id} value={f.id}>
-                    {f.name} - {f.designation}
+                    {f.name}{f.designation ? ` - ${f.designation}` : ''}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -331,18 +330,29 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
               type="datetime-local"
               value={expiresAt}
               onChange={(e) => setExpiresAt(e.target.value)}
+              className="max-w-xs"
             />
             <p className="text-xs text-muted-foreground">
               Leave empty for 30 days default expiry
             </p>
           </div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <DialogFooter className="flex gap-3 pt-4">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="flex-1">
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? 'Creating...' : 'Create Session'}
+            <Button type="submit" disabled={isLoading} className="flex-1">
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <GraduationCap className="h-4 w-4 mr-2" />
+                  Create Session
+                </>
+              )}
             </Button>
           </DialogFooter>
         </form>

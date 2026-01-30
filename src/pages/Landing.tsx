@@ -1,13 +1,21 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-import { GraduationCap, Users, Shield, BarChart3, ClipboardCheck, Building2, ChevronDown } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import React from "react";
+import { Link } from "react-router-dom";
+import {
+  GraduationCap,
+  Users,
+  Shield,
+  BarChart3,
+  ClipboardCheck,
+  Building2,
+  ChevronDown,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from "@/components/ui/dropdown-menu";
 
 interface Feature {
   icon: React.ComponentType<{ className?: string }>;
@@ -20,25 +28,28 @@ interface Feature {
 const features: Feature[] = [
   {
     icon: ClipboardCheck,
-    title: 'Anonymous Feedback',
-    description: 'Students can provide honest feedback through secure access codes without revealing their identity.',
+    title: "Anonymous Feedback",
+    description:
+      "Students can provide honest feedback through secure access codes without revealing their identity.",
   },
   {
     icon: BarChart3,
-    title: 'Comprehensive Analytics',
-    description: 'Detailed reports and visualizations help administrators understand teaching effectiveness.',
+    title: "Comprehensive Analytics",
+    description:
+      "Detailed reports and visualizations help administrators understand teaching effectiveness.",
   },
   {
     icon: Shield,
-    title: 'Role-Based Access',
-    description: 'Secure multi-level dashboards for ',
-    descriptionLink: { text: 'administrators', href: '/login' },
-    descriptionSuffix: ', HODs, and faculty members.',
+    title: "Role-Based Access",
+    description: "Secure multi-level dashboards for ",
+    descriptionLink: { text: "administrators", href: "/login" },
+    descriptionSuffix: ", HODs, and faculty members.",
   },
   {
     icon: Building2,
-    title: 'Department Management',
-    description: 'Organize faculty by departments and track performance across the institution.',
+    title: "Department Management",
+    description:
+      "Organize faculty by departments and track performance across the institution.",
   },
 ];
 
@@ -46,29 +57,37 @@ export const Landing: React.FC = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
-        <div className="container mx-auto px-6 py-4">
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-primary text-primary-foreground border-b border-primary-foreground/20">
+        <div className="container mx-auto py-2 px-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg gradient-hero">
-                <GraduationCap className="h-6 w-6 text-primary-foreground" />
-              </div>
-              <div>
-                <span className="font-display text-xl font-semibold text-foreground">Gryphon</span>
-                <span className="ml-2 text-sm text-muted-foreground">Feedback System</span>
-              </div>
+              <img
+                src="https://res.cloudinary.com/dcjmaapvi/image/upload/v1740489025/ga-hori_ylcnm3.png"
+                alt="Gryphon Academy Logo"
+                className="h-auto w-36"
+              />
             </div>
 
             <div className="hidden md:flex items-center gap-6">
-              <a href="#features" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+              <a
+                href="#features"
+                className="text-sm font-medium text-primary-foreground/80 hover:text-primary-foreground transition-colors"
+              >
                 Features
               </a>
-              <a href="#about" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+              <a
+                href="#about"
+                className="text-sm font-medium text-primary-foreground/80 hover:text-primary-foreground transition-colors"
+              >
                 About
               </a>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="gap-2 bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground border-primary-foreground/20"
+                  >
                     Staff Login
                     <ChevronDown className="h-4 w-4" />
                   </Button>
@@ -101,21 +120,35 @@ export const Landing: React.FC = () => {
               Secure & Anonymous Feedback Platform
             </div>
 
-       <h1 className="font-display text-4xl md:text-5xl lg:text-6xl font-bold text-foreground leading-tight mb-6 animate-fade-up" style={{ animationDelay: '0.1s' }}>
-  Elevate Teaching Excellence Through
-  <br />
-  <span className="text-white bg-primary rounded-3xl px-4 py-1 mt-4 inline-block">
-    Meaningful Feedback
-  </span>
-</h1>
+            <h1
+              className="font-display text-4xl md:text-5xl lg:text-6xl font-bold text-foreground leading-tight mb-6 animate-fade-up"
+              style={{ animationDelay: "0.1s" }}
+            >
+              Elevate Teaching Excellence Through
+              <br />
+              <span className="text-white bg-primary rounded-3xl px-4 py-1 mt-4 inline-block">
+                Meaningful Feedback
+              </span>
+            </h1>
 
-            <p className="text-lg text-muted-foreground mb-10 max-w-2xl mx-auto animate-fade-up" style={{ animationDelay: '0.2s' }}>
-              Empower your institution with a comprehensive feedback system that bridges the gap between students and faculty, fostering continuous improvement in education.
+            <p
+              className="text-lg text-muted-foreground mb-10 max-w-2xl mx-auto animate-fade-up"
+              style={{ animationDelay: "0.2s" }}
+            >
+              Empower your institution with a comprehensive feedback system that
+              bridges the gap between students and faculty, fostering continuous
+              improvement in education.
             </p>
 
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-up" style={{ animationDelay: '0.3s' }}>
+            <div
+              className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-up"
+              style={{ animationDelay: "0.3s" }}
+            >
               <Link to="/login/icem">
-                <Button size="lg" className="gap-2 px-8 h-12 gradient-hero text-primary-foreground hover:opacity-90">
+                <Button
+                  size="lg"
+                  className="gap-2 px-8 h-12 gradient-hero text-primary-foreground hover:opacity-90"
+                >
                   <Users className="h-5 w-5" />
                   ICEM College Login
                 </Button>
@@ -143,7 +176,8 @@ export const Landing: React.FC = () => {
               Everything You Need
             </h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              A complete feedback management solution designed for educational institutions
+              A complete feedback management solution designed for educational
+              institutions
             </p>
           </div>
 
@@ -163,7 +197,10 @@ export const Landing: React.FC = () => {
                 <p className="text-sm text-muted-foreground">
                   {feature.description}
                   {feature.descriptionLink && (
-                    <Link to={feature.descriptionLink.href} className="text-muted-foreground hover:text-foreground transition-colors">
+                    <Link
+                      to={feature.descriptionLink.href}
+                      className="text-muted-foreground hover:text-foreground transition-colors"
+                    >
                       {feature.descriptionLink.text}
                     </Link>
                   )}
@@ -175,40 +212,20 @@ export const Landing: React.FC = () => {
         </div>
       </section>
 
-      {/* Stats Section */}
-      <section className="py-20 px-6">
-        <div className="container mx-auto">
-          <div className="gradient-hero rounded-2xl p-12 text-center">
-            <div className="grid md:grid-cols-3 gap-8">
-              <div className="animate-fade-up">
-                <p className="font-display text-4xl font-bold text-primary-foreground mb-2">10,000+</p>
-                <p className="text-primary-foreground/80">Feedback Submissions</p>
-              </div>
-              <div className="animate-fade-up" style={{ animationDelay: '0.1s' }}>
-                <p className="font-display text-4xl font-bold text-primary-foreground mb-2">500+</p>
-                <p className="text-primary-foreground/80">Faculty Members</p>
-              </div>
-              <div className="animate-fade-up" style={{ animationDelay: '0.2s' }}>
-                <p className="font-display text-4xl font-bold text-primary-foreground mb-2">25+</p>
-                <p className="text-primary-foreground/80">Partner Institutions</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* Footer */}
-      <footer className="border-t border-border py-12 px-6">
+      <footer className="bg-primary text-primary-foreground border-t border-primary-foreground/20 ">
         <div className="container mx-auto">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg gradient-hero">
-                <GraduationCap className="h-4 w-4 text-primary-foreground" />
-              </div>
-              <span className="font-display text-lg font-semibold text-foreground">Gryphon Academy</span>
+          <div className="flex flex-col md:flex-row items-center justify-between py-2 space-y-4">
+            <div className="flex items-center">
+              <img
+                src="https://res.cloudinary.com/dcjmaapvi/image/upload/v1740489025/ga-hori_ylcnm3.png"
+                alt="Gryphon Academy Logo"
+                className="h-auto w-36"
+              />
             </div>
-            <p className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} Gryphon Academy Pvt Ltd. All rights reserved.
+            <p className="text-sm text-primary-foreground/80">
+              © {new Date().getFullYear()} Gryphon Academy Pvt Ltd. All rights
+              reserved.
             </p>
           </div>
         </div>

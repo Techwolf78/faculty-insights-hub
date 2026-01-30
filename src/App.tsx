@@ -16,7 +16,9 @@ import AdminDashboard from "@/pages/admin/AdminDashboard";
 import FacultyDetails from "@/pages/admin/FacultyDetails";
 import SessionResponses from "@/pages/admin/SessionResponses";
 import { HodDashboard } from "@/pages/hod/HodDashboard";
+import HodProfileSettings from "@/pages/hod/HodProfileSettings";
 import { FacultyDashboard } from "@/pages/faculty/FacultyDashboard";
+import FacultyProfileSettings from "@/pages/faculty/FacultyProfileSettings";
 import { AnonymousFeedback } from "@/pages/feedback/AnonymousFeedback";
 import NotFound from "@/pages/NotFound";
 import SeedData from "@/pages/SeedData";
@@ -67,6 +69,7 @@ const App = () => {
               <Route path="/hod/dashboard" element={<HodDashboard />} />
               <Route path="/hod/faculty" element={<HodDashboard />} />
               <Route path="/hod/reports" element={<HodDashboard />} />
+              <Route path="/hod/profile" element={<HodProfileSettings />} />
             </Route>
 
             {/* Faculty Routes */}
@@ -74,6 +77,7 @@ const App = () => {
               <Route path="/faculty/dashboard" element={<FacultyDashboard />} />
               <Route path="/faculty/feedback" element={<FacultyDashboard />} />
               <Route path="/faculty/reports" element={<FacultyDashboard />} />
+              <Route path="/faculty/profile" element={<FacultyProfileSettings />} />
             </Route>
 
             {/* Catch-all */}

@@ -6,11 +6,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RatingStars } from '@/components/ui/RatingStars';
 import { ProgressBar } from '@/components/ui/ProgressBar';
+import { useSessionByUrl, useQuestions } from '@/hooks/useCollegeData';
 import {
-  feedbackSessionsApi,
   facultyApi,
-  questionsApi,
   submissionsApi,
+  feedbackSessionsApi,
+  questionsApi,
   FeedbackSession,
   Faculty,
   Question,
@@ -135,7 +136,13 @@ export const AnonymousFeedback: React.FC = () => {
         const facultyMember = allFaculty.find(f => f.id === session.facultyId);
 
         if (!facultyMember) {
-          setSessionError('Unable to find faculty information for this session.');
+          setSessionError(`Unable to find faculty information for this session. Faculty ID: ${session.facultyId}, College ID: ${session.collegeId}`);
+          setIsValidating(false);
+          return;
+        }
+
+        if (sortedQuestions.length === 0) {
+          setSessionError('No questions found for this feedback session. Please contact your administrator.');
           setIsValidating(false);
           return;
         }
@@ -154,7 +161,8 @@ export const AnonymousFeedback: React.FC = () => {
 
         setStep('feedback');
       } catch (error) {
-        setSessionError('An error occurred while loading the session. Please try again later.');
+        console.error('Session validation error:', error);
+        setSessionError(`An error occurred while loading the session: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again later.`);
       } finally {
         setIsValidating(false);
       }
@@ -250,23 +258,23 @@ export const AnonymousFeedback: React.FC = () => {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b border-border bg-card">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg gradient-hero">
-              <GraduationCap className="h-6 w-6 text-primary-foreground" />
-            </div>
-            <div>
-              <span className="font-display text-xl font-semibold text-foreground">Gryphon</span>
-              <span className="ml-2 text-sm text-muted-foreground">Faculty Feedback</span>
+        <div className="container mx-auto px-6 py-2">
+          <div className="flex items-center">
+            <div className="flex h-auto w-auto items-center justify-center">
+              <img
+                src="https://res.cloudinary.com/dcjmaapvi/image/upload/v1749719287/juqqmxevqyys5fbavatm.png"
+                alt="Gryphon Academy Logo"
+                className="h-auto w-36"
+              />
             </div>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-6 py-12 max-w-2xl">
+      <main className="container mx-auto px-6 py-1 max-w-2xl">
         {/* Loading State */}
         {isValidating && (
-          <div className="glass-card rounded-xl p-8 animate-fade-up text-center">
+          <div className="glass-card rounded-xl p-6 animate-fade-up text-center">
             <div className="flex items-center justify-center gap-3 mb-4">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
               <span className="text-lg font-medium text-foreground">Validating session...</span>
@@ -279,7 +287,7 @@ export const AnonymousFeedback: React.FC = () => {
 
         {/* Error State */}
         {sessionError && !isValidating && (
-          <div className="glass-card rounded-xl p-8 animate-fade-up">
+          <div className="glass-card rounded-xl p-6 animate-fade-up">
             <div className="text-center mb-6">
               <div className="h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-4">
                 <AlertCircle className="h-8 w-8 text-destructive" />
@@ -296,9 +304,9 @@ export const AnonymousFeedback: React.FC = () => {
 
         {/* Feedback Step */}
         {step === 'feedback' && faculty && !isValidating && (
-          <div className="space-y-6 animate-fade-up">
+          <div className="space-y-4 animate-fade-up">
             {/* Progress */}
-            <div className="glass-card rounded-xl p-6">
+            <div className="glass-card rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm font-medium text-foreground">
                   Overall Progress
@@ -311,7 +319,7 @@ export const AnonymousFeedback: React.FC = () => {
             </div>
 
             {/* Faculty Card */}
-            <div className="glass-card rounded-xl p-6">
+            <div className="glass-card rounded-xl p-4">
               <div className="flex items-center gap-4">
                 <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center">
                   <span className="text-lg font-semibold text-primary">
@@ -319,21 +327,21 @@ export const AnonymousFeedback: React.FC = () => {
                   </span>
                 </div>
                 <div>
-                  <h2 className="font-display text-lg font-semibold text-foreground">{faculty.name}</h2>
+                  <h2 className="font-display text-base font-semibold text-foreground">{faculty.name}</h2>
                   <p className="text-sm text-muted-foreground">{faculty.subjects.join(', ')}</p>
                 </div>
               </div>
             </div>
 
             {/* All Questions */}
-            <div className="space-y-8">
+            <div className="space-y-4">
               {categories.map((category, categoryIndex) => (
-                <div key={category} className="glass-card rounded-xl p-6">
-                  <h3 className="font-display text-lg font-semibold text-foreground mb-6">
+                <div key={category} className="glass-card rounded-xl p-4">
+                  <h3 className="font-display text-base font-semibold text-foreground mb-6">
                     {category}
                   </h3>
 
-                  <div className="space-y-8">
+                  <div className="space-y-4">
                     {groupedQuestions[category].map((question, questionIndex) => {
                       const response = responses.find(r => r.questionId === question.id);
                       const globalIndex = categories.slice(0, categoryIndex).reduce((acc, cat) => acc + groupedQuestions[cat].length, 0) + questionIndex + 1;
@@ -341,7 +349,7 @@ export const AnonymousFeedback: React.FC = () => {
                       return (
                         <div
                           key={question.id}
-                          className="space-y-4 animate-fade-up"
+                          className="space-y-2 animate-fade-up"
                           style={{ animationDelay: `${questionIndex * 0.05}s` }}
                         >
                           <div className="flex items-start gap-2">
@@ -349,7 +357,7 @@ export const AnonymousFeedback: React.FC = () => {
                               {globalIndex}.
                             </span>
                             <div className="flex-1">
-                              <p className="text-foreground">
+                              <p className="text-sm text-foreground">
                                 {question.text}
                                 {question.required && (
                                   <span className="text-destructive ml-1">*</span>
@@ -436,13 +444,13 @@ export const AnonymousFeedback: React.FC = () => {
             </div>
 
             {/* Submit Button */}
-            <div className="glass-card rounded-xl p-6">
+            <div className="glass-card rounded-xl p-4">
               <div className="text-center">
                 <Button
                   onClick={handleSubmit}
                   disabled={!canProceed() || isSubmitting}
                   size="lg"
-                  className="gap-2 gradient-hero text-primary-foreground hover:opacity-90 px-8 py-3"
+                  className="gap-2 gradient-hero text-primary-foreground hover:opacity-90 px-6 py-2"
                 >
                   {isSubmitting ? (
                     <>
@@ -466,7 +474,7 @@ export const AnonymousFeedback: React.FC = () => {
 
         {/* Success Step */}
         {step === 'success' && (
-          <div className="glass-card rounded-xl p-12 text-center animate-scale-in">
+          <div className="glass-card rounded-xl p-8 text-center animate-scale-in">
             <div className="mx-auto h-16 w-16 rounded-full bg-success/10 flex items-center justify-center mb-6">
               <Check className="h-8 w-8 text-success" />
             </div>

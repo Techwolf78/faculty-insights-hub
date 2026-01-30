@@ -96,6 +96,7 @@ export interface Faculty {
   achievements: string[];
   course: string;
   academicYear: string;
+  role: 'faculty' | 'hod';
   stats: {
     totalSessions: number;
     totalSubmissions: number;
@@ -467,7 +468,17 @@ export const facultyApi = {
   getById: async (id: string): Promise<Faculty | null> => {
     const docSnap = await getDoc(doc(db, 'faculty', id));
     if (docSnap.exists()) {
-      return { id: docSnap.id, ...docSnap.data() } as Faculty;
+      const facultyData = { id: docSnap.id, ...docSnap.data() } as Omit<Faculty, 'role'>;
+
+      // Fetch role from user document
+      try {
+        const userDoc = await getDoc(doc(db, 'users', facultyData.userId));
+        const role = userDoc.exists() ? (userDoc.data() as User).role : 'faculty';
+        return { ...facultyData, role: role as 'faculty' | 'hod' };
+      } catch (error) {
+        console.error(`Error fetching role for faculty ${id}:`, error);
+        return { ...facultyData, role: 'faculty' as const };
+      }
     }
     return null;
   },
@@ -476,8 +487,17 @@ export const facultyApi = {
     const q = query(collection(db, 'faculty'), where('userId', '==', userId));
     const querySnapshot = await getDocs(q);
     if (!querySnapshot.empty) {
-      const doc = querySnapshot.docs[0];
-      return { id: doc.id, ...doc.data() } as Faculty;
+      const facultyData = { id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data() } as Omit<Faculty, 'role'>;
+
+      // Fetch role from user document
+      try {
+        const userDoc = await getDoc(doc(db, 'users', userId));
+        const role = userDoc.exists() ? (userDoc.data() as User).role : 'faculty';
+        return { ...facultyData, role: role as 'faculty' | 'hod' };
+      } catch (error) {
+        console.error(`Error fetching role for faculty with userId ${userId}:`, error);
+        return { ...facultyData, role: 'faculty' as const };
+      }
     }
     return null;
   },
@@ -485,13 +505,45 @@ export const facultyApi = {
   getByCollege: async (collegeId: string): Promise<Faculty[]> => {
     const q = query(collection(db, 'faculty'), where('collegeId', '==', collegeId));
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Faculty));
+    const facultyData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Omit<Faculty, 'role'>));
+
+    // Fetch roles from user documents
+    const facultyWithRoles = await Promise.all(
+      facultyData.map(async (faculty) => {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', faculty.userId));
+          const role = userDoc.exists() ? (userDoc.data() as User).role : 'faculty';
+          return { ...faculty, role: role as 'faculty' | 'hod' };
+        } catch (error) {
+          console.error(`Error fetching role for faculty ${faculty.id}:`, error);
+          return { ...faculty, role: 'faculty' as const };
+        }
+      })
+    );
+
+    return facultyWithRoles;
   },
 
   getByDepartment: async (departmentId: string): Promise<Faculty[]> => {
     const q = query(collection(db, 'faculty'), where('departmentId', '==', departmentId));
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Faculty));
+    const facultyData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Omit<Faculty, 'role'>));
+
+    // Fetch roles from user documents
+    const facultyWithRoles = await Promise.all(
+      facultyData.map(async (faculty) => {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', faculty.userId));
+          const role = userDoc.exists() ? (userDoc.data() as User).role : 'faculty';
+          return { ...faculty, role: role as 'faculty' | 'hod' };
+        } catch (error) {
+          console.error(`Error fetching role for faculty ${faculty.id}:`, error);
+          return { ...faculty, role: 'faculty' as const };
+        }
+      })
+    );
+
+    return facultyWithRoles;
   },
 
   getActiveByCollege: async (collegeId: string): Promise<Faculty[]> => {
@@ -501,7 +553,23 @@ export const facultyApi = {
       where('isActive', '==', true)
     );
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Faculty));
+    const facultyData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Omit<Faculty, 'role'>));
+
+    // Fetch roles from user documents
+    const facultyWithRoles = await Promise.all(
+      facultyData.map(async (faculty) => {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', faculty.userId));
+          const role = userDoc.exists() ? (userDoc.data() as User).role : 'faculty';
+          return { ...faculty, role: role as 'faculty' | 'hod' };
+        } catch (error) {
+          console.error(`Error fetching role for faculty ${faculty.id}:`, error);
+          return { ...faculty, role: 'faculty' as const };
+        }
+      })
+    );
+
+    return facultyWithRoles;
   },
 
   create: async (member: Omit<Faculty, 'id' | 'createdAt' | 'updatedAt' | 'stats'>): Promise<Faculty> => {
@@ -1248,6 +1316,16 @@ export const questionsApi = {
 
   getByCollege: async (collegeId: string): Promise<Question[]> => {
     const q = query(collection(db, 'questions'), where('collegeId', '==', collegeId));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Question));
+  },
+
+  getActiveByCollege: async (collegeId: string): Promise<Question[]> => {
+    const q = query(
+      collection(db, 'questions'),
+      where('collegeId', '==', collegeId),
+      where('isActive', '==', true)
+    );
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Question));
   },

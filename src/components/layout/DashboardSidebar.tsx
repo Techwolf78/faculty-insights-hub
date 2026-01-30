@@ -16,6 +16,7 @@ import {
   ClipboardList,
   ChevronLeft,
   ChevronRight,
+  User,
 } from 'lucide-react';
 
 interface SidebarLink {
@@ -42,12 +43,14 @@ const hodLinks: SidebarLink[] = [
   { to: '/hod/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/hod/faculty', icon: Users, label: 'Faculty Performance' },
   { to: '/hod/reports', icon: BarChart3, label: 'Reports' },
+  { to: '/hod/profile', icon: User, label: 'Profile Settings' },
 ];
 
 const facultyLinks: SidebarLink[] = [
   { to: '/faculty/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/faculty/feedback', icon: ClipboardList, label: 'My Feedback' },
   { to: '/faculty/reports', icon: BarChart3, label: 'Performance Report' },
+  { to: '/faculty/profile', icon: User, label: 'Profile Settings' },
 ];
 
 interface DashboardSidebarProps {
@@ -69,7 +72,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
 
   const handleLogout = async () => {
     logout();
-    navigate(-1);
+    navigate('/');
   };
 
   const getLinks = (): SidebarLink[] => {
@@ -129,8 +132,8 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
         {/* Logo and Toggle */}
         {isCollapsed ? (
           <div className="flex flex-col items-center px-4 py-5 border-b border-sidebar-border gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sidebar-primary">
-              <GraduationCap className="h-6 w-6 text-sidebar-primary-foreground" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sidebar-primary text-sidebar-primary-foreground font-bold text-sm">
+              GA
             </div>
             <button
               onClick={() => setIsCollapsed(!isCollapsed)}
@@ -143,14 +146,12 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
         ) : (
           <div className="flex items-center justify-between px-4 py-5 border-b border-sidebar-border">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sidebar-primary">
-                <GraduationCap className="h-6 w-6 text-sidebar-primary-foreground" />
-              </div>
-              <div>
-                <h1 className="font-display text-lg font-semibold text-sidebar-foreground">
-                  Gryphon
-                </h1>
-                <p className="text-xs text-sidebar-foreground/70">Feedback System</p>
+              <div className="flex h-auto w-auto items-center justify-center rounded-lg  ">
+                <img
+                  src="https://res.cloudinary.com/dcjmaapvi/image/upload/v1740489025/ga-hori_ylcnm3.png"
+                  alt="Gryphon Academy Logo"
+                  className="h-auto w-36"
+                />
               </div>
             </div>
             <button
@@ -192,7 +193,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
                   isCollapsed ? "justify-center px-2" : "",
                   isActive
                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                    : "text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                    : "text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
                 )
               }
               title={isCollapsed ? link.label : undefined}
@@ -208,7 +209,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
           <button
             onClick={handleLogout}
             className={cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-all duration-200",
+              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground transition-all duration-200",
               isCollapsed ? "justify-center px-2" : "w-full"
             )}
             title={isCollapsed ? "Sign Out" : undefined}

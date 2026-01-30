@@ -1,13 +1,17 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
-import { facultyApi, departmentsApi, Faculty, Department } from '@/lib/storage';
+import { facultyApi, departmentsApi, usersApi, Faculty, Department } from '@/lib/storage';
 import { getAcademicConfig } from '@/lib/academicConfig';
 import { toast } from 'sonner';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { auth, db } from '@/lib/firebase';
+import { doc, collection, Timestamp } from 'firebase/firestore';
+import { Eye, EyeOff } from 'lucide-react';
 
 interface FacultyFormProps {
   open: boolean;
@@ -19,12 +23,19 @@ interface FacultyFormProps {
 const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess, editingFaculty }) => {
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingFacultyDetails, setIsLoadingFacultyDetails] = useState(false);
+  const [isFormReady, setIsFormReady] = useState(false);
   const [courseData, setCourseData] = useState<Record<string, { years: string[]; yearDepartments: Record<string, string[]> }>>({});
+  const [subjectsData, setSubjectsData] = useState<Record<string, Record<string, Record<string, Record<string, string[]>>>>>({});
   const [departments, setDepartments] = useState<Department[]>([]);
-  const [formData, setFormData] = useState({
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Default form data structure - used for both add and edit operations
+  const defaultFormData = useMemo(() => ({
     employeeId: '',
     name: '',
     email: '',
+    password: '', // For new faculty accounts only
     designation: '',
     specialization: '',
     experience: '',
@@ -37,69 +48,68 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
     subjects: '',
     course: '',
     academicYear: '',
-  });
+    role: 'faculty', // Default to faculty
+  }), []);
+
+  const [formData, setFormData] = useState(defaultFormData);
 
   const loadData = useCallback(async () => {
     try {
+      setIsLoadingFacultyDetails(true);
       const config = await getAcademicConfig(user!.collegeId!);
       setCourseData(config.courseData);
+      setSubjectsData(config.subjectsData);
 
       // Load departments
       const depts = await departmentsApi.getByCollege(user!.collegeId!);
       setDepartments(depts);
     } catch (error) {
       console.error('Error loading data:', error);
+    } finally {
+      setIsLoadingFacultyDetails(false);
     }
   }, [user]);
 
   useEffect(() => {
     if (open && user?.collegeId) {
+      setIsFormReady(false); // Reset form ready state when dialog opens
       loadData();
     }
   }, [open, user?.collegeId, loadData]);
 
   useEffect(() => {
     if (editingFaculty && open) {
-      // Populate form with existing faculty data
-      const dept = departments.find(d => d.id === editingFaculty.departmentId);
-      setFormData({
-        employeeId: editingFaculty.employeeId,
-        name: editingFaculty.name,
-        email: editingFaculty.email,
-        designation: editingFaculty.designation,
-        specialization: editingFaculty.specialization,
-        experience: editingFaculty.experience.toString(),
-        qualifications: editingFaculty.qualifications,
-        researchInterests: editingFaculty.researchInterests.join(', '),
-        publications: editingFaculty.publications.toString(),
-        teachingSubjects: editingFaculty.teachingSubjects.join(', '),
-        achievements: editingFaculty.achievements.join(', '),
-        department: dept?.name || editingFaculty.departmentId, // Use department name for form display
-        subjects: editingFaculty.subjects.join(', '),
-        course: editingFaculty.course,
-        academicYear: editingFaculty.academicYear,
-      });
+      // Wait for both departments and academic config to be loaded before populating form
+      if (departments.length > 0 && Object.keys(courseData).length > 0) {
+        // Populate form with existing faculty data
+        const dept = departments.find(d => d.id === editingFaculty.departmentId);
+        setFormData({
+          employeeId: editingFaculty.employeeId,
+          name: editingFaculty.name,
+          email: editingFaculty.email,
+          password: '', // Password not editable by admin
+          designation: editingFaculty.designation,
+          specialization: editingFaculty.specialization,
+          experience: editingFaculty.experience.toString(),
+          qualifications: editingFaculty.qualifications,
+          researchInterests: editingFaculty.researchInterests.join(', '),
+          publications: editingFaculty.publications.toString(),
+          teachingSubjects: editingFaculty.teachingSubjects.join(', '),
+          achievements: editingFaculty.achievements.join(', '),
+          department: dept?.name || editingFaculty.departmentId, // Use department name for form display
+          subjects: editingFaculty.subjects.join(', '),
+          course: editingFaculty.course,
+          academicYear: editingFaculty.academicYear,
+          role: editingFaculty.role || 'faculty', // Use existing role or default to faculty
+        });
+        setIsFormReady(true);
+      }
     } else if (!editingFaculty && open) {
       // Reset form for new faculty
-      setFormData({
-        employeeId: '',
-        name: '',
-        email: '',
-        designation: '',
-        specialization: '',
-        experience: '',
-        qualifications: '',
-        researchInterests: '',
-        publications: '',
-        teachingSubjects: '',
-        achievements: '',
-        department: '',
-        subjects: '',
-        course: '',
-        academicYear: '',
-      });
+      setFormData(defaultFormData);
+      setIsFormReady(false);
     }
-  }, [editingFaculty, open, departments]);
+  }, [editingFaculty, open, departments, courseData, defaultFormData]);
 
   const availableYears = formData.course ? courseData[formData.course]?.years || [] : [];
   const availableDepartmentsFromConfig = (formData.course && formData.academicYear)
@@ -108,12 +118,24 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
   // Show departments from academic config (no filtering needed)
   const availableDepartments = availableDepartmentsFromConfig;
 
+  // Get available subjects for the selected department
+  const availableSubjects = (formData.course && formData.academicYear && formData.department)
+    ? subjectsData[formData.course]?.[formData.academicYear]?.[formData.department] || {} : {};
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.name.trim() || !formData.email.trim() || !formData.employeeId.trim() || !formData.department || !formData.course || !formData.academicYear) {
+    if (!formData.name.trim() || !formData.email.trim() || !formData.employeeId.trim() || !formData.department || !formData.course || !formData.academicYear || !formData.subjects) {
       toast.error('Please fill in all required fields');
       return;
+    }
+
+    // Password validation only for new faculty
+    if (!editingFaculty) {
+      if (!formData.password || formData.password.length < 6) {
+        toast.error('Password must be at least 6 characters long');
+        return;
+      }
     }
 
     if (!user?.collegeId) {
@@ -131,6 +153,7 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
           name: formData.department,
           code: formData.department.substring(0, 3).toUpperCase(), // Generate a simple code
           collegeId: user.collegeId,
+          isActive: true,
         });
         // Add to local state
         setDepartments(prev => [...prev, selectedDept!]);
@@ -155,32 +178,62 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
         subjects: formData.subjects.split(',').map(s => s.trim()).filter(s => s),
         course: formData.course,
         academicYear: formData.academicYear,
+        role: formData.role as 'faculty' | 'hod',
         isActive: true,
       };
 
       if (editingFaculty) {
+        // Update faculty document
         await facultyApi.update(editingFaculty.id, facultyData);
-        toast.success('Faculty member updated successfully');
+
+        // Update user document with new role if it changed
+        if (editingFaculty.role !== formData.role) {
+          await usersApi.update(editingFaculty.userId, { role: formData.role as 'faculty' | 'hod' });
+        }
       } else {
-        await facultyApi.create(facultyData);
-        toast.success('Faculty member added successfully');
-        setFormData({
-          employeeId: '',
-          name: '',
-          email: '',
-          designation: '',
-          specialization: '',
-          experience: '',
-          qualifications: '',
-          researchInterests: '',
-          publications: '',
-          teachingSubjects: '',
-          achievements: '',
-          department: '',
-          subjects: '',
-          course: '',
-          academicYear: '',
-        });
+        // Create new faculty account
+        try {
+          // 1. Create user in Firebase Auth
+          const userCredential = await createUserWithEmailAndPassword(auth, formData.email.trim(), formData.password);
+          const firebaseUser = userCredential.user;
+
+          // 2. Create user document in Firestore
+          const userData = {
+            email: formData.email.trim(),
+            name: formData.name.trim(),
+            role: formData.role as 'faculty' | 'hod',
+            collegeId: user.collegeId,
+            departmentId: selectedDept.id,
+            isActive: true,
+            createdAt: Timestamp.now(),
+            updatedAt: Timestamp.now(),
+          };
+          await usersApi.create(userData, firebaseUser.uid);
+
+          // 3. Create faculty profile
+          const facultyDataWithUserId = {
+            ...facultyData,
+            userId: firebaseUser.uid,
+          };
+          await facultyApi.create(facultyDataWithUserId);
+
+          toast.success(`Faculty member added successfully! Login credentials: ${formData.email} / ${formData.password}`);
+        } catch (authError: any) {
+          console.error('Auth error:', authError);
+          if (authError.code === 'auth/email-already-in-use') {
+            toast.error('This email is already registered. Please use a different email.');
+          } else if (authError.code === 'auth/weak-password') {
+            toast.error('Password is too weak. Please choose a stronger password.');
+          } else {
+            toast.error(`Failed to create faculty account: ${authError.message || 'Unknown error'}`);
+          }
+          return;
+        }
+      }
+
+      // Reset form and close dialog on success
+      if (!editingFaculty) {
+        setFormData(defaultFormData);
       }
       onOpenChange(false);
       onSuccess();
@@ -193,23 +246,8 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
   };
 
   const handleClose = () => {
-    setFormData({
-      employeeId: '',
-      name: '',
-      email: '',
-      designation: '',
-      specialization: '',
-      experience: '',
-      qualifications: '',
-      researchInterests: '',
-      publications: '',
-      teachingSubjects: '',
-      achievements: '',
-      department: '',
-      subjects: '',
-      course: '',
-      academicYear: '',
-    });
+    setFormData(defaultFormData);
+    setIsFormReady(false);
     onOpenChange(false);
   };
 
@@ -222,8 +260,16 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
             {editingFaculty ? 'Update faculty member information.' : 'Add a new faculty member to your college. Fill in the required information below.'}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit}>
-          <div className="grid gap-4 py-4">
+        {editingFaculty && !isFormReady ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="flex items-center gap-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+              <span className="text-sm text-muted-foreground">Fetching faculty details...</span>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit}>
+            <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="employeeId" className="text-right">
                 Employee ID *
@@ -264,6 +310,54 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
                 required
               />
             </div>
+            {!editingFaculty && (
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="password" className="text-right">
+                  Password *
+                </Label>
+                <div className="col-span-3 relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    value={formData.password}
+                    onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                    className="pr-10"
+                    placeholder="Minimum 6 characters"
+                    required
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <Eye className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="role" className="text-right">
+                Role *
+              </Label>
+              <Select
+                value={formData.role}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, role: value }))}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="faculty">Faculty Member</SelectItem>
+                  <SelectItem value="hod">Head of Department (HOD)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="course" className="text-right">
                 Course/Program *
@@ -274,7 +368,8 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
                   ...prev, 
                   course: value,
                   academicYear: '', // Reset dependent fields
-                  department: ''
+                  department: '',
+                  subjects: ''
                 }))}
               >
                 <SelectTrigger className="col-span-3">
@@ -298,7 +393,8 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
                 onValueChange={(value) => setFormData(prev => ({ 
                   ...prev, 
                   academicYear: value,
-                  department: '' // Reset dependent field
+                  department: '', // Reset dependent fields
+                  subjects: ''
                 }))}
                 disabled={!formData.course}
               >
@@ -320,7 +416,7 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
               </Label>
               <Select 
                 value={formData.department} 
-                onValueChange={(value) => setFormData(prev => ({ ...prev, department: value }))}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, department: value, subjects: '' }))}
                 disabled={!formData.course || !formData.academicYear}
               >
                 <SelectTrigger className="col-span-3">
@@ -330,6 +426,27 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
                   {availableDepartments.map((deptName) => (
                     <SelectItem key={deptName} value={deptName}>
                       {deptName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="subjects" className="text-right">
+                Subjects *
+              </Label>
+              <Select 
+                value={formData.subjects} 
+                onValueChange={(value) => setFormData(prev => ({ ...prev, subjects: value }))}
+                disabled={!formData.course || !formData.academicYear || !formData.department}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select subjects" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.keys(availableSubjects).map((subject) => (
+                    <SelectItem key={subject} value={subject}>
+                      {subject}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -412,18 +529,6 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="subjects" className="text-right">
-                Current Subjects
-              </Label>
-              <Input
-                id="subjects"
-                value={formData.subjects}
-                onChange={(e) => setFormData(prev => ({ ...prev, subjects: e.target.value }))}
-                className="col-span-3"
-                placeholder="e.g., CS101, CS201 (comma-separated)"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="researchInterests" className="text-right">
                 Research Interests
               </Label>
@@ -449,14 +554,15 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
             </div>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={handleClose} disabled={isLoading}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? (editingFaculty ? 'Updating...' : 'Adding...') : (editingFaculty ? 'Update Faculty Member' : 'Add Faculty Member')}
-            </Button>
-          </DialogFooter>
-        </form>
+              <Button type="button" variant="outline" onClick={handleClose} disabled={isLoading}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? (editingFaculty ? 'Updating...' : 'Adding...') : (editingFaculty ? 'Update Faculty Member' : 'Add Faculty Member')}
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   );

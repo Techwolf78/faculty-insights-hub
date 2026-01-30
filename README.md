@@ -65,14 +65,63 @@ This makes the system:
 
 ---
 
-## Core Design Principles
+## Production Setup
 
-* **Frontend-only (No Backend)**
-* **Academic-first data model**
-* **Role-based access control**
-* **Multi-college isolation**
-* **Accessible & keyboard-friendly UI**
-* **Professional academic look**
+### Prerequisites
+
+- Node.js 18+
+- Firebase Project
+- Environment variables configured
+
+### Firebase Configuration
+
+1. Create a Firebase project at https://console.firebase.google.com/
+2. Enable Authentication with Email/Password provider
+3. Enable Firestore Database
+4. Copy your Firebase config values
+
+### Environment Variables
+
+Create a `.env` file in the root directory:
+
+```env
+VITE_FIREBASE_API_KEY=your_api_key_here
+VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your_project_id
+VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+VITE_FIREBASE_APP_ID=your_app_id
+VITE_FIREBASE_MEASUREMENT_ID=your_measurement_id
+```
+
+### Initial Setup
+
+1. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+2. **Configure Firebase:**
+   - Update `.env` with your Firebase project credentials
+   - Ensure Firebase Security Rules are properly configured
+
+3. **Create Super Admin:**
+   - Run the application
+   - Use "Create Super Admin Account" on the login page
+   - This creates the first administrator account
+
+4. **Setup Colleges & Users:**
+   - Super admin creates college administrators
+   - College admins add departments and faculty
+   - Faculty accounts are created automatically with secure passwords
+
+### Security Features
+
+- **No hardcoded credentials** - All user accounts created through admin interface
+- **Firebase Authentication** - Secure user management
+- **Password reset** - Built-in forgot password functionality
+- **Role-based access** - Granular permissions system
+- **Environment variables** - Sensitive config not in code
 
 ---
 
@@ -306,15 +355,25 @@ ffs_feedback_submissions: [
 
 ---
 
-## Demo & Mock Data
+## Demo & Development
 
-Includes:
+### Seed Data
 
-* 2 Colleges (ICEM, IGSB)
-* 10–15 Faculty
-* Multiple departments
-* 20+ questions
-* 100+ feedback submissions
+The application includes a production-safe seed data script that:
+
+* Creates demo colleges (ICEM, IGSB)
+* Sets up sample departments
+* Creates a super admin account (you provide email/password)
+* Pre-configures question banks
+
+**No hardcoded user credentials** - All accounts created securely through Firebase Auth.
+
+### Development Setup
+
+1. Run the seed data script from `/seed-data` page
+2. Create your super admin account
+3. Add college administrators
+4. College admins can then add faculty and create feedback sessions
 
 ---
 

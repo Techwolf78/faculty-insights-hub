@@ -18,23 +18,32 @@ export const IGSBLogin: React.FC = () => {
 
   // Handle navigation when user data becomes available after login
   useEffect(() => {
+    console.log('useEffect triggered: user =', user, 'isLoading =', isLoading);
     if (user && !isLoading) {
+      console.log('Navigating user with role:', user.role);
       switch (user.role) {
         case 'superAdmin':
+          console.log('Navigating to /super-admin');
           navigate('/super-admin');
           break;
         case 'admin':
+          console.log('Navigating to /admin/dashboard');
           navigate('/admin/dashboard');
           break;
         case 'hod':
+          console.log('Navigating to /hod/dashboard');
           navigate('/hod/dashboard');
           break;
         case 'faculty':
+          console.log('Navigating to /faculty/dashboard');
           navigate('/faculty/dashboard');
           break;
         default:
+          console.log('Navigating to /');
           navigate('/');
       }
+    } else {
+      console.log('Not navigating: user or isLoading condition not met');
     }
   }, [user, isLoading, navigate]);
 
@@ -43,13 +52,17 @@ export const IGSBLogin: React.FC = () => {
     setError('');
     setIsSubmitting(true);
 
+    console.log('Starting login process');
     const result = await login(email, password);
+    console.log('Login result:', result);
 
     if (!result.success) {
       setError(result.error || 'Login failed');
       setIsSubmitting(false);
+    } else {
+      console.log('Login successful, setting isSubmitting to false');
+      setIsSubmitting(false);
     }
-    // On success, navigation will be handled by the useEffect above
   };
 
   const demoCredentials = [
@@ -89,22 +102,6 @@ export const IGSBLogin: React.FC = () => {
           <p className="text-lg text-primary-foreground/80 max-w-md mb-8">
             Access your personalized dashboard to view feedback analytics, manage cycles, and drive continuous improvement in teaching excellence.
           </p>
-
-          <div className="flex items-center gap-4">
-            <div className="flex -space-x-3">
-              {[1, 2, 3, 4].map((i) => (
-                <div
-                  key={i}
-                  className="h-10 w-10 rounded-full bg-white/20 border-2 border-primary flex items-center justify-center text-xs font-medium text-primary-foreground"
-                >
-                  {String.fromCharCode(64 + i)}
-                </div>
-              ))}
-            </div>
-            <p className="text-sm text-primary-foreground/70">
-              Join 500+ faculty members already using our platform
-            </p>
-          </div>
         </div>
       </div>
 
@@ -116,7 +113,7 @@ export const IGSBLogin: React.FC = () => {
             <img
               src="https://indiraigsb.edu.in/assets/images/igsb-logo.png"
               alt="IGSB College Logo"
-              className="h-20 w-auto object-contain rounded-lg"
+              className="h-20 w-auto object-contain rounded-lg p-2"
               style={{ backgroundColor: '#072F61' }}
             />
             <span className="font-display text-2xl font-bold text-foreground">IGSB</span>

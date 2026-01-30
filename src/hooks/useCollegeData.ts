@@ -8,6 +8,7 @@ import {
     facultyApi,
     feedbackSessionsApi,
     questionsApi,
+    questionGroupsApi,
     submissionsApi,
     feedbackStatsApi,
     academicConfigApi,
@@ -73,6 +74,8 @@ export const queryKeys = {
     questions: ['questions'] as const,
     questionsByCollege: (collegeId: string) => ['questions', 'college', collegeId] as const,
     activeQuestionsByCollege: (collegeId: string) => ['questions', 'college', collegeId, 'active'] as const,
+    questionGroups: ['questionGroups'] as const,
+    questionGroupsByCollege: (collegeId: string) => ['questionGroups', 'college', collegeId] as const,
 
     // Submissions
     submissions: ['submissions'] as const,
@@ -287,6 +290,15 @@ export function useActiveQuestions(collegeId: string | undefined) {
     return useQuery({
         queryKey: queryKeys.activeQuestionsByCollege(collegeId || ''),
         queryFn: () => questionsApi.getActiveByCollege(collegeId!),
+        enabled: !!collegeId,
+        staleTime: STALE_TIME.SEMI_STATIC,
+    });
+}
+
+export function useQuestionGroups(collegeId: string | undefined) {
+    return useQuery({
+        queryKey: queryKeys.questionGroupsByCollege(collegeId || ''),
+        queryFn: () => questionGroupsApi.getByCollege(collegeId!),
         enabled: !!collegeId,
         staleTime: STALE_TIME.SEMI_STATIC,
     });
