@@ -335,6 +335,15 @@ export function useRecentSubmissions(collegeId: string | undefined, maxResults =
     });
 }
 
+export function useAllSubmissions(collegeId: string | undefined) {
+    return useQuery({
+        queryKey: queryKeys.submissionsByCollege(collegeId || ''),
+        queryFn: () => submissionsApi.getByCollege(collegeId!),
+        enabled: !!collegeId,
+        staleTime: STALE_TIME.DYNAMIC,
+    });
+}
+
 // ============================================================================
 // STATS HOOKS (Optimized - Single Read for Aggregated Data)
 // ============================================================================

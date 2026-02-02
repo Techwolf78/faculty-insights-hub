@@ -24,6 +24,7 @@ import {
   useCollegeStats,
   useAllDepartmentStats,
   useAllFacultyStats,
+  useAllSubmissions,
 } from '@/hooks/useCollegeData';
 import {
   departmentsApi,
@@ -90,6 +91,7 @@ const AdminDashboard = () => {
   const { data: questions = [], isLoading: questionsLoading } = useQuestions(user?.collegeId);
   const { data: sessions = [], isLoading: sessionsLoading } = useSessions(user?.collegeId);
   const { data: submissions = [], isLoading: submissionsLoading } = useRecentSubmissions(user?.collegeId);
+  const { data: allSubmissions = [], isLoading: allSubmissionsLoading } = useAllSubmissions(user?.collegeId);
   const { data: college, isLoading: collegeLoading } = useCollege(user?.collegeId);
   const { data: academicConfig, isLoading: academicConfigLoading } = useAcademicConfig(user?.collegeId);
 
@@ -406,10 +408,10 @@ const AdminDashboard = () => {
     }).filter(d => d.average > 0);
   }, [departmentStats, departments]);
 
-  // Response trend data (last 7 days)
+  // Response trend data (last 7 days) - use all submissions for accurate trend
   const trendData = Array.from({ length: 7 }, (_, i) => {
     const date = subDays(new Date(), 6 - i);
-    const daySubs = filteredData.submissions.filter(s =>
+    const daySubs = allSubmissions.filter(s =>
       s.submittedAt && format(s.submittedAt.toDate(), 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
     );
 
@@ -986,13 +988,32 @@ const AdminDashboard = () => {
                   </div>
                   <div className="space-y-6 max-h-96 overflow-y-auto">
                     {faculty.slice(0, 8).map((member, index) => {
-                      const memberStats = facultyStats.find(stat => stat.entityId === member.id);
-                      const avgRating = memberStats?.averageRating || 0;
+                      // Calculate faculty stats directly from all submissions
+                      const memberSubmissions = allSubmissions.filter(s => s.facultyId === member.id);
+                      const memberWeekSubmissions = memberSubmissions.filter(s =>
+                        s.submittedAt && isAfter(s.submittedAt.toDate(), subDays(new Date(), 7))
+                      );
 
-                      // Get comments from pre-computed stats
-                      const allComments = memberStats?.recentComments || [];
+                      // Calculate average rating from submissions
+                      const avgRating = memberSubmissions.length > 0
+                        ? memberSubmissions.reduce((sum, s) => sum + (s.metrics?.overallRating || 0), 0) / memberSubmissions.length
+                        : 0;
 
-                      // Sort all comments by rating to get highest and lowest
+                      // Get all comments from submissions
+                      const allComments = memberSubmissions
+                        .filter(s => s.responses && s.responses.length > 0)
+                        .flatMap(s => s.responses
+                          .filter(r => r.comment && r.comment.trim())
+                          .map(r => ({
+                            text: r.comment!,
+                            rating: s.metrics?.overallRating || 0, // Use submission's overall rating from metrics
+                            submittedAt: s.submittedAt!
+                          }))
+                        )
+                        .sort((a, b) => b.submittedAt.toDate().getTime() - a.submittedAt.toDate().getTime())
+                        .slice(0, 10); // Get recent 10 comments
+
+                      // Sort comments by rating to get highest and lowest
                       const sortedByRating = [...allComments].sort((a, b) => b.rating - a.rating);
 
                       // Take top 2 highest rated as positive feedback
@@ -1034,7 +1055,7 @@ const AdminDashboard = () => {
                                   </span>
                                 ))}
                               </div>
-                              <p className="text-xs text-muted-foreground mt-1">{weekSubmissions.length} responses</p>
+                              <p className="text-xs text-muted-foreground mt-1">{memberSubmissions.length} responses</p>
                             </div>
                           </div>
 
@@ -1066,7 +1087,7 @@ const AdminDashboard = () => {
                                             </span>
                                             {item.rating && (
                                               <span className="text-xs font-medium text-green-700 bg-green-100 px-2 py-1 rounded">
-                                                {item.rating}/5
+                                                {item.rating.toFixed(1)}/5
                                               </span>
                                             )}
                                           </div>
@@ -1098,7 +1119,7 @@ const AdminDashboard = () => {
                                             </span>
                                             {item.rating && (
                                               <span className="text-xs font-medium text-red-700 bg-red-100 px-2 py-1 rounded">
-                                                {item.rating}/5
+                                                {item.rating.toFixed(1)}/5
                                               </span>
                                             )}
                                           </div>
