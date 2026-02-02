@@ -57,6 +57,7 @@ import { getAcademicConfig, AcademicConfigData } from '@/lib/academicConfig';
 import { BarChart3, RefreshCw, Building2, Calendar, Users, FileText, User, TrendingUp, MessageSquare, Plus, Edit, Download, Upload, Trash2, ClipboardCheck, GraduationCap, FileQuestion } from 'lucide-react';
 import { format, subDays, isAfter } from 'date-fns';
 import { toast } from 'sonner';
+import * as XLSX from 'xlsx';
 import {
   ResponsiveContainer,
   BarChart,
@@ -184,32 +185,61 @@ const AdminDashboard = () => {
   };
 
   const handleExportFaculty = () => {
-    // Create CSV content
-    const headers = ['Name', 'Email', 'Department', 'Role'];
+    // Create Excel workbook
+    const wb = XLSX.utils.book_new();
+
+    // Prepare data
+    const headers = ['Faculty ID', 'Name', 'Email', 'Password', 'Department', 'Role'];
     const rows = faculty.map(member => {
       const dept = departments.find(d => d.id === member.departmentId);
+      const password = member.employeeId.replace('FAC', 'Fac') + '@';
       return [
+        member.employeeId,
         member.name,
         member.email,
+        password,
         dept?.name || 'Unknown Department',
         member.role === 'hod' ? 'Head of Department' : 'Faculty Member'
       ];
     });
 
-    const csvContent = [headers, ...rows]
-      .map(row => row.map(field => `"${field}"`).join(','))
-      .join('\n');
+    // Create worksheet
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
 
-    // Create and download the file
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', 'faculty_members.csv');
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // Set column widths
+    ws['!cols'] = [
+      { wch: 12 }, // Faculty ID
+      { wch: 25 }, // Name
+      { wch: 30 }, // Email
+      { wch: 15 }, // Password
+      { wch: 25 }, // Department
+      { wch: 20 }  // Role
+    ];
+
+    // Style the header row
+    const headerRange = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+    for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
+      const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
+      if (ws[cellAddress]) {
+        ws[cellAddress].s = {
+          font: { bold: true, sz: 12 },
+          fill: { fgColor: { rgb: "FFE6E6FA" } }, // Light lavender background
+          alignment: { horizontal: "center", vertical: "center" }
+        };
+      }
+    }
+
+    // Add worksheet to workbook
+    XLSX.utils.book_append_sheet(wb, ws, 'Faculty Members');
+
+    // Generate filename with current date
+    const currentDate = new Date().toISOString().split('T')[0];
+    const filename = `faculty_members_${currentDate}.xlsx`;
+
+    // Save file
+    XLSX.writeFile(wb, filename);
+
+    toast.success('Faculty data exported successfully!');
   };
 
   // Question form state
@@ -1119,7 +1149,7 @@ const AdminDashboard = () => {
                   <div className="flex gap-2">
                     <Button variant="outline" onClick={handleExportFaculty}>
                       <Download className="h-4 w-4 mr-2" />
-                      Export Faculty
+                      Export to Excel
                     </Button>
                     <Button className="bg-primary hover:bg-primary/90" onClick={() => setFacultyFormOpen(true)}>
                       <Plus className="h-4 w-4 mr-2" />
@@ -1130,24 +1160,29 @@ const AdminDashboard = () => {
 
                 <div className="space-y-4">
                   {faculty.map((member) => (
-                    <div key={member.id} className="flex items-center justify-between p-4 border border-border rounded-lg">
-                      <div className="flex items-center gap-4">
-                        <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                    <div key={member.id} className="grid grid-cols-12 gap-4 items-center p-4 border border-border rounded-lg">
+                      <div className="col-span-6 flex items-center gap-4">
+                        <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                           <User className="h-6 w-6 text-primary" />
                         </div>
-                        <div>
-                          <h4 className="font-medium text-foreground">{member.name}</h4>
-                          <p className="text-sm text-muted-foreground">{member.email}</p>
-                          <p className="text-xs text-muted-foreground">
+                        <div className="min-w-0 flex-1">
+                          <h4 className="font-medium text-foreground truncate">{member.name}</h4>
+                          <p className="text-sm text-muted-foreground truncate">{member.employeeId}</p>
+                          <p className="text-sm text-muted-foreground truncate">{member.email}</p>
+                          <p className="text-xs text-muted-foreground truncate">
                             {departments.find(d => d.id === member.departmentId)?.name || 'Unknown Department'}
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={member.role === 'hod' ? 'default' : 'secondary'}>
+                      <div className="col-span-2 flex justify-center">
+                        <Badge variant={member.role === 'hod' ? 'default' : 'secondary'} className="text-center">
                           {member.role === 'hod' ? 'Head of Department' : 'Faculty Member'}
                         </Badge>
+                      </div>
+                      <div className="col-span-2 flex justify-center">
                         <Badge variant="secondary">Active</Badge>
+                      </div>
+                      <div className="col-span-2 flex items-center justify-end gap-1">
                         <Button variant="ghost" size="sm" onClick={() => handleEditFaculty(member)}>
                           <Edit className="h-4 w-4" />
                         </Button>

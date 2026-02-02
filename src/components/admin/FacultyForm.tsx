@@ -8,8 +8,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { facultyApi, departmentsApi, usersApi, Faculty, Department } from '@/lib/storage';
 import { getAcademicConfig } from '@/lib/academicConfig';
 import { toast } from 'sonner';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth, db } from '@/lib/firebase';
+import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { auth, db, secondaryAuth } from '@/lib/firebase';
 import { doc, collection, Timestamp } from 'firebase/firestore';
 import { Eye, EyeOff } from 'lucide-react';
 
@@ -70,6 +70,23 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
     }
   }, [user]);
 
+  const generateFacultyId = useCallback(async () => {
+    try {
+      const allFaculty = await facultyApi.getByCollege(user!.collegeId!);
+      const existingIds = allFaculty.map(f => f.employeeId).filter(id => id.startsWith('FAC'));
+      if (existingIds.length === 0) {
+        return 'FAC001';
+      }
+      const numbers = existingIds.map(id => parseInt(id.replace('FAC', ''))).filter(n => !isNaN(n));
+      const maxNum = Math.max(...numbers);
+      const nextNum = maxNum + 1;
+      return `FAC${nextNum.toString().padStart(3, '0')}`;
+    } catch (error) {
+      console.error('Error generating faculty ID:', error);
+      return 'FAC001';
+    }
+  }, [user]);
+
   useEffect(() => {
     if (open && user?.collegeId) {
       setIsFormReady(false); // Reset form ready state when dialog opens
@@ -105,11 +122,17 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
         setIsFormReady(true);
       }
     } else if (!editingFaculty && open) {
-      // Reset form for new faculty
-      setFormData(defaultFormData);
-      setIsFormReady(false);
+      // Reset form for new faculty and generate faculty ID
+      const generateId = async () => {
+        const newId = await generateFacultyId();
+        const password = newId.replace('FAC', 'Fac') + '@';
+        setFormData({ ...defaultFormData, employeeId: newId, password });
+        setShowPassword(true); // Show password by default
+        setIsFormReady(true);
+      };
+      generateId();
     }
-  }, [editingFaculty, open, departments, courseData, defaultFormData]);
+  }, [editingFaculty, open, departments, courseData, defaultFormData, generateFacultyId]);
 
   const availableYears = formData.course ? courseData[formData.course]?.years || [] : [];
   const availableDepartmentsFromConfig = (formData.course && formData.academicYear)
@@ -193,9 +216,12 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
       } else {
         // Create new faculty account
         try {
-          // 1. Create user in Firebase Auth
-          const userCredential = await createUserWithEmailAndPassword(auth, formData.email.trim(), formData.password);
+          // 1. Create user in Firebase Auth using secondary app
+          const userCredential = await createUserWithEmailAndPassword(secondaryAuth, formData.email.trim(), formData.password);
           const firebaseUser = userCredential.user;
+
+          // Sign out from secondary auth to avoid session conflicts
+          await signOut(secondaryAuth);
 
           // 2. Create user document in Firestore
           const userData = {
@@ -272,15 +298,16 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
             <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="employeeId" className="text-right">
-                Employee ID *
+                Faculty ID *
               </Label>
               <Input
                 id="employeeId"
                 value={formData.employeeId}
                 onChange={(e) => setFormData(prev => ({ ...prev, employeeId: e.target.value }))}
                 className="col-span-3"
-                placeholder="e.g., FAC001"
+                placeholder="Auto-generated"
                 required
+                readOnly
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">

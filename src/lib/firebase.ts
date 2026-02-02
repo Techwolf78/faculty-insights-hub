@@ -48,3 +48,7 @@ export const firebaseConfig = configToUse;
 const app = initializeApp(configToUse);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+
+// Secondary app for user creation to avoid logging out admin
+const secondaryApp = initializeApp(configToUse, "secondaryApp");
+export const secondaryAuth = getAuth(secondaryApp);

@@ -110,7 +110,7 @@ const FacultyProfileSettings: React.FC = () => {
                   <p className="text-sm text-muted-foreground mt-1">{facultyProfile.name}</p>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">Employee ID</Label>
+                  <Label className="text-sm font-medium">Faculty ID</Label>
                   <p className="text-sm text-muted-foreground mt-1">{facultyProfile.employeeId}</p>
                 </div>
                 <div>

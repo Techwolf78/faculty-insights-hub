@@ -112,7 +112,7 @@ const HodProfileSettings: React.FC = () => {
                   <p className="text-sm text-muted-foreground mt-1">{hodProfile.name}</p>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">Employee ID</Label>
+                  <Label className="text-sm font-medium">Faculty ID</Label>
                   <p className="text-sm text-muted-foreground mt-1">{hodProfile.employeeId}</p>
                 </div>
                 <div>
