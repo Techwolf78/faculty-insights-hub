@@ -152,7 +152,7 @@ export const FacultyDashboard: React.FC = () => {
                         </span>
                         {c.rating && (
                           <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-1 rounded">
-                            {c.rating}/5
+                            {c.rating % 1 === 0 ? c.rating.toString() : c.rating.toFixed(1)}/5
                           </span>
                         )}
                       </div>
@@ -508,7 +508,7 @@ export const FacultyDashboard: React.FC = () => {
                           </span>
                           {c.rating && (
                             <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-1 rounded">
-                              {c.rating}/5
+                              {c.rating % 1 === 0 ? c.rating.toString() : c.rating.toFixed(1)}/5
                             </span>
                           )}
                         </div>

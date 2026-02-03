@@ -81,6 +81,7 @@ export const queryKeys = {
     submissions: ['submissions'] as const,
     submissionsBySession: (sessionId: string) => ['submissions', 'session', sessionId] as const,
     submissionsByFaculty: (facultyId: string) => ['submissions', 'faculty', facultyId] as const,
+    submissionsByDepartment: (departmentId: string) => ['submissions', 'department', departmentId] as const,
     submissionsByCollege: (collegeId: string) => ['submissions', 'college', collegeId] as const,
     recentSubmissions: (collegeId: string) => ['submissions', 'college', collegeId, 'recent'] as const,
 
@@ -322,6 +323,15 @@ export function useSubmissionsByFaculty(facultyId: string | undefined) {
         queryKey: queryKeys.submissionsByFaculty(facultyId || ''),
         queryFn: () => submissionsApi.getByFaculty(facultyId!),
         enabled: !!facultyId,
+        staleTime: STALE_TIME.DYNAMIC,
+    });
+}
+
+export function useSubmissionsByDepartment(departmentId: string | undefined) {
+    return useQuery({
+        queryKey: queryKeys.submissionsByDepartment(departmentId || ''),
+        queryFn: () => submissionsApi.getByDepartment(departmentId!),
+        enabled: !!departmentId,
         staleTime: STALE_TIME.DYNAMIC,
     });
 }

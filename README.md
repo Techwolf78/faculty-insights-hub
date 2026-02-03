@@ -2,9 +2,9 @@
 
 ## Overview
 
-**Faculty Insights Hub** is a **multi-college, role-based Faculty Feedback System** built entirely as a **frontend-only React application** using **localStorage** as its data store.
+**Faculty Insights Hub** is a **multi-college, role-based Faculty Feedback System** built as a **React application** using **Firebase Firestore** as its data store.
 
-The system is designed for **academic institutions** to collect **anonymous and authenticated student feedback**, analyze faculty performance, and generate rich analytics — **without any backend dependency**.
+The system is designed for **academic institutions** to collect **anonymous and authenticated student feedback**, analyze faculty performance, and generate rich analytics.
 
 This updated architecture replaces the concept of rigid **Feedback Cycles** with a more **open, flexible, and academic-friendly concept called `Feedback Sessions`**.
 
@@ -26,14 +26,18 @@ Each session generates a **unique feedback link**, allowing students to submit f
 
 * **Feedback Sessions** (Open, simple, real-world aligned)
 
-### A Feedback Session is created by selecting:
+### Academic Structure Configuration
 
-* **Course / Program** (Engineering, MBA, MCA, etc.)
-* **Academic Year** (1st Year, 2nd Year, etc.)
-* **Department** (CSE, IT, Finance, etc.)
-* **Subject**
-* **Batch** (A, B, C, D)
-* **Faculty**
+The academic structure (courses, academic years, departments, subjects, batches) is configured per college in the **Academic Config**. This ensures consistency and prevents data entry errors.
+
+### A Feedback Session is created by selecting from the configured academic structure:
+
+* **Course / Program** (from configured courses)
+* **Academic Year** (from configured years for the selected course)
+* **Department** (from configured departments for the selected course/year)
+* **Subject** (from configured subjects for the selected course/year/department)
+* **Batch** (from configured batches)
+* **Faculty** (from faculty list)
 
 Once created:
 
@@ -61,7 +65,8 @@ This makes the system:
 | Icons           | lucide-react                          |
 | Dates           | date-fns                              |
 | Notifications   | sonner                                |
-| Persistence     | localStorage                          |
+| Database        | Firebase Firestore                    |
+| Authentication  | Firebase Auth                         |
 
 ---
 
@@ -241,79 +246,215 @@ VITE_FIREBASE_MEASUREMENT_ID=your_measurement_id
 
 ---
 
-## Updated localStorage Data Model
+## Firestore Database Schema
 
-### Colleges
+### Architecture Overview
 
-```js
-ffs_colleges
+```mermaid
+erDiagram
+    COLLEGES ||--o{ USERS : "has admins"
+    COLLEGES ||--o{ DEPARTMENTS : has
+    COLLEGES ||--o{ QUESTIONS : has
+    COLLEGES ||--o{ ACADEMIC_CONFIGS : has
+    
+    DEPARTMENTS ||--o{ FACULTY : contains
+    DEPARTMENTS ||--o{ FEEDBACK_SESSIONS : has
+    
+    FACULTY ||--o{ FEEDBACK_SESSIONS : teaches
+    FACULTY ||--o{ FEEDBACK_STATS : "aggregated in"
+    
+    FEEDBACK_SESSIONS ||--o{ FEEDBACK_SUBMISSIONS : receives
+    
+    USERS ||--|| FACULTY : "linked as"
 ```
 
-### Users
+### Collections Overview
 
-```js
-ffs_users
+| Collection | Purpose | Document Count (Est.) |
+|------------|---------|----------------------|
+| `colleges` | Multi-tenant college data | 2-10 |
+| `users` | Authentication & roles | 50-500 |
+| `departments` | Academic departments | 10-50 |
+| `faculty` | Faculty member profiles | 50-200 |
+| `feedbackSessions` | Active feedback links | 100-1,000 |
+| `questions` | Question bank per college | 20-100 |
+| `feedbackSubmissions` | Student responses | 1,000-100,000+ |
+| `feedbackStats` | Pre-computed analytics | 100-500 |
+| `academicConfigs` | Course/subject structure | 2-10 |
+| `accessCodes` | One-time access codes | 100-1,000 |
+
+### Key Collections
+
+#### Feedback Sessions
+
+```typescript
+{
+  id: string;
+  collegeId: string;
+  departmentId: string;
+  facultyId: string;
+  questionGroupId: string;
+  
+  // Academic context (selected from academicConfigs)
+  course: string;
+  academicYear: string;
+  subject: string;
+  batch: string;
+  semester?: string;
+  
+  accessMode: 'anonymous' | 'authenticated' | 'mixed';
+  uniqueUrl: string;
+  qrCodeUrl?: string;
+  isActive: boolean;
+  status: 'draft' | 'active' | 'paused' | 'completed' | 'expired';
+  
+  stats: {
+    submissionCount: number;
+    averageRating: number;
+    lastSubmissionAt?: Timestamp;
+  };
+  
+  startDate: Timestamp;
+  expiresAt: Timestamp;
+  createdAt: Timestamp;
+  createdBy: string;
+  updatedAt: Timestamp;
+}
 ```
 
-### Departments
+#### Academic Configs
 
-```js
-ffs_departments
+```typescript
+{
+  id: string; // collegeId
+  collegeId: string;
+  
+  courseData: {
+    [courseName: string]: {
+      years: string[];
+      yearDepartments: {
+        [year: string]: string[]; // departments for this year
+      };
+      semesters?: string[];
+    };
+  };
+  
+  subjectsData: {
+    [courseName: string]: {
+      [yearName: string]: {
+        [departmentName: string]: {
+          [subjectName: string]: string[]; // batches for this subject
+        };
+      };
+    };
+  };
+  
+  batches: string[];
+  
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
 ```
 
-### Faculty
+#### Feedback Submissions
 
-```js
-ffs_faculty
+```typescript
+{
+  id: string;
+  sessionId: string;
+  facultyId: string;
+  collegeId: string;
+  departmentId?: string;
+  
+  responses: Array<{
+    questionId: string;
+    questionCategory: string;
+    rating?: number;
+    comment?: string;
+    selectValue?: string;
+    booleanValue?: boolean;
+  }>;
+  
+  // Computed metrics (calculated at submission time)
+  metrics: {
+    overallRating: number;
+    categoryRatings: {
+      [category: string]: number;
+    };
+    hasComments: boolean;
+    commentCount: number;
+  };
+  
+  submittedAt: Timestamp;
+  
+  // Optional analytics
+  clientInfo?: {
+    userAgent?: string;
+    platform?: string;
+  };
+}
 ```
 
-### Feedback Sessions (NEW CORE ENTITY)
+### Feedback Submission Process
 
-```js
-ffs_feedback_sessions: [
-  {
-    id: 'session-1',
-    collegeId: '1',
-    departmentId: '1',
-    facultyId: '1',
+1. **Student accesses feedback URL** → Loads session by `uniqueUrl`
+2. **Validates session** → Checks if active and not expired
+3. **Loads questions** → From question bank based on session's questionGroupId
+4. **Student submits responses** → Creates `feedbackSubmission` document
+5. **Real-time stats update** (authenticated users only):
+   - Updates session stats (count, average)
+   - Updates faculty stats (count, average)
+   - Updates `feedbackStats` collection for analytics
+6. **Anonymous submissions** → Stored without updating live stats (processed later)
 
-    course: 'Engineering',
-    academicYear: '2nd Year',
-    subject: 'Data Structures',
-    batch: 'A',
+### Feedback Stats (Aggregation Collection)
 
-    accessMode: 'anonymous',
-    uniqueUrl: 'feedback-session-abc123',
-    isActive: true,
+Pre-computed statistics for optimized reads:
 
-    createdAt: '2024-02-01T10:00:00',
-    expiresAt: '2024-02-15T23:59:59'
-  }
-]
-```
-
-### Questions
-
-```js
-ffs_questions
-```
-
-### Feedback Submissions
-
-```js
-ffs_feedback_submissions: [
-  {
-    id: 'sub-1',
-    sessionId: 'session-1',
-    facultyId: '1',
-    collegeId: '1',
-    responses: [
-      { questionId: 'q1', rating: 4 },
-      { questionId: 'q2', comment: 'Very clear teaching' }
-    ],
-    submittedAt: '2024-02-05T14:30:00'
-  }
-]
+```typescript
+{
+  id: string; // {type}_{entityId}
+  
+  type: 'college' | 'department' | 'faculty' | 'session';
+  entityId: string;
+  
+  collegeId: string;
+  departmentId?: string;
+  facultyId?: string;
+  
+  totalSubmissions: number;
+  averageRating: number;
+  
+  categoryScores: {
+    [category: string]: {
+      average: number;
+      count: number;
+    };
+  };
+  
+  monthly: {
+    [monthKey: string]: {
+      submissions: number;
+      averageRating: number;
+    };
+  };
+  
+  ratingDistribution: { 1: number; 2: number; 3: number; 4: number; 5: number; };
+  
+  trend: {
+    last7Days: number;
+    last30Days: number;
+    last90Days: number;
+  };
+  
+  recentComments: Array<{
+    text: string;
+    rating: number;
+    submittedAt: Timestamp;
+  }>;
+  
+  lastUpdated: Timestamp;
+}
 ```
 
 ---
@@ -379,22 +520,23 @@ The application includes a production-safe seed data script that:
 
 ## Utilities & Helpers
 
-* `localStorageService.js`
-* `authService.js`
-* `sessionService.js`
-* `reportService.js`
-* Simulated API delay (200–500ms)
+* `storage.ts` - Firestore API layer
+* `auth.ts` - Firebase Auth helpers
+* `academicConfig.ts` - Academic structure management
+* `firebase.ts` - Firebase configuration
 
 ---
 
-## Reset Demo Data
+## Seed Data & Setup
 
-Available for:
+The application includes seed data functionality:
 
-* Super Admin
-* College Admin
+* Demo colleges (ICEM, IGSB) can be created
+* Sample departments and faculty
+* Pre-configured question banks
+* Academic configurations
 
-Resets all localStorage keys safely.
+Use the `/seed-data` page to initialize demo data for development.
 
 ---
 
@@ -402,7 +544,7 @@ Resets all localStorage keys safely.
 
 ✔ Multi-college support
 ✔ Session-based architecture
-✔ Fully frontend-only
+✔ Firebase-powered backend
 ✔ Professional academic UI
 ✔ Accessible & responsive
 ✔ Realistic demo-ready system

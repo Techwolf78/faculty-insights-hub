@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { DashboardHeader } from '@/components/layout/DashboardHeader';
 import { StatsCard } from '@/components/ui/StatsCard';
@@ -11,6 +11,7 @@ import {
   useDepartmentStats,
   useAllFacultyStats,
   useQuestions,
+  useSubmissionsByDepartment,
 } from '@/hooks/useCollegeData';
 import { Users, TrendingUp, MessageSquare, BarChart3 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -30,6 +31,7 @@ export const HodDashboard: React.FC = () => {
   const { data: departmentStats } = useDepartmentStats(user?.departmentId);
   const { data: allFacultyStats = [] } = useAllFacultyStats(user?.collegeId);
   const { data: questions = [], isLoading: questionsLoading } = useQuestions(user?.collegeId);
+  const { data: departmentSubmissions = [] } = useSubmissionsByDepartment(user?.departmentId);
 
   const isLoading = deptLoading || facultyLoading || questionsLoading;
 
@@ -59,8 +61,22 @@ export const HodDashboard: React.FC = () => {
       }))
     : [];
 
-  // Recent comments from pre-computed stats
-  const recentComments = departmentStats?.recentComments || [];
+  // Recent comments from department submissions
+  const recentComments = useMemo(() => {
+    const allComments = departmentSubmissions.flatMap(sub =>
+      sub.responses
+        .filter(r => r.comment && r.comment.trim() !== '')
+        .map(r => ({
+          text: r.comment!.trim(),
+          rating: sub.metrics?.overallRating || 0,
+          submittedAt: sub.submittedAt!,
+        }))
+    ).filter(item => item.text.length > 10) // Only substantial comments
+    .sort((a, b) => b.submittedAt.toDate().getTime() - a.submittedAt.toDate().getTime())
+    .slice(0, 20);
+
+    return allComments;
+  }, [departmentSubmissions]);
 
   if (isLoading) {
     return (
@@ -393,7 +409,7 @@ export const HodDashboard: React.FC = () => {
               {/* Recent Comments */}
               <div className="glass-card rounded-xl p-6">
                 <h3 className="font-display text-lg font-semibold text-foreground mb-4">Recent Student Comments</h3>
-                <div className="space-y-4">
+                <div className="space-y-4 max-h-96 overflow-y-auto">
                   {recentComments.map((c, index) => (
                     <div
                       key={index}
@@ -406,7 +422,7 @@ export const HodDashboard: React.FC = () => {
                         </span>
                         {c.rating && (
                           <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-1 rounded">
-                            {c.rating}/5
+                            {c.rating % 1 === 0 ? c.rating.toString() : c.rating.toFixed(1)}/5
                           </span>
                         )}
                       </div>

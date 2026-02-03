@@ -277,7 +277,7 @@ const FacultyDetails: React.FC = () => {
           const session = sessions.find(s => s.id === sub.sessionId);
           return {
             comment: r.comment!.trim(),
-            rating: r.rating || 0,
+            rating: sub.metrics?.overallRating || 0,
             submittedAt: sub.submittedAt?.toDate(),
             question: r.questionId || 'General Feedback',
             batch: session?.batch || 'Unknown'
@@ -798,7 +798,7 @@ const FacultyDetails: React.FC = () => {
                               <div className="flex items-start justify-between mb-2">
                                 <div className="flex items-center gap-2">
                                   <Badge variant="secondary" className="text-xs">
-                                    {comment.rating}/5
+                                    {comment.rating % 1 === 0 ? comment.rating.toString() : comment.rating.toFixed(1)}/5
                                   </Badge>
                                   <span className="text-xs text-muted-foreground">Batch {comment.batch}</span>
                                 </div>
@@ -1142,7 +1142,7 @@ const FacultyDetails: React.FC = () => {
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex items-center gap-2">
                         <Badge variant="secondary" className="text-xs">
-                          {comment.rating}/5
+                          {comment.rating % 1 === 0 ? comment.rating.toString() : comment.rating.toFixed(1)}/5
                         </Badge>
                         <span className="text-xs text-muted-foreground">Batch {comment.batch}</span>
                       </div>

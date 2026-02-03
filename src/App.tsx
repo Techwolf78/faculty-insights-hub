@@ -61,14 +61,12 @@ const App = () => {
               <Route path="/admin/faculty" element={<AdminDashboard />} />
               <Route path="/admin/faculty-details" element={<FacultyDetails />} />
               <Route path="/admin/questions" element={<AdminDashboard />} />
-              <Route path="/admin/reports" element={<AdminDashboard />} />
             </Route>
 
             {/* HOD Routes */}
             <Route element={<DashboardLayout allowedRoles={['hod']} />}>
               <Route path="/hod/dashboard" element={<HodDashboard />} />
               <Route path="/hod/faculty" element={<HodDashboard />} />
-              <Route path="/hod/reports" element={<HodDashboard />} />
               <Route path="/hod/profile" element={<HodProfileSettings />} />
             </Route>
 
@@ -76,7 +74,6 @@ const App = () => {
             <Route element={<DashboardLayout allowedRoles={['faculty']} />}>
               <Route path="/faculty/dashboard" element={<FacultyDashboard />} />
               <Route path="/faculty/feedback" element={<FacultyDashboard />} />
-              <Route path="/faculty/reports" element={<FacultyDashboard />} />
               <Route path="/faculty/profile" element={<FacultyProfileSettings />} />
             </Route>
 

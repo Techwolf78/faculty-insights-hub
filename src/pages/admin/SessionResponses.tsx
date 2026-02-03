@@ -53,7 +53,7 @@ const SessionResponses: React.FC = () => {
   };
 
   const getResponseValue = (response: FeedbackSubmission['responses'][0]) => {
-    if (response.rating !== undefined) return `${response.rating}/5`;
+    if (response.rating !== undefined) return `${response.rating % 1 === 0 ? response.rating.toString() : response.rating.toFixed(1)}/5`;
     if (response.comment) return response.comment;
     if (response.selectValue) return response.selectValue;
     if (response.booleanValue !== undefined) return response.booleanValue ? 'Yes' : 'No';
@@ -274,7 +274,7 @@ const SessionResponses: React.FC = () => {
                               <div className="max-w-xs">
                                 {response.rating !== undefined && (
                                   <Badge variant="secondary" className="mr-2">
-                                    {response.rating}/5
+                                    {response.rating % 1 === 0 ? response.rating.toString() : response.rating.toFixed(1)}/5
                                   </Badge>
                                 )}
                                 {response.comment && (

@@ -18,6 +18,7 @@ import {
   increment,
   runTransaction,
 } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 import { db } from './firebase';
 
 // Re-export Timestamp for convenience
@@ -507,9 +508,14 @@ export const facultyApi = {
     const querySnapshot = await getDocs(q);
     const facultyData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Omit<Faculty, 'role'>));
 
-    // Fetch roles from user documents
+    const isAuthenticated = getAuth().currentUser !== null;
+
+    // Fetch roles from user documents only if authenticated
     const facultyWithRoles = await Promise.all(
       facultyData.map(async (faculty) => {
+        if (!isAuthenticated) {
+          return { ...faculty, role: 'faculty' as const };
+        }
         try {
           const userDoc = await getDoc(doc(db, 'users', faculty.userId));
           const role = userDoc.exists() ? (userDoc.data() as User).role : 'faculty';
@@ -874,57 +880,65 @@ export const submissionsApi = {
       submittedAt: now,
     };
     
-    // Use transaction to update stats atomically
-    const docRef = await runTransaction(db, async (transaction) => {
-      // First, read all documents we need to update
-      const sessionRef = doc(db, 'feedbackSessions', submission.sessionId);
-      const sessionDoc = await transaction.get(sessionRef);
-      
-      const facultyRef = doc(db, 'faculty', submission.facultyId);
-      const facultyDoc = await transaction.get(facultyRef);
-      
-      // Now perform all writes
-      // Create submission
-      const subRef = doc(collection(db, 'feedbackSubmissions'));
-      transaction.set(subRef, submissionData);
-      
-      // Update session stats
-      if (sessionDoc.exists()) {
-        const sessionData = sessionDoc.data() as FeedbackSession;
-        const newCount = (sessionData.stats?.submissionCount || 0) + 1;
-        const oldTotal = (sessionData.stats?.submissionCount || 0) * (sessionData.stats?.averageRating || 0);
-        const newAvg = (oldTotal + overallRating) / newCount;
-        
-        transaction.update(sessionRef, {
-          'stats.submissionCount': newCount,
-          'stats.averageRating': newAvg,
-          'stats.lastSubmissionAt': now,
-          updatedAt: now,
-        });
-      }
-      
-      // Update faculty stats
-      if (facultyDoc.exists()) {
-        const facultyData = facultyDoc.data() as Faculty;
-        const newCount = (facultyData.stats?.totalSubmissions || 0) + 1;
-        const oldTotal = (facultyData.stats?.totalSubmissions || 0) * (facultyData.stats?.averageRating || 0);
-        const newAvg = (oldTotal + overallRating) / newCount;
-        
-        transaction.update(facultyRef, {
-          'stats.totalSubmissions': newCount,
-          'stats.averageRating': newAvg,
-          'stats.lastFeedbackAt': now,
-          updatedAt: now,
-        });
-      }
-      
-      return subRef;
-    });
+    const isAuthenticated = getAuth().currentUser !== null;
     
-    // Update feedbackStats collection (non-transactional for performance)
-    await updateFeedbackStats(submission.collegeId, submission.departmentId, submission.facultyId, submission.sessionId, overallRating, categoryRatings, comments, now);
-    
-    return { id: docRef.id, ...submissionData };
+    if (isAuthenticated) {
+      // Use transaction to update stats atomically for authenticated users
+      const docRef = await runTransaction(db, async (transaction) => {
+        // First, read all documents we need to update
+        const sessionRef = doc(db, 'feedbackSessions', submission.sessionId);
+        const sessionDoc = await transaction.get(sessionRef);
+        
+        const facultyRef = doc(db, 'faculty', submission.facultyId);
+        const facultyDoc = await transaction.get(facultyRef);
+        
+        // Now perform all writes
+        // Create submission
+        const subRef = doc(collection(db, 'feedbackSubmissions'));
+        transaction.set(subRef, submissionData);
+        
+        // Update session stats
+        if (sessionDoc.exists()) {
+          const sessionData = sessionDoc.data() as FeedbackSession;
+          const newCount = (sessionData.stats?.submissionCount || 0) + 1;
+          const oldTotal = (sessionData.stats?.submissionCount || 0) * (sessionData.stats?.averageRating || 0);
+          const newAvg = (oldTotal + overallRating) / newCount;
+          
+          transaction.update(sessionRef, {
+            'stats.submissionCount': newCount,
+            'stats.averageRating': newAvg,
+            'stats.lastSubmissionAt': now,
+            updatedAt: now,
+          });
+        }
+        
+        // Update faculty stats
+        if (facultyDoc.exists()) {
+          const facultyData = facultyDoc.data() as Faculty;
+          const newCount = (facultyData.stats?.totalSubmissions || 0) + 1;
+          const oldTotal = (facultyData.stats?.totalSubmissions || 0) * (facultyData.stats?.averageRating || 0);
+          const newAvg = (oldTotal + overallRating) / newCount;
+          
+          transaction.update(facultyRef, {
+            'stats.totalSubmissions': newCount,
+            'stats.averageRating': newAvg,
+            'stats.lastFeedbackAt': now,
+            updatedAt: now,
+          });
+        }
+        
+        return subRef;
+      });
+      
+      // Update feedbackStats collection (non-transactional for performance)
+      await updateFeedbackStats(submission.collegeId, submission.departmentId, submission.facultyId, submission.sessionId, overallRating, categoryRatings, comments, now);
+      
+      return { id: docRef.id, ...submissionData };
+    } else {
+      // For anonymous users, just create the submission without updating stats
+      const docRef = await addDoc(collection(db, 'feedbackSubmissions'), submissionData);
+      return { id: docRef.id, ...submissionData };
+    }
   },
 };
 

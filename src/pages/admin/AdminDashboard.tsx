@@ -311,32 +311,34 @@ const AdminDashboard = () => {
 
   // Filtered data based on selections
   const filteredData = useMemo(() => {
-    let filteredSubs = submissions;
+    let filteredSubs = allSubmissions; // Use all submissions, not just recent
     let filteredFac = faculty;
     const filteredDepts = departments;
 
     // Filter by course/program
     if (selectedCourse !== 'all') {
-      // Get all department names for the selected course
-      const courseInfo = courseData[selectedCourse as keyof typeof courseData];
-      if (courseInfo) {
-        const allCourseDepts = new Set<string>();
-        Object.values(courseInfo.yearDepartments).forEach(deptList => {
-          deptList.forEach(dept => allCourseDepts.add(dept));
-        });
-        // Filter faculty based on department names matching course departments
-        filteredFac = faculty.filter(f => f.departmentId && allCourseDepts.has(f.departmentId));
-        filteredSubs = submissions.filter(sub => filteredFac.some(f => f.id === sub.facultyId));
-      }
+      const courseSessions = sessions.filter(s => s.course === selectedCourse);
+      const courseSessionIds = courseSessions.map(s => s.id);
+      filteredSubs = filteredSubs.filter(sub => courseSessionIds.includes(sub.sessionId));
     }
 
-    // Filter by year (this would require additional data structure in submissions)
-    // For now, we'll skip year filtering as it requires more complex data modeling
+    // Filter by year
+    if (selectedYear !== 'all') {
+      const yearSessions = sessions.filter(s => s.academicYear === selectedYear);
+      const yearSessionIds = yearSessions.map(s => s.id);
+      filteredSubs = filteredSubs.filter(sub => yearSessionIds.includes(sub.sessionId));
+    }
 
     // Filter by department
     if (selectedDepartment !== 'all') {
-      filteredFac = filteredFac.filter(f => f.departmentId === selectedDepartment);
-      filteredSubs = filteredSubs.filter(sub => filteredFac.some(f => f.id === sub.facultyId));
+      const deptObj = departments.find(d => d.name === selectedDepartment);
+      if (deptObj) {
+        const deptSessions = sessions.filter(s => s.departmentId === deptObj.id);
+        const deptSessionIds = deptSessions.map(s => s.id);
+        filteredSubs = filteredSubs.filter(sub => deptSessionIds.includes(sub.sessionId));
+        // Also filter faculty by department
+        filteredFac = faculty.filter(f => f.departmentId === deptObj.id);
+      }
     }
 
     // Filter by subject
@@ -344,7 +346,6 @@ const AdminDashboard = () => {
       const subjectSessions = sessions.filter(s => s.subject === selectedSubject);
       const subjectSessionIds = subjectSessions.map(s => s.id);
       filteredSubs = filteredSubs.filter(sub => subjectSessionIds.includes(sub.sessionId));
-      // Don't filter faculty by subject - show all faculty in the department
     }
 
     // Filter by batch
@@ -352,7 +353,6 @@ const AdminDashboard = () => {
       const batchSessions = sessions.filter(s => s.batch === selectedBatch);
       const batchSessionIds = batchSessions.map(s => s.id);
       filteredSubs = filteredSubs.filter(sub => batchSessionIds.includes(sub.sessionId));
-      // Don't filter faculty by batch - show all faculty in the department
     }
 
     // Filter by date range
@@ -379,39 +379,57 @@ const AdminDashboard = () => {
       faculty: filteredFac,
       departments: filteredDepts
     };
-  }, [submissions, faculty, departments, selectedCourse, selectedDepartment, selectedSubject, selectedBatch, dateRange, courseData, sessions]);
+  }, [allSubmissions, faculty, departments, selectedCourse, selectedYear, selectedDepartment, selectedSubject, selectedBatch, dateRange, sessions]);
 
   // Calculate metrics
   const activeSessions = sessions.filter(s => s.isActive);
-  const todaySubmissions = submissions.filter(s =>
-    s.submittedAt && format(s.submittedAt.toDate(), 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
-  );
-  const weekSubmissions = submissions.filter(s =>
-    s.submittedAt && isAfter(s.submittedAt.toDate(), subDays(new Date(), 7))
-  );
 
-  // Calculate average rating - using pre-computed stats
-  const avgRating = collegeStats?.averageRating || 0;
+  // Calculate filtered stats
+  const filteredStats = useMemo(() => {
+    const filteredSubs = filteredData.submissions;
+    const totalResponses = filteredSubs.length;
+    const totalRating = filteredSubs.reduce((sum, sub) => sum + (sub.metrics?.overallRating || 0), 0);
+    const avgRating = totalResponses > 0 ? totalRating / totalResponses : 0;
 
-  // Calculate trend - using pre-computed trend data
+    return {
+      totalResponses,
+      avgRating: Math.round(avgRating * 10) / 10,
+    };
+  }, [filteredData.submissions]);
+
+  // Calculate trend - using pre-computed trend data (filtered if needed)
   const trendValue = collegeStats?.trend?.last30Days || 0;
   const isPositive = trendValue >= 0;
 
-  // Department performance data - using pre-computed stats
+  // Department performance data - calculated from filtered submissions
   const deptPerformance = useMemo(() => {
-    return departmentStats.map(stat => {
-      const dept = departments.find(d => d.id === stat.entityId);
+    const deptMap = new Map<string, { total: number; count: number }>();
+    
+    filteredData.submissions.forEach(sub => {
+      const deptId = sub.departmentId;
+      if (deptId) {
+        const current = deptMap.get(deptId) || { total: 0, count: 0 };
+        deptMap.set(deptId, {
+          total: current.total + (sub.metrics?.overallRating || 0),
+          count: current.count + 1,
+        });
+      }
+    });
+
+    return Array.from(deptMap.entries()).map(([deptId, data]) => {
+      const dept = departments.find(d => d.id === deptId);
+      const average = data.count > 0 ? data.total / data.count : 0;
       return {
         department: dept?.name || 'Unknown',
-        average: Math.round(stat.averageRating * 10) / 10,
+        average: Math.round(average * 10) / 10,
       };
     }).filter(d => d.average > 0);
-  }, [departmentStats, departments]);
+  }, [filteredData.submissions, departments]);
 
-  // Response trend data (last 7 days) - use all submissions for accurate trend
+  // Response trend data (last 7 days) - filtered by current filters
   const trendData = Array.from({ length: 7 }, (_, i) => {
     const date = subDays(new Date(), 6 - i);
-    const daySubs = allSubmissions.filter(s =>
+    const daySubs = filteredData.submissions.filter(s =>
       s.submittedAt && format(s.submittedAt.toDate(), 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
     );
 
@@ -421,15 +439,40 @@ const AdminDashboard = () => {
     };
   });
 
+  // Today's submissions
+  const todaySubmissions = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return filteredData.submissions.filter(s =>
+      s.submittedAt && s.submittedAt.toDate() >= today
+    );
+  }, [filteredData.submissions]);
+
+  // This week's submissions
+  const weekSubmissions = useMemo(() => {
+    const weekAgo = subDays(new Date(), 7);
+    return filteredData.submissions.filter(s =>
+      s.submittedAt && s.submittedAt.toDate() >= weekAgo
+    );
+  }, [filteredData.submissions]);
+
   // Status distribution
   const statusData = [
     { name: 'Active', value: sessions.filter(s => s.isActive).length },
     { name: 'Inactive', value: sessions.filter(s => !s.isActive).length },
   ].filter(d => d.value > 0);
 
-  // Performance Trend data (last 6 months) - using pre-computed stats
+  // Performance Trend data (last 6 months) - calculated from filtered submissions
   const performanceTrendData = useMemo(() => {
-    if (!collegeStats?.monthly) return [];
+    const monthlyMap = new Map<string, number>();
+    
+    filteredData.submissions.forEach(sub => {
+      if (sub.submittedAt) {
+        const monthKey = format(sub.submittedAt.toDate(), 'yyyy-MM');
+        const current = monthlyMap.get(monthKey) || 0;
+        monthlyMap.set(monthKey, current + 1);
+      }
+    });
 
     const months = [];
     for (let i = 5; i >= 0; i--) {
@@ -437,24 +480,35 @@ const AdminDashboard = () => {
       date.setMonth(date.getMonth() - i);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       
-      const monthData = collegeStats.monthly[monthKey];
       months.push({
         month: format(date, 'MMM'),
-        responses: monthData?.submissions || 0,
+        responses: monthlyMap.get(monthKey) || 0,
       });
     }
     return months;
-  }, [collegeStats?.monthly]);
+  }, [filteredData.submissions]);
 
-  // Category Breakdown data - using pre-computed stats
+  // Category Breakdown data - calculated from filtered submissions
   const categoryBreakdownData = useMemo(() => {
-    if (!collegeStats?.categoryScores) return [];
+    const categoryMap = new Map<string, { total: number; count: number }>();
+    
+    filteredData.submissions.forEach(sub => {
+      if (sub.metrics?.categoryRatings) {
+        Object.entries(sub.metrics.categoryRatings).forEach(([category, rating]) => {
+          const current = categoryMap.get(category) || { total: 0, count: 0 };
+          categoryMap.set(category, {
+            total: current.total + rating,
+            count: current.count + 1,
+          });
+        });
+      }
+    });
 
-    return Object.entries(collegeStats.categoryScores).map(([category, data]) => ({
+    return Array.from(categoryMap.entries()).map(([category, data]) => ({
       category,
-      score: Math.round(data.average * 10) / 10,
+      score: data.count > 0 ? Math.round((data.total / data.count) * 10) / 10 : 0,
     })).filter(item => item.score > 0);
-  }, [collegeStats?.categoryScores]);
+  }, [filteredData.submissions]);
 
   if (isLoading) {
     return (
@@ -759,16 +813,15 @@ const AdminDashboard = () => {
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
                 <StatsCard
                   title="Total Responses"
-                  value={collegeStats?.totalSubmissions || 0}
+                  value={filteredStats.totalResponses}
                   subtitle={`${todaySubmissions.length} today, ${weekSubmissions.length} this week`}
                   icon={ClipboardCheck}
                 />
                 <StatsCard
                   title="Average Rating"
-                  value={avgRating.toFixed(1)}
+                  value={filteredStats.avgRating.toFixed(1)}
                   subtitle="Out of 5.0"
                   icon={TrendingUp}
-                  trend={{ value: Math.abs(trendValue), isPositive }}
                 />
                 <StatsCard
                   title="Departments"
@@ -782,29 +835,6 @@ const AdminDashboard = () => {
                   subtitle={`Across ${filteredData.departments.length} departments`}
                   icon={Users}
                 />
-              </div>
-
-              {/* Report Export Section */}
-              <div className="flex items-center justify-between p-4 bg-secondary/20 rounded-lg border">
-                <div>
-                  <h3 className="font-medium text-foreground">Export Reports</h3>
-                  <p className="text-sm text-muted-foreground">Download comprehensive Excel reports for analysis</p>
-                </div>
-                <div className="flex gap-3">
-                  <CollegeExcelReport
-                    collegeName={college?.name || 'College'}
-                    collegeStats={collegeStats}
-                    departmentStats={departmentStats}
-                    facultyStats={facultyStats}
-                    loading={collegeStatsLoading || departmentStatsLoading || facultyStatsLoading}
-                  />
-                  <DepartmentExcelReport
-                    departmentName={userDepartmentName}
-                    facultyStats={facultyStats.filter(f => f.departmentId === user?.departmentId)}
-                    departmentStats={departmentStats.find(d => d.departmentId === user?.departmentId)}
-                    loading={facultyStatsLoading || departmentStatsLoading}
-                  />
-                </div>
               </div>
 
               {/* Main Analytics Grid */}
@@ -1016,13 +1046,28 @@ const AdminDashboard = () => {
                       // Sort comments by rating to get highest and lowest
                       const sortedByRating = [...allComments].sort((a, b) => b.rating - a.rating);
 
-                      // Take top 2 highest rated as positive feedback
-                      const positiveComments = sortedByRating.slice(0, 2);
+                      // Check if we have varied ratings (some low ratings to show as red)
+                      const hasLowRatings = sortedByRating.length > 0 && sortedByRating[sortedByRating.length - 1].rating < 4.0;
+                      const hasVariedRatings = sortedByRating.length > 2 && (sortedByRating[0].rating - sortedByRating[sortedByRating.length - 1].rating) >= 1.0;
 
-                      // Take bottom 2 lowest rated as negative feedback
-                      const negativeComments = sortedByRating.slice(-2).reverse(); // Reverse to show lowest first
+                      let topComments = [];
+                      let bottomComments = [];
 
-                      const displayComments = [...positiveComments, ...negativeComments].slice(0, 4);
+                      if (hasVariedRatings) {
+                        // Show top 2 and bottom 2 if there are significantly different ratings
+                        topComments = sortedByRating.slice(0, 2);
+                        bottomComments = sortedByRating.slice(-2);
+                      } else if (hasLowRatings) {
+                        // All ratings are low with no variety, show only bottom 2 in red
+                        topComments = [];
+                        bottomComments = sortedByRating.slice(-2);
+                      } else {
+                        // All ratings are high, just show top 2 in green
+                        topComments = sortedByRating.slice(0, 2);
+                        bottomComments = [];
+                      }
+
+                      const displayComments = [...topComments, ...bottomComments];
 
                       return (
                         <div
@@ -1067,70 +1112,42 @@ const AdminDashboard = () => {
                             </h5>
 
                             {displayComments.length > 0 ? (
-                              <div className="space-y-3">
-                                {/* Positive Comments Row */}
-                                {positiveComments.length > 0 && (
-                                  <div>
-                                    <h6 className="text-xs font-medium text-green-600 mb-2 flex items-center gap-1">
-                                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                      Positive Feedback
-                                    </h6>
-                                    <div className="grid gap-2 md:grid-cols-2">
-                                      {positiveComments.map((item, commentIndex) => (
-                                        <div
-                                          key={`positive-${commentIndex}`}
-                                          className="bg-green-50 border border-green-200 rounded-lg p-3"
-                                        >
-                                          <div className="flex items-start justify-between mb-2">
-                                            <span className="text-xs text-green-600">
-                                              {format(item.submittedAt.toDate(), 'MMM d, yyyy')}
-                                            </span>
-                                            {item.rating && (
-                                              <span className="text-xs font-medium text-green-700 bg-green-100 px-2 py-1 rounded">
-                                                {item.rating.toFixed(1)}/5
-                                              </span>
-                                            )}
-                                          </div>
-                                          <p className="text-sm text-green-800 leading-relaxed">
-                                            "{item.text}"
-                                          </p>
-                                        </div>
-                                      ))}
+                              <div className="grid gap-2 md:grid-cols-2">
+                                {displayComments.map((item, commentIndex) => {
+                                  const isTopComment = commentIndex < topComments.length;
+                                  return (
+                                    <div
+                                      key={`comment-${commentIndex}`}
+                                      className={`border rounded-lg p-3 ${
+                                        isTopComment
+                                          ? 'bg-green-50 border-green-200'
+                                          : 'bg-red-50 border-red-200'
+                                      }`}
+                                    >
+                                      <div className="flex items-start justify-between mb-2">
+                                        <span className={`text-xs ${
+                                          isTopComment ? 'text-green-600' : 'text-red-600'
+                                        }`}>
+                                          {format(item.submittedAt.toDate(), 'MMM d, yyyy')}
+                                        </span>
+                                        {item.rating && (
+                                          <span className={`text-xs font-medium px-2 py-1 rounded ${
+                                            isTopComment
+                                              ? 'text-green-700 bg-green-100'
+                                              : 'text-red-700 bg-red-100'
+                                          }`}>
+                                            {item.rating % 1 === 0 ? item.rating.toString() : item.rating.toFixed(1)}/5
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className={`text-sm leading-relaxed ${
+                                        isTopComment ? 'text-green-800' : 'text-red-800'
+                                      }`}>
+                                        "{item.text}"
+                                      </p>
                                     </div>
-                                  </div>
-                                )}
-
-                                {/* Negative Comments Row */}
-                                {negativeComments.length > 0 && (
-                                  <div>
-                                    <h6 className="text-xs font-medium text-red-600 mb-2 flex items-center gap-1">
-                                      <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                                      Areas for Improvement
-                                    </h6>
-                                    <div className="grid gap-2 md:grid-cols-2">
-                                      {negativeComments.map((item, commentIndex) => (
-                                        <div
-                                          key={`negative-${commentIndex}`}
-                                          className="bg-red-50 border border-red-200 rounded-lg p-3"
-                                        >
-                                          <div className="flex items-start justify-between mb-2">
-                                            <span className="text-xs text-red-600">
-                                              {format(item.submittedAt.toDate(), 'MMM d, yyyy')}
-                                            </span>
-                                            {item.rating && (
-                                              <span className="text-xs font-medium text-red-700 bg-red-100 px-2 py-1 rounded">
-                                                {item.rating.toFixed(1)}/5
-                                              </span>
-                                            )}
-                                          </div>
-                                          <p className="text-sm text-red-800 leading-relaxed">
-                                            "{item.text}"
-                                          </p>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
+                                  );
+                                })}
                               </div>
                             ) : (
                               <div className="text-center py-6">

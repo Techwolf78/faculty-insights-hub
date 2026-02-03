@@ -30,7 +30,6 @@ const adminLinks: SidebarLink[] = [
   { to: '/admin/sessions', icon: RefreshCw, label: 'Feedback Sessions' },
   { to: '/admin/departments', icon: GraduationCap, label: 'Academic Config' },
   { to: '/admin/faculty', icon: Users, label: 'Faculty' },
-  { to: '/admin/reports', icon: BarChart3, label: 'Reports' },
 ];
 
 const superAdminLinks: SidebarLink[] = [
@@ -42,14 +41,12 @@ const superAdminLinks: SidebarLink[] = [
 const hodLinks: SidebarLink[] = [
   { to: '/hod/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/hod/faculty', icon: Users, label: 'Faculty Performance' },
-  { to: '/hod/reports', icon: BarChart3, label: 'Reports' },
   { to: '/hod/profile', icon: User, label: 'Profile Settings' },
 ];
 
 const facultyLinks: SidebarLink[] = [
   { to: '/faculty/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/faculty/feedback', icon: ClipboardList, label: 'My Feedback' },
-  { to: '/faculty/reports', icon: BarChart3, label: 'Performance Report' },
   { to: '/faculty/profile', icon: User, label: 'Profile Settings' },
 ];
 
