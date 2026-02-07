@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RatingStars } from '@/components/ui/RatingStars';
 import { ProgressBar } from '@/components/ui/ProgressBar';
-import { useSessionByUrl, useQuestions } from '@/hooks/useCollegeData';
+import { db } from '@/lib/firebase';
 import {
   facultyApi,
   submissionsApi,
@@ -41,6 +41,7 @@ export const AnonymousFeedback: React.FC = () => {
   const [responses, setResponses] = useState<FeedbackResponse[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showStickyProgress, setShowStickyProgress] = useState(false);
+  const isValidatingRef = useRef(true);
 
   // Group questions by category and sort within categories
   const groupedQuestions = questions.reduce((acc, q) => {
@@ -99,21 +100,24 @@ export const AnonymousFeedback: React.FC = () => {
         console.error('No sessionId provided');
         setSessionError('Invalid session URL. Please check the link and try again.');
         setIsValidating(false);
+        isValidatingRef.current = false;
         return;
       }
 
       console.log('Validating session with ID:', sessionId);
-      console.log('Firebase config check:', !!window.firebase?.apps?.length);
+      console.log('Firebase config check:', !!db);
 
       setIsValidating(true);
+      isValidatingRef.current = true;
       setSessionError('');
 
       // Set timeout for 30 seconds (increased from 10)
       const timeoutId = setTimeout(() => {
-        if (isValidating) {
+        if (isValidatingRef.current) {
           console.error('Session validation timed out for sessionId:', sessionId);
           setSessionError('Session validation is taking longer than expected. Please check your internet connection and try again. If the problem persists, contact your administrator.');
           setIsValidating(false);
+          isValidatingRef.current = false;
         }
       }, 30000);
 
@@ -137,6 +141,7 @@ export const AnonymousFeedback: React.FC = () => {
         if (!session) {
           setSessionError('Invalid session. This feedback link may have expired or been removed.');
           setIsValidating(false);
+          isValidatingRef.current = false;
           clearTimeout(timeoutId);
           return;
         }
@@ -145,6 +150,7 @@ export const AnonymousFeedback: React.FC = () => {
           console.log('Session is not active');
           setSessionError('This feedback session is no longer active.');
           setIsValidating(false);
+          isValidatingRef.current = false;
           clearTimeout(timeoutId);
           return;
         }
@@ -153,6 +159,7 @@ export const AnonymousFeedback: React.FC = () => {
           console.log('Session has expired');
           setSessionError('This feedback session has expired.');
           setIsValidating(false);
+          isValidatingRef.current = false;
           clearTimeout(timeoutId);
           return;
         }
@@ -174,6 +181,7 @@ export const AnonymousFeedback: React.FC = () => {
           console.error('Faculty not found for session. Faculty ID:', session.facultyId, 'College ID:', session.collegeId);
           setSessionError(`Unable to find faculty information for this session. Faculty ID: ${session.facultyId}, College ID: ${session.collegeId}`);
           setIsValidating(false);
+          isValidatingRef.current = false;
           clearTimeout(timeoutId);
           return;
         }
@@ -182,6 +190,7 @@ export const AnonymousFeedback: React.FC = () => {
           console.error('No questions found for college:', session.collegeId);
           setSessionError('No questions found for this feedback session. Please contact your administrator.');
           setIsValidating(false);
+          isValidatingRef.current = false;
           clearTimeout(timeoutId);
           return;
         }
@@ -195,6 +204,7 @@ export const AnonymousFeedback: React.FC = () => {
         if (localStorage.getItem(`ffs_submitted_${session.id}`) === 'true') {
           setStep('success');
           setIsValidating(false);
+          isValidatingRef.current = false;
           clearTimeout(timeoutId);
           return;
         }
@@ -207,6 +217,7 @@ export const AnonymousFeedback: React.FC = () => {
         clearTimeout(timeoutId);
       } finally {
         setIsValidating(false);
+        isValidatingRef.current = false;
       }
     };
 

@@ -584,8 +584,6 @@ const AdminDashboard = () => {
         const deptSessions = sessions.filter(s => s.departmentId === deptObj.id);
         const deptSessionIds = deptSessions.map(s => s.id);
         filteredSubs = filteredSubs.filter(sub => deptSessionIds.includes(sub.sessionId));
-        // Also filter faculty by department
-        filteredFac = faculty.filter(f => f.departmentId === deptObj.id);
       }
     }
 
@@ -621,6 +619,10 @@ const AdminDashboard = () => {
         return true;
       });
     }
+
+    // Filter faculty based on filtered submissions
+    const facultyIdsWithSubmissions = [...new Set(filteredSubs.map(sub => sub.facultyId))];
+    filteredFac = faculty.filter(f => facultyIdsWithSubmissions.includes(f.id));
 
     return {
       submissions: filteredSubs,
@@ -1256,9 +1258,9 @@ const AdminDashboard = () => {
                     </Button>
                   </div>
                   <div className="space-y-6 max-h-96 overflow-y-auto">
-                    {faculty.slice(0, 8).map((member, index) => {
-                      // Calculate faculty stats directly from all submissions
-                      const memberSubmissions = allSubmissions.filter(s => s.facultyId === member.id);
+                    {filteredData.faculty.slice(0, 8).map((member, index) => {
+                      // Calculate faculty stats directly from filtered submissions
+                      const memberSubmissions = filteredData.submissions.filter(s => s.facultyId === member.id);
                       const memberWeekSubmissions = memberSubmissions.filter(s =>
                         s.submittedAt && isAfter(s.submittedAt.toDate(), subDays(new Date(), 7))
                       );

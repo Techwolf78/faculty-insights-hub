@@ -647,13 +647,42 @@ export const feedbackSessionsApi = {
   },
 
   getByUrl: async (url: string): Promise<FeedbackSession | null> => {
-    const q = query(collection(db, 'feedbackSessions'), where('uniqueUrl', '==', url));
-    const querySnapshot = await getDocs(q);
-    if (!querySnapshot.empty) {
-      const doc = querySnapshot.docs[0];
-      return { id: doc.id, ...doc.data() } as FeedbackSession;
+    console.log('getByUrl called with url:', url);
+
+    try {
+      // Try the indexed query first
+      console.log('Trying indexed query...');
+      const q = query(collection(db, 'feedbackSessions'), where('uniqueUrl', '==', url));
+      const querySnapshot = await getDocs(q);
+      console.log('Indexed query result - Empty:', querySnapshot.empty, 'Count:', querySnapshot.docs.length);
+
+      if (!querySnapshot.empty) {
+        const doc = querySnapshot.docs[0];
+        console.log('Found session via indexed query:', doc.id);
+        return { id: doc.id, ...doc.data() } as FeedbackSession;
+      }
+
+      // If indexed query fails, try getting all sessions and filtering client-side
+      console.log('Indexed query returned no results, trying client-side filter...');
+      const allSessionsQuery = query(collection(db, 'feedbackSessions'));
+      const allSessionsSnapshot = await getDocs(allSessionsQuery);
+      console.log('All sessions query returned', allSessionsSnapshot.docs.length, 'documents');
+
+      for (const doc of allSessionsSnapshot.docs) {
+        const data = doc.data() as FeedbackSession;
+        console.log('Checking session:', doc.id, 'uniqueUrl:', data.uniqueUrl);
+        if (data.uniqueUrl === url) {
+          console.log('Found session via client-side filter:', doc.id);
+          return { id: doc.id, ...data };
+        }
+      }
+
+      console.log('No session found for url:', url);
+      return null;
+    } catch (error) {
+      console.error('Error in getByUrl:', error);
+      throw error;
     }
-    return null;
   },
 
   getByCollege: async (collegeId: string): Promise<FeedbackSession[]> => {

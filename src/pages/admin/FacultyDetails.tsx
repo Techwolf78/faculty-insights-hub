@@ -291,6 +291,29 @@ const FacultyDetails: React.FC = () => {
     return allComments;
   }, [filteredAllSubmissions, sessions]);
 
+  // Function to get top comments for a specific faculty
+  const getTopCommentsForFaculty = (facultyId: string) => {
+    const facultySubs = submissions.filter(sub => sub.facultyId === facultyId);
+    const allComments = facultySubs.flatMap(sub =>
+      sub.responses
+        .filter(r => r.comment && r.comment.trim() !== '')
+        .map(r => {
+          const session = sessions.find(s => s.id === sub.sessionId);
+          return {
+            comment: r.comment!.trim(),
+            rating: sub.metrics?.overallRating || 0,
+            submittedAt: sub.submittedAt?.toDate(),
+            question: r.questionId || 'General Feedback',
+            batch: session?.batch || 'Unknown'
+          };
+        })
+    ).filter(item => item.comment.length > 10) // Only substantial comments
+    .sort((a, b) => b.rating - a.rating)
+    .slice(0, 20);
+
+    return allComments;
+  };
+
   // Function to generate pagination page numbers
   const getPageNumbers = (current: number, total: number): (number | string)[] => {
     const pages: (number | string)[] = [];
@@ -812,32 +835,35 @@ const FacultyDetails: React.FC = () => {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      {topComments.length > 0 ? (
-                        <div className="space-y-4 max-h-80 overflow-y-auto">
-                          {topComments.map((comment, index) => (
-                            <div key={index} className="border-l-4 border-primary/50 pl-4 py-3">
-                              <div className="flex items-start justify-between mb-2">
-                                <div className="flex items-center gap-2">
-                                  <Badge variant="secondary" className="text-xs">
-                                    {comment.rating % 1 === 0 ? comment.rating.toString() : comment.rating.toFixed(1)}/5
-                                  </Badge>
-                                  <span className="text-xs text-muted-foreground">Batch {comment.batch}</span>
+                      {(() => {
+                        const facultyTopComments = getTopCommentsForFaculty(selectedFaculty);
+                        return facultyTopComments.length > 0 ? (
+                          <div className="space-y-4 max-h-80 overflow-y-auto">
+                            {facultyTopComments.map((comment, index) => (
+                              <div key={index} className="border-l-4 border-primary/50 pl-4 py-3">
+                                <div className="flex items-start justify-between mb-2">
+                                  <div className="flex items-center gap-2">
+                                    <Badge variant="secondary" className="text-xs">
+                                      {comment.rating % 1 === 0 ? comment.rating.toString() : comment.rating.toFixed(1)}/5
+                                    </Badge>
+                                    <span className="text-xs text-muted-foreground">Batch {comment.batch}</span>
+                                  </div>
+                                  <span className="text-xs text-muted-foreground">
+                                    {format(comment.submittedAt, 'MMM d, yyyy')}
+                                  </span>
                                 </div>
-                                <span className="text-xs text-muted-foreground">
-                                  {format(comment.submittedAt, 'MMM d, yyyy')}
-                                </span>
+                                <p className="text-sm text-foreground italic mb-2">"{comment.comment}"</p>
+                                <p className="text-xs text-muted-foreground">{comment.question}</p>
                               </div>
-                              <p className="text-sm text-foreground italic mb-2">"{comment.comment}"</p>
-                              <p className="text-xs text-muted-foreground">{comment.question}</p>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-center py-8">
-                          <MessageSquare className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                          <p className="text-muted-foreground">No comments available</p>
-                        </div>
-                      )}
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-8">
+                            <MessageSquare className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                            <p className="text-muted-foreground">No comments available</p>
+                          </div>
+                        );
+                      })()}
                     </CardContent>
                   </Card>
                 </div>
