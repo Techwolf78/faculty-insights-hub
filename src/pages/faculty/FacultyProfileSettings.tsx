@@ -10,6 +10,7 @@ import { User, Mail, Phone, GraduationCap, Building, Lock, Eye, EyeOff } from 'l
 import { reauthenticateWithCredential, EmailAuthProvider, updatePassword } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { toast } from 'sonner';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const FacultyProfileSettings: React.FC = () => {
   const { user } = useAuth();
@@ -73,10 +74,26 @@ const FacultyProfileSettings: React.FC = () => {
 
   if (!facultyProfile) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading profile...</p>
+      <div className="min-h-screen bg-background relative">
+        {/* Skeleton Main Content */}
+        <div className="flex-1 flex flex-col">
+          <div className="h-16 border-b border-border p-4">
+            <Skeleton className="h-6 w-48" />
+          </div>
+          <div className="flex-1 p-6 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Skeleton className="h-64" />
+              <Skeleton className="h-64" />
+            </div>
+            <Skeleton className="h-32 w-full" />
+          </div>
+        </div>
+        {/* Loading Overlay */}
+        <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+            <p className="text-muted-foreground">Loading profile...</p>
+          </div>
         </div>
       </div>
     );

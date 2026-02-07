@@ -62,6 +62,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import QRCode from 'react-qr-code';
 import SessionResponses from '../admin/SessionResponses';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Progress } from '@/components/ui/progress';
 
 export const SuperAdminDashboard: React.FC = () => {
   const { user, logout } = useAuth();
@@ -75,6 +77,27 @@ export const SuperAdminDashboard: React.FC = () => {
   const [questionGroups, setQuestionGroups] = useState<QuestionGroup[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+
+  // Loading progress effect
+  useEffect(() => {
+    if (isLoading) {
+      const interval = setInterval(() => {
+        setLoadingProgress(prev => {
+          if (prev >= 90) return prev; // Stop at 90% until actual loading completes
+          const increment = Math.random() * 15 + 5; // Random increment between 5-20%
+          const newProgress = prev + increment;
+          return Math.min(newProgress, 90); // Ensure it never goes over 90%
+        });
+      }, 300 + Math.random() * 400); // Random interval between 300-700ms
+
+      return () => clearInterval(interval);
+    } else {
+      setLoadingProgress(100); // Complete when loading finishes
+      // Reset progress after a short delay
+      setTimeout(() => setLoadingProgress(0), 500);
+    }
+  }, [isLoading]);
 
   // Expanded/collapsed state for question groups
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -592,9 +615,36 @@ export const SuperAdminDashboard: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background space-y-4">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-        <p className="text-muted-foreground text-sm">Almost there. Just a moment…</p>
+      <div className="min-h-screen bg-background relative">
+        {/* Skeleton Main Content Only */}
+        <div className="flex-1 flex flex-col p-6 space-y-6">
+          <Skeleton className="h-10 w-1/2" />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Skeleton className="h-32" />
+            <Skeleton className="h-32" />
+            <Skeleton className="h-32" />
+          </div>
+          <Skeleton className="h-64 w-full" />
+        </div>
+        {/* Loading Overlay */}
+        <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-6 max-w-sm mx-4">
+            <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+            <div className="w-full space-y-3">
+              <div className="flex justify-between items-center">
+                <p className="text-muted-foreground text-sm">Loading dashboard...</p>
+                <span className="text-primary font-medium text-sm">{Math.round(loadingProgress)}%</span>
+              </div>
+              <Progress value={loadingProgress} className="w-full h-2" />
+            </div>
+            <p className="text-muted-foreground text-sm text-center">
+              {loadingProgress < 30 ? "Initializing..." :
+               loadingProgress < 60 ? "Loading data..." :
+               loadingProgress < 90 ? "Processing analytics..." :
+               "Almost ready..."}
+            </p>
+          </div>
+        </div>
       </div>
     );
   }

@@ -11,10 +11,11 @@ import {
   useDepartmentStats,
   useAllFacultyStats,
   useQuestions,
+  useSessions,
   useSubmissionsByDepartment,
 } from '@/hooks/useCollegeData';
 import { Users, TrendingUp, MessageSquare, BarChart3 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { DepartmentExcelReport } from '@/components/reports/DepartmentExcelReport';
 
 export const HodDashboard: React.FC = () => {
@@ -31,61 +32,97 @@ export const HodDashboard: React.FC = () => {
   const { data: departmentStats } = useDepartmentStats(user?.departmentId);
   const { data: allFacultyStats = [] } = useAllFacultyStats(user?.collegeId);
   const { data: questions = [], isLoading: questionsLoading } = useQuestions(user?.collegeId);
+  const { data: sessions = [] } = useSessions(user?.collegeId);
   const { data: departmentSubmissions = [] } = useSubmissionsByDepartment(user?.departmentId);
 
   const isLoading = deptLoading || facultyLoading || questionsLoading;
 
-  // Department stats from pre-computed data
-  const deptAverage = departmentStats?.averageRating || 0;
-  const totalResponses = departmentStats?.totalSubmissions || 0;
+  // Department stats - calculated dynamically from department submissions
+  const { deptAverage, totalResponses } = useMemo(() => {
+    if (departmentSubmissions.length === 0) {
+      return { deptAverage: 0, totalResponses: 0 };
+    }
+    
+    const totalRating = departmentSubmissions.reduce((sum, sub) => sum + (sub.metrics?.overallRating || 0), 0);
+    const avg = totalRating / departmentSubmissions.length;
+    
+    return {
+      deptAverage: Math.round(avg * 10) / 10,
+      totalResponses: departmentSubmissions.length
+    };
+  }, [departmentSubmissions]);
 
-  // Faculty performance from pre-computed stats
-  const facultyPerformance = faculty
-    .map(f => {
-      const facultyStats = allFacultyStats.find(stats => stats.facultyId === f.id);
-      return {
-        id: f.id,
-        name: f.name,
-        score: facultyStats?.averageRating || 0,
-        responses: facultyStats?.totalSubmissions || 0,
-        subjects: f.subjects,
-      };
-    })
-    .sort((a, b) => b.score - a.score);
+  // Faculty performance - calculated dynamically from department submissions
+  const facultyPerformance = useMemo(() => {
+    const facultyMap = new Map<string, { totalRating: number; count: number; submissions: number }>();
+    
+    departmentSubmissions.forEach(sub => {
+      const current = facultyMap.get(sub.facultyId) || { totalRating: 0, count: 0, submissions: 0 };
+      facultyMap.set(sub.facultyId, {
+        totalRating: current.totalRating + (sub.metrics?.overallRating || 0),
+        count: current.count + 1,
+        submissions: current.submissions + 1,
+      });
+    });
 
-  // Category breakdown from pre-computed stats
-  const categoryData = departmentStats?.categoryScores
-    ? Object.entries(departmentStats.categoryScores).map(([category, score]) => ({
-        category: category.replace(/\s+/g, '\n'),
-        score: parseFloat(score.average.toFixed(2)),
-      }))
-    : [];
+    return faculty
+      .map(f => {
+        const stats = facultyMap.get(f.id);
+        return {
+          id: f.id,
+          name: f.name,
+          score: stats ? stats.totalRating / stats.count : 0,
+          responses: stats?.submissions || 0,
+          subjects: f.subjects,
+        };
+      })
+      .filter(f => f.responses > 0) // Only show faculty with responses
+      .sort((a, b) => b.score - a.score);
+  }, [faculty, departmentSubmissions]);
+
+  // Category breakdown - calculated dynamically from department submissions
+  const categoryData = useMemo(() => {
+    const categoryMap = new Map<string, { total: number; count: number }>();
+    
+    departmentSubmissions.forEach(sub => {
+      if (sub.metrics?.categoryRatings) {
+        Object.entries(sub.metrics.categoryRatings).forEach(([category, rating]) => {
+          const current = categoryMap.get(category) || { total: 0, count: 0 };
+          categoryMap.set(category, {
+            total: current.total + rating,
+            count: current.count + 1,
+          });
+        });
+      }
+    });
+
+    return Array.from(categoryMap.entries()).map(([category, data]) => ({
+      category,
+      score: data.count > 0 ? Math.round((data.total / data.count) * 10) / 10 : 0,
+    })).filter(item => item.score > 0);
+  }, [departmentSubmissions]);
 
   // Recent comments from department submissions
   const recentComments = useMemo(() => {
-    const allComments = departmentSubmissions.flatMap(sub =>
-      sub.responses
+    const allComments = departmentSubmissions.flatMap(sub => {
+      const facultyInfo = faculty.find(f => f.id === sub.facultyId);
+      const sessionInfo = sessions.find(s => s.id === sub.sessionId);
+      return sub.responses
         .filter(r => r.comment && r.comment.trim() !== '')
         .map(r => ({
           text: r.comment!.trim(),
           rating: sub.metrics?.overallRating || 0,
           submittedAt: sub.submittedAt!,
-        }))
-    ).filter(item => item.text.length > 10) // Only substantial comments
+          facultyName: facultyInfo?.name || 'Unknown Faculty',
+          subject: sessionInfo?.subject || 'Unknown Subject',
+          sessionTitle: sessionInfo ? `${sessionInfo.course} - ${sessionInfo.batch}` : 'Unknown Session',
+        }));
+    }).filter(item => item.text.length > 10) // Only substantial comments
     .sort((a, b) => b.submittedAt.toDate().getTime() - a.submittedAt.toDate().getTime())
     .slice(0, 20);
 
     return allComments;
-  }, [departmentSubmissions]);
-
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen space-y-4">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-        <p className="text-muted-foreground text-sm">Almost there. Just a moment…</p>
-      </div>
-    );
-  }
+  }, [departmentSubmissions, faculty, sessions]);
 
   const renderContent = () => {
     switch (currentSection) {
@@ -106,7 +143,7 @@ export const HodDashboard: React.FC = () => {
                     <thead>
                       <tr className="border-b border-border">
                         <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Faculty</th>
-                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Subjects</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Subject</th>
                         <th className="text-center py-3 px-4 text-sm font-medium text-muted-foreground">Responses</th>
                         <th className="text-center py-3 px-4 text-sm font-medium text-muted-foreground">Rating</th>
                       </tr>
@@ -129,19 +166,9 @@ export const HodDashboard: React.FC = () => {
                             </div>
                           </td>
                           <td className="py-4 px-4">
-                            <div className="flex flex-wrap gap-1">
-                              {f.subjects.slice(0, 3).map((sub, i) => (
-                                <span
-                                  key={i}
-                                  className="px-2 py-0.5 text-xs rounded-full bg-secondary text-secondary-foreground"
-                                >
-                                  {sub}
-                                </span>
-                              ))}
-                              {f.subjects.length > 3 && (
-                                <span className="text-xs text-muted-foreground">+{f.subjects.length - 3} more</span>
-                              )}
-                            </div>
+                            <span className="text-sm text-muted-foreground">
+                              {f.subjects.length > 0 ? f.subjects[0] : 'No subjects'}
+                            </span>
                           </td>
                           <td className="py-4 px-4 text-center text-sm text-muted-foreground">
                             {f.responses}
@@ -168,18 +195,36 @@ export const HodDashboard: React.FC = () => {
 
               {/* Category Breakdown for Faculty Performance */}
               <div className="glass-card rounded-xl p-6">
-                <h3 className="font-display text-lg font-semibold text-foreground mb-4">Department Category Breakdown</h3>
-                <div className="h-64">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h3 className="font-display text-lg font-semibold text-foreground">Department Category Breakdown</h3>
+                    <p className="text-sm text-muted-foreground">Performance by category</p>
+                  </div>
+                  <BarChart3 className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div className="h-80">
                   {categoryData.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={categoryData} layout="vertical">
-                        <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="hsl(var(--border))" />
-                        <XAxis type="number" domain={[0, 5]} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} />
-                        <YAxis 
-                          dataKey="category" 
-                          type="category" 
-                          tick={{ fill: 'hsl(var(--foreground))', fontSize: 10 }} 
-                          width={80}
+                      <RadarChart data={categoryData}>
+                        <PolarGrid stroke="hsl(var(--border))" />
+                        <PolarAngleAxis
+                          dataKey="category"
+                          tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
+                          className="text-xs"
+                        />
+                        <PolarRadiusAxis
+                          domain={[0, 5]}
+                          tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 9 }}
+                          tickCount={6}
+                        />
+                        <Radar
+                          name="Average Score"
+                          dataKey="score"
+                          stroke="hsl(221, 83%, 53%)"
+                          fill="hsl(221, 83%, 53%)"
+                          fillOpacity={0.2}
+                          strokeWidth={2}
+                          dot={{ fill: 'hsl(221, 83%, 53%)', strokeWidth: 2, r: 3 }}
                         />
                         <Tooltip
                           contentStyle={{
@@ -187,15 +232,15 @@ export const HodDashboard: React.FC = () => {
                             border: '1px solid hsl(var(--border))',
                             borderRadius: '8px',
                           }}
+                          formatter={(value) => [value, 'Average Score']}
                         />
-                        <Bar dataKey="score" fill="hsl(213, 96%, 16%)" radius={[0, 4, 4, 0]} />
-                      </BarChart>
+                      </RadarChart>
                     </ResponsiveContainer>
                   ) : (
-                    <div className="flex items-center justify-center h-full text-muted-foreground">
+                    <div className="flex items-center justify-center h-full">
                       <div className="text-center">
-                        <p className="text-sm">No category data yet</p>
-                        <p className="text-xs">Data will appear after receiving feedback</p>
+                        <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
+                        <p className="text-sm text-muted-foreground">No category data available</p>
                       </div>
                     </div>
                   )}
@@ -214,7 +259,8 @@ export const HodDashboard: React.FC = () => {
             />
 
             <div className="p-6 space-y-6">
-              {/* Report Export Section */}
+              {/* Report Export Section - Commented out for now */}
+              {/*
               <div className="flex items-center justify-between p-4 bg-secondary/20 rounded-lg border">
                 <div>
                   <h3 className="font-medium text-foreground">Export Department Report</h3>
@@ -226,6 +272,7 @@ export const HodDashboard: React.FC = () => {
                   departmentStats={departmentStats}
                 />
               </div>
+              */}
 
               {/* Report Preview */}
               <div className="glass-card rounded-xl p-6">
@@ -275,7 +322,7 @@ export const HodDashboard: React.FC = () => {
                 <StatsCard
                   title="Total Responses"
                   value={totalResponses}
-                  subtitle="This cycle"
+                  subtitle="All submissions"
                   icon={BarChart3}
                 />
                 <StatsCard
@@ -286,7 +333,8 @@ export const HodDashboard: React.FC = () => {
                 />
               </div>
 
-              {/* Report Export Section */}
+              {/* Report Export Section - Commented out for now */}
+              {/*
               <div className="flex items-center justify-between p-4 bg-secondary/20 rounded-lg border">
                 <div>
                   <h3 className="font-medium text-foreground">Export Department Report</h3>
@@ -298,6 +346,7 @@ export const HodDashboard: React.FC = () => {
                   departmentStats={departmentStats}
                 />
               </div>
+              */}
 
               {/* Main Content */}
               <div className="grid gap-6 lg:grid-cols-3">
@@ -309,7 +358,7 @@ export const HodDashboard: React.FC = () => {
                       <thead>
                         <tr className="border-b border-border">
                           <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Faculty</th>
-                          <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Subjects</th>
+                          <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Subject</th>
                           <th className="text-center py-3 px-4 text-sm font-medium text-muted-foreground">Responses</th>
                           <th className="text-center py-3 px-4 text-sm font-medium text-muted-foreground">Rating</th>
                         </tr>
@@ -332,19 +381,9 @@ export const HodDashboard: React.FC = () => {
                               </div>
                             </td>
                             <td className="py-4 px-4">
-                              <div className="flex flex-wrap gap-1">
-                                {f.subjects.slice(0, 2).map((sub, i) => (
-                                  <span
-                                    key={i}
-                                    className="px-2 py-0.5 text-xs rounded-full bg-secondary text-secondary-foreground"
-                                  >
-                                    {sub}
-                                  </span>
-                                ))}
-                                {f.subjects.length > 2 && (
-                                  <span className="text-xs text-muted-foreground">+{f.subjects.length - 2}</span>
-                                )}
-                              </div>
+                              <span className="text-sm text-muted-foreground">
+                                {f.subjects.length > 0 ? f.subjects[0] : 'No subjects'}
+                              </span>
                             </td>
                             <td className="py-4 px-4 text-center text-sm text-muted-foreground">
                               {f.responses}
@@ -371,18 +410,36 @@ export const HodDashboard: React.FC = () => {
 
                 {/* Category Breakdown */}
                 <div className="glass-card rounded-xl p-6">
-                  <h3 className="font-display text-lg font-semibold text-foreground mb-4">Category Breakdown</h3>
-                  <div className="h-64">
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <h3 className="font-display text-lg font-semibold text-foreground">Category Breakdown</h3>
+                      <p className="text-sm text-muted-foreground">Performance by category</p>
+                    </div>
+                    <BarChart3 className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                  <div className="h-80">
                     {categoryData.length > 0 ? (
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={categoryData} layout="vertical">
-                          <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="hsl(var(--border))" />
-                          <XAxis type="number" domain={[0, 5]} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} />
-                          <YAxis 
-                            dataKey="category" 
-                            type="category" 
-                            tick={{ fill: 'hsl(var(--foreground))', fontSize: 10 }} 
-                            width={80}
+                        <RadarChart data={categoryData}>
+                          <PolarGrid stroke="hsl(var(--border))" />
+                          <PolarAngleAxis
+                            dataKey="category"
+                            tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
+                            className="text-xs"
+                          />
+                          <PolarRadiusAxis
+                            domain={[0, 5]}
+                            tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 9 }}
+                            tickCount={6}
+                          />
+                          <Radar
+                            name="Average Score"
+                            dataKey="score"
+                            stroke="hsl(221, 83%, 53%)"
+                            fill="hsl(221, 83%, 53%)"
+                            fillOpacity={0.2}
+                            strokeWidth={2}
+                            dot={{ fill: 'hsl(221, 83%, 53%)', strokeWidth: 2, r: 3 }}
                           />
                           <Tooltip
                             contentStyle={{
@@ -390,15 +447,15 @@ export const HodDashboard: React.FC = () => {
                               border: '1px solid hsl(var(--border))',
                               borderRadius: '8px',
                             }}
+                            formatter={(value) => [value, 'Average Score']}
                           />
-                          <Bar dataKey="score" fill="hsl(213, 96%, 16%)" radius={[0, 4, 4, 0]} />
-                        </BarChart>
+                        </RadarChart>
                       </ResponsiveContainer>
                     ) : (
-                      <div className="flex items-center justify-center h-full text-muted-foreground">
+                      <div className="flex items-center justify-center h-full">
                         <div className="text-center">
-                          <p className="text-sm">No category data yet</p>
-                          <p className="text-xs">Data will appear after receiving feedback</p>
+                          <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
+                          <p className="text-sm text-muted-foreground">No category data available</p>
                         </div>
                       </div>
                     )}
@@ -418,7 +475,7 @@ export const HodDashboard: React.FC = () => {
                     >
                       <div className="flex items-start justify-between mb-2">
                         <span className="text-xs text-muted-foreground">
-                          Department Feedback
+                          {c.facultyName} | {c.subject} | {c.sessionTitle}
                         </span>
                         {c.rating && (
                           <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-1 rounded">

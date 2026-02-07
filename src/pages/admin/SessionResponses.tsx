@@ -9,6 +9,7 @@ import { ArrowLeft, Download, Star } from 'lucide-react';
 import { feedbackSessionsApi, submissionsApi, questionsApi, FeedbackSubmission, Question, FeedbackSession } from '@/lib/storage';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const SessionResponses: React.FC = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -105,10 +106,27 @@ const SessionResponses: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading session responses...</p>
+      <div className="min-h-[400px] bg-background relative">
+        {/* Skeleton Main Content */}
+        <div className="flex-1 flex flex-col">
+          <div className="h-16 border-b border-border p-4">
+            <Skeleton className="h-6 w-48" />
+          </div>
+          <div className="flex-1 p-6 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Skeleton className="h-32" />
+              <Skeleton className="h-32" />
+              <Skeleton className="h-32" />
+            </div>
+            <Skeleton className="h-64 w-full" />
+          </div>
+        </div>
+        {/* Loading Overlay */}
+        <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+            <p className="text-muted-foreground">Loading session responses...</p>
+          </div>
         </div>
       </div>
     );

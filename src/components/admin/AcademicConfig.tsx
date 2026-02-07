@@ -760,7 +760,10 @@ const AcademicConfig: React.FC<AcademicConfigProps> = ({ open, onOpenChange, onS
               <>
                 {/* Years as Tabs */}
                 <Tabs defaultValue={`year-${courseIndex}-0`} className="w-full">
-              <TabsList className="grid w-full grid-cols-4 mb-3 bg-primary/10">
+              <TabsList 
+                className="grid w-full mb-3 bg-primary/10" 
+                style={{ gridTemplateColumns: `repeat(${Math.min(course.years.length, 6)}, 1fr)` }}
+              >
                 {course.years.map((year, yearIndex) => (
                   <TabsTrigger
                     key={yearIndex}

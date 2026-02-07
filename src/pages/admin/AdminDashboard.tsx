@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Progress } from '@/components/ui/progress';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -52,6 +53,7 @@ import FacultyReport from '@/components/admin/FacultyReport';
 import { DepartmentExcelReport } from '@/components/reports/DepartmentExcelReport';
 import { CollegeExcelReport } from '@/components/reports/CollegeExcelReport';
 import AcademicConfig from '@/components/admin/AcademicConfig';
+import LoadTemplate from '@/components/admin/LoadTemplate';
 import { SessionTable } from '@/components/admin/SessionTable';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getAcademicConfig, AcademicConfigData } from '@/lib/academicConfig';
@@ -75,6 +77,7 @@ import {
   PolarRadiusAxis,
   Radar,
 } from 'recharts';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const CHART_COLORS = ['hsl(213, 96%, 16%)', 'hsl(213, 80%, 25%)', 'hsl(213, 60%, 35%)', 'hsl(160, 84%, 39%)'];
 
@@ -244,6 +247,250 @@ const AdminDashboard = () => {
     toast.success('Faculty data exported successfully!');
   };
 
+  const handleDownloadICEMTemplate = () => {
+    // Create Excel workbook
+    const wb = XLSX.utils.book_new();
+
+    // Prepare headers for ICEM template based on FacultyForm fields
+    const headers = [
+      'Full Name *',
+      'Email *',
+      'Role (faculty/hod) *',
+      'Course/Program *',
+      'Academic Year *',
+      'Department *',
+      'Subjects *',
+      'Designation',
+      'Specialization',
+      'Experience (years)',
+      'Qualifications',
+      'Publications',
+      'Teaching Subjects',
+      'Research Interests',
+      'Achievements'
+    ];
+
+    // Create worksheet with headers only
+    const ws = XLSX.utils.aoa_to_sheet([headers]);
+
+    // Set column widths
+    ws['!cols'] = [
+      { wch: 25 }, // Full Name *
+      { wch: 30 }, // Email *
+      { wch: 20 }, // Role *
+      { wch: 25 }, // Course/Program *
+      { wch: 15 }, // Academic Year *
+      { wch: 25 }, // Department *
+      { wch: 25 }, // Subjects *
+      { wch: 20 }, // Designation
+      { wch: 25 }, // Specialization
+      { wch: 18 }, // Experience (years)
+      { wch: 25 }, // Qualifications
+      { wch: 15 }, // Publications
+      { wch: 25 }, // Teaching Subjects
+      { wch: 25 }, // Research Interests
+      { wch: 25 }  // Achievements
+    ];
+
+    // Style the header row
+    const headerRange = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+    for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
+      const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
+      if (ws[cellAddress]) {
+        ws[cellAddress].s = {
+          font: { bold: true, sz: 12 },
+          fill: { fgColor: { rgb: "FFE6E6FA" } }, // Light lavender background
+          alignment: { horizontal: "center", vertical: "center" }
+        };
+      }
+    }
+
+    // Create instructions worksheet
+    const instructionsData = [
+      ['ICEM Faculty Template Instructions'],
+      [''],
+      ['IMPORTANT: Please read all instructions carefully before filling the template.'],
+      [''],
+      ['REQUIRED FIELDS (marked with *):'],
+      ['- Full Name *: Enter the complete name of the faculty member (e.g., Dr. John Smith)'],
+      ['- Email *: Enter a valid email address (e.g., john.smith@icem.edu)'],
+      ['- Role (faculty/hod) *: Choose either "faculty" or "hod" (Head of Department)'],
+      ['- Course/Program *: Select from available courses (e.g., B.Tech, M.Tech, MBA)'],
+      ['- Academic Year *: Select from available years (e.g., 1st Year, 2nd Year)'],
+      ['- Department *: Select from departments available for the chosen course/year'],
+      ['- Subjects *: Select subjects taught by the faculty'],
+      [''],
+      ['OPTIONAL FIELDS:'],
+      ['- Designation: Job title (e.g., Assistant Professor, Associate Professor)'],
+      ['- Specialization: Area of expertise (e.g., Machine Learning, Data Structures)'],
+      ['- Experience (years): Number of years of teaching/research experience'],
+      ['- Qualifications: Educational qualifications (e.g., PhD in Computer Science)'],
+      ['- Publications: Number of research publications'],
+      ['- Teaching Subjects: Comma-separated list of subjects taught'],
+      ['- Research Interests: Comma-separated list of research areas'],
+      ['- Achievements: Comma-separated list of awards/achievements'],
+      [''],
+      ['GUIDELINES:'],
+      ['1. Do not modify the header row'],
+      ['2. Fill data starting from row 2'],
+      ['3. Use consistent formatting for similar data'],
+      ['4. Ensure email addresses are unique and valid'],
+      ['5. Role should be exactly "faculty" or "hod" (case-sensitive)'],
+      ['6. Course/Program, Academic Year, Department, and Subjects must match your college configuration'],
+      ['7. For comma-separated fields, use commas without spaces (e.g., AI,Machine Learning,Data Science)'],
+      ['8. Save the file as .xlsx format before uploading'],
+      [''],
+      ['SAMPLE DATA:'],
+      ['Full Name *,Email *,Role *,Course/Program *,Academic Year *,Department *,Subjects *,Designation,Specialization,Experience (years),Qualifications,Publications,Teaching Subjects,Research Interests,Achievements'],
+      ['Dr. John Smith,john.smith@icem.edu,faculty,B.Tech,3rd Year,Computer Science & Engineering,Data Structures,Assistant Professor,Machine Learning,8,PhD in CS,25,Data Structures,Algorithms,AI,Machine Learning,Best Teacher Award 2023'],
+      ['Dr. Sarah Johnson,sarah.johnson@icem.edu,hod,MBA,1st Year,Business Administration,Marketing Management,Professor,Marketing,15,PhD in Business,45,Marketing,Management,Business Strategy,Research Excellence Award']
+    ];
+
+    const wsInstructions = XLSX.utils.aoa_to_sheet(instructionsData);
+
+    // Style the instructions sheet
+    wsInstructions['!cols'] = [{ wch: 80 }]; // Wide column for instructions
+
+    // Style headers in instructions
+    if (wsInstructions['A1']) {
+      wsInstructions['A1'].s = {
+        font: { bold: true, sz: 14, color: { rgb: "FF0000" } },
+        alignment: { horizontal: "center" }
+      };
+    }
+
+    // Add worksheets to workbook
+    XLSX.utils.book_append_sheet(wb, ws, 'Faculty Data');
+    XLSX.utils.book_append_sheet(wb, wsInstructions, 'Instructions');
+
+    // Save file
+    XLSX.writeFile(wb, 'ICEM_Faculty_Template.xlsx');
+
+    toast.success('ICEM Faculty Template downloaded successfully!');
+  };
+
+  const handleDownloadIGSBTemplate = () => {
+    // Create Excel workbook
+    const wb = XLSX.utils.book_new();
+
+    // Prepare headers for IGSB template based on FacultyForm fields
+    const headers = [
+      'Full Name *',
+      'Email *',
+      'Role (faculty/hod) *',
+      'Course/Program *',
+      'Academic Year *',
+      'Department *',
+      'Subjects *',
+      'Designation',
+      'Specialization',
+      'Experience (years)',
+      'Qualifications',
+      'Publications',
+      'Teaching Subjects',
+      'Research Interests',
+      'Achievements'
+    ];
+
+    // Create worksheet with headers only
+    const ws = XLSX.utils.aoa_to_sheet([headers]);
+
+    // Set column widths
+    ws['!cols'] = [
+      { wch: 25 }, // Full Name *
+      { wch: 30 }, // Email *
+      { wch: 20 }, // Role *
+      { wch: 25 }, // Course/Program *
+      { wch: 15 }, // Academic Year *
+      { wch: 25 }, // Department *
+      { wch: 25 }, // Subjects *
+      { wch: 20 }, // Designation
+      { wch: 25 }, // Specialization
+      { wch: 18 }, // Experience (years)
+      { wch: 25 }, // Qualifications
+      { wch: 15 }, // Publications
+      { wch: 25 }, // Teaching Subjects
+      { wch: 25 }, // Research Interests
+      { wch: 25 }  // Achievements
+    ];
+
+    // Style the header row
+    const headerRange = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+    for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
+      const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
+      if (ws[cellAddress]) {
+        ws[cellAddress].s = {
+          font: { bold: true, sz: 12 },
+          fill: { fgColor: { rgb: "FFE6E6FA" } }, // Light lavender background
+          alignment: { horizontal: "center", vertical: "center" }
+        };
+      }
+    }
+
+    // Create instructions worksheet
+    const instructionsData = [
+      ['IGSB Faculty Template Instructions'],
+      [''],
+      ['IMPORTANT: Please read all instructions carefully before filling the template.'],
+      [''],
+      ['REQUIRED FIELDS (marked with *):'],
+      ['- Full Name *: Enter the complete name of the faculty member (e.g., Dr. John Smith)'],
+      ['- Email *: Enter a valid email address (e.g., john.smith@igsb.edu)'],
+      ['- Role (faculty/hod) *: Choose either "faculty" or "hod" (Head of Department)'],
+      ['- Course/Program *: Select from available courses (e.g., B.Tech, M.Tech, MBA)'],
+      ['- Academic Year *: Select from available years (e.g., 1st Year, 2nd Year)'],
+      ['- Department *: Select from departments available for the chosen course/year'],
+      ['- Subjects *: Select subjects taught by the faculty'],
+      [''],
+      ['OPTIONAL FIELDS:'],
+      ['- Designation: Job title (e.g., Assistant Professor, Associate Professor)'],
+      ['- Specialization: Area of expertise (e.g., Machine Learning, Data Structures)'],
+      ['- Experience (years): Number of years of teaching/research experience'],
+      ['- Qualifications: Educational qualifications (e.g., PhD in Computer Science)'],
+      ['- Publications: Number of research publications'],
+      ['- Teaching Subjects: Comma-separated list of subjects taught'],
+      ['- Research Interests: Comma-separated list of research areas'],
+      ['- Achievements: Comma-separated list of awards/achievements'],
+      [''],
+      ['GUIDELINES:'],
+      ['1. Do not modify the header row'],
+      ['2. Fill data starting from row 2'],
+      ['3. Use consistent formatting for similar data'],
+      ['4. Ensure email addresses are unique and valid'],
+      ['5. Role should be exactly "faculty" or "hod" (case-sensitive)'],
+      ['6. Course/Program, Academic Year, Department, and Subjects must match your college configuration'],
+      ['7. For comma-separated fields, use commas without spaces (e.g., AI,Machine Learning,Data Science)'],
+      ['8. Save the file as .xlsx format before uploading'],
+      [''],
+      ['SAMPLE DATA:'],
+      ['Full Name *,Email *,Role *,Course/Program *,Academic Year *,Department *,Subjects *,Designation,Specialization,Experience (years),Qualifications,Publications,Teaching Subjects,Research Interests,Achievements'],
+      ['Dr. John Smith,john.smith@igsb.edu,faculty,B.Tech,3rd Year,Computer Science & Engineering,Data Structures,Assistant Professor,Machine Learning,8,PhD in CS,25,Data Structures,Algorithms,AI,Machine Learning,Best Teacher Award 2023'],
+      ['Dr. Sarah Johnson,sarah.johnson@igsb.edu,hod,MBA,1st Year,Business Administration,Marketing Management,Professor,Marketing,15,PhD in Business,45,Marketing,Management,Business Strategy,Research Excellence Award']
+    ];
+
+    const wsInstructions = XLSX.utils.aoa_to_sheet(instructionsData);
+
+    // Style the instructions sheet
+    wsInstructions['!cols'] = [{ wch: 80 }]; // Wide column for instructions
+
+    // Style headers in instructions
+    if (wsInstructions['A1']) {
+      wsInstructions['A1'].s = {
+        font: { bold: true, sz: 14, color: { rgb: "FF0000" } },
+        alignment: { horizontal: "center" }
+      };
+    }
+
+    // Add worksheets to workbook
+    XLSX.utils.book_append_sheet(wb, ws, 'Faculty Data');
+    XLSX.utils.book_append_sheet(wb, wsInstructions, 'Instructions');
+
+    // Save file
+    XLSX.writeFile(wb, 'IGSB_Faculty_Template.xlsx');
+
+    toast.success('IGSB Faculty Template downloaded successfully!');
+  };
+
   // Question form state
   const [questionFormOpen, setQuestionFormOpen] = useState(false);
 
@@ -255,6 +502,7 @@ const AdminDashboard = () => {
 
   // Academic config state
   const [academicConfigOpen, setAcademicConfigOpen] = useState(false);
+  const [loadTemplateOpen, setLoadTemplateOpen] = useState(false);
 
   // Derive academic config data from hook
   const courseData = useMemo(() => academicConfig?.courseData || {}, [academicConfig?.courseData]);
@@ -509,15 +757,6 @@ const AdminDashboard = () => {
       score: data.count > 0 ? Math.round((data.total / data.count) * 10) / 10 : 0,
     })).filter(item => item.score > 0);
   }, [filteredData.submissions]);
-
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen space-y-4">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-        <p className="text-muted-foreground text-sm">Almost there. Just a moment…</p>
-      </div>
-    );
-  }
 
   const renderContent = () => {
     switch (currentSection) {
@@ -1185,6 +1424,14 @@ const AdminDashboard = () => {
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="font-display text-lg font-semibold text-foreground">Faculty Members</h3>
                   <div className="flex gap-2">
+                    <Button variant="outline" onClick={handleDownloadICEMTemplate}>
+                      <Download className="h-4 w-4 mr-2" />
+                      Download ICEM Template
+                    </Button>
+                    <Button variant="outline" onClick={handleDownloadIGSBTemplate}>
+                      <Download className="h-4 w-4 mr-2" />
+                      Download IGSB Template
+                    </Button>
                     <Button variant="outline" onClick={handleExportFaculty}>
                       <Download className="h-4 w-4 mr-2" />
                       Export to Excel
@@ -1330,10 +1577,16 @@ const AdminDashboard = () => {
               <div className="glass-card rounded-xl p-6">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="font-display text-lg font-semibold text-foreground">Academic Structure Configuration</h3>
-                  <Button className="bg-primary hover:bg-primary/90" onClick={() => setAcademicConfigOpen(true)}>
-                    <Edit className="h-4 w-4 mr-2" />
-                    Configure Structure
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => setLoadTemplateOpen(true)}>
+                      <Download className="h-4 w-4 mr-2" />
+                      Load Template
+                    </Button>
+                    <Button className="bg-primary hover:bg-primary/90" onClick={() => setAcademicConfigOpen(true)}>
+                      <Edit className="h-4 w-4 mr-2" />
+                      Configure Structure
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Conditional Display: Placeholder or Current Structure */}
@@ -1345,7 +1598,7 @@ const AdminDashboard = () => {
                       Configure courses, years, departments, subjects, and batches for your institution.
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      Click "Configure Structure" to build and manage the academic hierarchy.
+                      Click "Load Template" to start with a pre-configured structure, or "Configure Structure" to build from scratch.
                     </p>
                   </div>
                 ) : (
@@ -1590,6 +1843,14 @@ const AdminDashboard = () => {
       <FacultyReport
         open={facultyReportOpen}
         onOpenChange={setFacultyReportOpen}
+      />
+      <LoadTemplate
+        open={loadTemplateOpen}
+        onOpenChange={setLoadTemplateOpen}
+        onSuccess={() => {
+          // Invalidate academic config data
+          queryClient.invalidateQueries({ queryKey: ['academicConfig', user?.collegeId] });
+        }}
       />
       <AcademicConfig
         open={academicConfigOpen}

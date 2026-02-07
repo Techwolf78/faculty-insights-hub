@@ -900,4 +900,5 @@ export const getSemestersForCourse = (
 };
 
 // Export defaults for use in seed data
-export { icemDefaultCourseData as defaultCourseData, icemDefaultSubjectsData as defaultSubjectsData, defaultBatches };
+export { icemDefaultCourseData, icemDefaultSubjectsData, igsbDefaultCourseData, igsbDefaultSubjectsData, defaultBatches };
+export { icemDefaultCourseData as defaultCourseData, icemDefaultSubjectsData as defaultSubjectsData };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DashboardHeader } from '@/components/layout/DashboardHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -10,6 +10,8 @@ import { User, Mail, Phone, GraduationCap, Building, Lock, Eye, EyeOff } from 'l
 import { reauthenticateWithCredential, EmailAuthProvider, updatePassword } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { toast } from 'sonner';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Progress } from '@/components/ui/progress';
 
 const HodProfileSettings: React.FC = () => {
   const { user } = useAuth();
@@ -73,12 +75,58 @@ const HodProfileSettings: React.FC = () => {
     }
   };
 
+  const [loadingProgress, setLoadingProgress] = useState(0);
+
+  // Loading progress effect
+  useEffect(() => {
+    if (!hodProfile) {
+      const interval = setInterval(() => {
+        setLoadingProgress(prev => {
+          if (prev >= 90) return prev; // Stop at 90% until actual loading completes
+          const increment = Math.random() * 15 + 5; // Random increment between 5-20%
+          const newProgress = prev + increment;
+          return Math.min(newProgress, 90); // Ensure it never goes over 90%
+        });
+      }, 300 + Math.random() * 400); // Random interval between 300-700ms
+
+      return () => clearInterval(interval);
+    } else {
+      setLoadingProgress(100); // Complete when loading finishes
+      // Reset progress after a short delay
+      setTimeout(() => setLoadingProgress(0), 500);
+    }
+  }, [hodProfile]);
+
   if (!hodProfile) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading profile...</p>
+      <div className="min-h-screen bg-background relative">
+        {/* Skeleton Main Content Only */}
+        <div className="flex-1 flex flex-col p-6 space-y-6">
+          <Skeleton className="h-10 w-1/2" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Skeleton className="h-64" />
+            <Skeleton className="h-64" />
+          </div>
+          <Skeleton className="h-32 w-full" />
+        </div>
+        {/* Loading Overlay */}
+        <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-6 max-w-sm mx-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+            <div className="w-full space-y-3">
+              <div className="flex justify-between items-center">
+                <p className="text-muted-foreground text-sm">Loading profile...</p>
+                <span className="text-primary font-medium text-sm">{Math.round(loadingProgress)}%</span>
+              </div>
+              <Progress value={loadingProgress} className="w-full h-2" />
+            </div>
+            <p className="text-muted-foreground text-sm text-center">
+              {loadingProgress < 30 ? "Initializing..." :
+               loadingProgress < 60 ? "Loading data..." :
+               loadingProgress < 90 ? "Processing analytics..." :
+               "Almost ready..."}
+            </p>
+          </div>
         </div>
       </div>
     );

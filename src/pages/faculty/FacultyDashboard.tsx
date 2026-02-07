@@ -71,15 +71,6 @@ export const FacultyDashboard: React.FC = () => {
   // Recent comments from pre-computed stats
   const comments = facultyStats?.recentComments || [];
 
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen space-y-4">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-        <p className="text-muted-foreground text-sm">Almost there. Just a moment…</p>
-      </div>
-    );
-  }
-
   const renderContent = () => {
     switch (currentSection) {
       case 'feedback':
@@ -364,7 +355,7 @@ export const FacultyDashboard: React.FC = () => {
                 <StatsCard
                   title="Current Score"
                   value={currentScore.toFixed(1)}
-                  subtitle="This cycle"
+                  subtitle="Overall rating"
                   icon={TrendingUp}
                 />
                 <StatsCard
