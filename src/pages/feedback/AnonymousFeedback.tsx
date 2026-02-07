@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { GraduationCap, ChevronLeft, ChevronRight, Check, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -40,6 +40,7 @@ export const AnonymousFeedback: React.FC = () => {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [responses, setResponses] = useState<FeedbackResponse[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showStickyProgress, setShowStickyProgress] = useState(false);
 
   // Group questions by category and sort within categories
   const groupedQuestions = questions.reduce((acc, q) => {
@@ -103,24 +104,35 @@ export const AnonymousFeedback: React.FC = () => {
       setIsValidating(true);
       setSessionError('');
 
+      // Set timeout for 10 seconds
+      const timeoutId = setTimeout(() => {
+        if (isValidating) {
+          setSessionError('Session validation timed out. Please close this tab and open the link again, or clear your browser cache and try again after some time.');
+          setIsValidating(false);
+        }
+      }, 10000);
+
       try {
         const session = await feedbackSessionsApi.getByUrl(sessionId);
 
         if (!session) {
           setSessionError('Invalid session. This feedback link may have expired or been removed.');
           setIsValidating(false);
+          clearTimeout(timeoutId);
           return;
         }
 
         if (!session.isActive) {
           setSessionError('This feedback session is no longer active.');
           setIsValidating(false);
+          clearTimeout(timeoutId);
           return;
         }
 
         if (session.expiresAt.toDate() < new Date()) {
           setSessionError('This feedback session has expired.');
           setIsValidating(false);
+          clearTimeout(timeoutId);
           return;
         }
 
@@ -138,12 +150,14 @@ export const AnonymousFeedback: React.FC = () => {
         if (!facultyMember) {
           setSessionError(`Unable to find faculty information for this session. Faculty ID: ${session.facultyId}, College ID: ${session.collegeId}`);
           setIsValidating(false);
+          clearTimeout(timeoutId);
           return;
         }
 
         if (sortedQuestions.length === 0) {
           setSessionError('No questions found for this feedback session. Please contact your administrator.');
           setIsValidating(false);
+          clearTimeout(timeoutId);
           return;
         }
 
@@ -156,13 +170,16 @@ export const AnonymousFeedback: React.FC = () => {
         if (localStorage.getItem(`ffs_submitted_${session.id}`) === 'true') {
           setStep('success');
           setIsValidating(false);
+          clearTimeout(timeoutId);
           return;
         }
 
         setStep('feedback');
+        clearTimeout(timeoutId);
       } catch (error) {
         console.error('Session validation error:', error);
         setSessionError(`An error occurred while loading the session: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again later.`);
+        clearTimeout(timeoutId);
       } finally {
         setIsValidating(false);
       }
@@ -171,7 +188,21 @@ export const AnonymousFeedback: React.FC = () => {
     validateSession();
   }, [sessionId]);
 
+  // Scroll detection for sticky progress bar
+  const progressCardRef = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    const handleScroll = () => {
+      if (progressCardRef.current) {
+        const rect = progressCardRef.current.getBoundingClientRect();
+        const isOutOfView = rect.bottom < 20; // Show sticky when progress card is scrolled out of view
+        setShowStickyProgress(isOutOfView);
+      }
+    };
 
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const updateResponse = useCallback((questionId: string, rating?: number, comment?: string, selectValue?: string, booleanValue?: boolean) => {
     setResponses(prev =>
@@ -305,8 +336,18 @@ export const AnonymousFeedback: React.FC = () => {
         {/* Feedback Step */}
         {step === 'feedback' && faculty && !isValidating && (
           <div className="space-y-4 animate-fade-up">
-            {/* Progress */}
-            <div className="glass-card rounded-xl p-4">
+            {/* Sticky Progress Bar - Compact version for scrolling */}
+            {showStickyProgress && (
+              <div className="sticky top-4 z-10 bg-background/90 backdrop-blur-sm rounded-lg p-2 shadow-sm border">
+                <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                  <span>{responses.filter(r => r.rating !== undefined || r.selectValue || r.booleanValue !== undefined).length}/{questions.length}</span>
+                  <ProgressBar value={progress} size="sm" />
+                </div>
+              </div>
+            )}
+
+            {/* Progress - Full version in normal flow */}
+            <div ref={progressCardRef} className="glass-card rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm font-medium text-foreground">
                   Overall Progress
