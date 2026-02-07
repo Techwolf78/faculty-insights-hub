@@ -96,24 +96,43 @@ export const AnonymousFeedback: React.FC = () => {
   useEffect(() => {
     const validateSession = async () => {
       if (!sessionId) {
+        console.error('No sessionId provided');
         setSessionError('Invalid session URL. Please check the link and try again.');
         setIsValidating(false);
         return;
       }
 
+      console.log('Validating session with ID:', sessionId);
+      console.log('Firebase config check:', !!window.firebase?.apps?.length);
+
       setIsValidating(true);
       setSessionError('');
 
-      // Set timeout for 10 seconds
+      // Set timeout for 30 seconds (increased from 10)
       const timeoutId = setTimeout(() => {
         if (isValidating) {
-          setSessionError('Session validation timed out. Please close this tab and open the link again, or clear your browser cache and try again after some time.');
+          console.error('Session validation timed out for sessionId:', sessionId);
+          setSessionError('Session validation is taking longer than expected. Please check your internet connection and try again. If the problem persists, contact your administrator.');
           setIsValidating(false);
         }
-      }, 10000);
+      }, 30000);
 
       try {
+        console.log('Starting session validation for:', sessionId);
+        console.log('Calling feedbackSessionsApi.getByUrl...');
         const session = await feedbackSessionsApi.getByUrl(sessionId);
+        console.log('Session fetched result:', session ? { id: session.id, uniqueUrl: session.uniqueUrl, isActive: session.isActive } : 'null');
+        
+        // If session not found, let's check what sessions exist
+        if (!session) {
+          console.log('Session not found, checking all sessions...');
+          try {
+            const allSessions = await feedbackSessionsApi.getAll?.() || [];
+            console.log('All sessions in database:', allSessions.map(s => ({ id: s.id, uniqueUrl: s.uniqueUrl })));
+          } catch (error) {
+            console.error('Error fetching all sessions:', error);
+          }
+        }
 
         if (!session) {
           setSessionError('Invalid session. This feedback link may have expired or been removed.');
@@ -123,6 +142,7 @@ export const AnonymousFeedback: React.FC = () => {
         }
 
         if (!session.isActive) {
+          console.log('Session is not active');
           setSessionError('This feedback session is no longer active.');
           setIsValidating(false);
           clearTimeout(timeoutId);
@@ -130,6 +150,7 @@ export const AnonymousFeedback: React.FC = () => {
         }
 
         if (session.expiresAt.toDate() < new Date()) {
+          console.log('Session has expired');
           setSessionError('This feedback session has expired.');
           setIsValidating(false);
           clearTimeout(timeoutId);
@@ -137,10 +158,12 @@ export const AnonymousFeedback: React.FC = () => {
         }
 
         // Get faculty and questions
+        console.log('Fetching faculty and questions data...');
         const [allFaculty, qs] = await Promise.all([
           facultyApi.getByCollege(session.collegeId),
           questionsApi.getByCollege(session.collegeId),
         ]);
+        console.log('Faculty count:', allFaculty.length, 'Questions count:', qs.length);
 
         // Sort questions by order field
         const sortedQuestions = qs.sort((a, b) => a.order - b.order);
@@ -148,6 +171,7 @@ export const AnonymousFeedback: React.FC = () => {
         const facultyMember = allFaculty.find(f => f.id === session.facultyId);
 
         if (!facultyMember) {
+          console.error('Faculty not found for session. Faculty ID:', session.facultyId, 'College ID:', session.collegeId);
           setSessionError(`Unable to find faculty information for this session. Faculty ID: ${session.facultyId}, College ID: ${session.collegeId}`);
           setIsValidating(false);
           clearTimeout(timeoutId);
@@ -155,6 +179,7 @@ export const AnonymousFeedback: React.FC = () => {
         }
 
         if (sortedQuestions.length === 0) {
+          console.error('No questions found for college:', session.collegeId);
           setSessionError('No questions found for this feedback session. Please contact your administrator.');
           setIsValidating(false);
           clearTimeout(timeoutId);
