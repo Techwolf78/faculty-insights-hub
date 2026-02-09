@@ -32,7 +32,7 @@ export const SessionTable: React.FC<SessionTableProps> = ({
     // Check if trying to activate an expired session
     if (newActiveState && session.expiresAt) {
       const now = new Date();
-      const expiryDate = session.expiresAt.toDate ? session.expiresAt.toDate() : new Date(session.expiresAt);
+      const expiryDate = session.expiresAt.toDate();
       if (expiryDate <= now) {
         toast.error('Cannot activate session: expiry date has already passed');
         return;

@@ -57,7 +57,7 @@ import LoadTemplate from '@/components/admin/LoadTemplate';
 import { SessionTable } from '@/components/admin/SessionTable';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getAcademicConfig, AcademicConfigData } from '@/lib/academicConfig';
-import { BarChart3, RefreshCw, Building2, Calendar, Users, FileText, User, TrendingUp, MessageSquare, Plus, Edit, Download, Upload, Trash2, ClipboardCheck, GraduationCap, FileQuestion } from 'lucide-react';
+import { BarChart3, RefreshCw, Building2, Calendar, Users, FileText, User, TrendingUp, MessageSquare, Plus, Edit, Download, Upload, Trash2, ClipboardCheck, GraduationCap, FileQuestion, Filter, X } from 'lucide-react';
 import { format, subDays, isAfter } from 'date-fns';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
@@ -157,6 +157,37 @@ const AdminDashboard = () => {
 
   // Session form state
   const [sessionFormOpen, setSessionFormOpen] = useState(false);
+
+  // Session department filter state
+  const [sessionDepartmentFilter, setSessionDepartmentFilter] = useState<string>('all');
+
+  // Current tab state for sessions
+  const [currentSessionTab, setCurrentSessionTab] = useState<string>('active');
+
+  // Function to get session count for department based on current tab
+  const getDepartmentSessionCount = (deptId: string) => {
+    let filteredSessions = sessions;
+    
+    // Filter by tab first
+    if (currentSessionTab === 'active') {
+      filteredSessions = sessions.filter(s => s.isActive);
+    } else if (currentSessionTab === 'inactive') {
+      filteredSessions = sessions.filter(s => !s.isActive);
+    }
+    // For 'all' tab, use all sessions
+    
+    return filteredSessions.filter(s => s.departmentId === deptId).length;
+  };
+
+  // Function to get total count for current tab
+  const getTotalSessionCount = () => {
+    if (currentSessionTab === 'active') {
+      return sessions.filter(s => s.isActive).length;
+    } else if (currentSessionTab === 'inactive') {
+      return sessions.filter(s => !s.isActive).length;
+    }
+    return sessions.length;
+  };
 
   // Department form state
   const [departmentFormOpen, setDepartmentFormOpen] = useState(false);
@@ -1426,14 +1457,14 @@ const AdminDashboard = () => {
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="font-display text-lg font-semibold text-foreground">Faculty Members</h3>
                   <div className="flex gap-2">
-                    <Button variant="outline" onClick={handleDownloadICEMTemplate}>
+                    {/* <Button variant="outline" onClick={handleDownloadICEMTemplate}>
                       <Download className="h-4 w-4 mr-2" />
                       Download ICEM Template
                     </Button>
                     <Button variant="outline" onClick={handleDownloadIGSBTemplate}>
                       <Download className="h-4 w-4 mr-2" />
                       Download IGSB Template
-                    </Button>
+                    </Button> */}
                     <Button variant="outline" onClick={handleExportFaculty}>
                       <Download className="h-4 w-4 mr-2" />
                       Export to Excel
@@ -1515,27 +1546,60 @@ const AdminDashboard = () => {
             />
 
             <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
+              <div className="grid grid-cols-3 items-center mb-6">
                 <div>
-                  <h3 className="font-display text-lg font-semibold text-foreground">Feedback Sessions</h3>
-                  <p className="text-sm text-muted-foreground">Create and manage anonymous feedback sessions</p>
+                  <h3 className="font-display text-lg font-semibold text-foreground">Session Overview</h3>
+                  <p className="text-sm text-muted-foreground">Monitor and organize feedback sessions</p>
                 </div>
-                <Button className="bg-primary hover:bg-primary/90" onClick={() => setSessionFormOpen(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Session
-                </Button>
+                <div className="flex items-center justify-center gap-2">
+                  <div className="flex items-center gap-1">
+                    <Filter className="h-3 w-3 text-muted-foreground" />
+                    <Select value={sessionDepartmentFilter} onValueChange={setSessionDepartmentFilter}>
+                      <SelectTrigger className="w-48 text-xs bg-background/80 backdrop-blur-sm border-primary/20 focus:border-primary">
+                        <SelectValue placeholder="All Departments" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">
+                          All Departments ({getTotalSessionCount()})
+                        </SelectItem>
+                        {departments
+                          .map((dept) => ({
+                            dept,
+                            count: getDepartmentSessionCount(dept.id)
+                          }))
+                          .filter(({ count }) => count > 0)
+                          .map(({ dept, count }) => (
+                            <SelectItem key={dept.id} value={dept.id}>
+                              {dept.name} ({count})
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                    {sessionDepartmentFilter !== 'all' && (
+                      <Button variant="ghost" size="sm" className="h-5 w-5 p-0.5" onClick={() => setSessionDepartmentFilter('all')}>
+                        <X className="h-2.5 w-2.5" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <Button className="bg-primary hover:bg-primary/90" onClick={() => setSessionFormOpen(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Session
+                  </Button>
+                </div>
               </div>
 
-              <Tabs defaultValue="active" className="w-full">
+              <Tabs value={currentSessionTab} onValueChange={setCurrentSessionTab} className="w-full">
                 <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="all">All Sessions ({sessions.length})</TabsTrigger>
-                  <TabsTrigger value="active">Active Sessions ({sessions.filter(s => s.isActive).length})</TabsTrigger>
-                  <TabsTrigger value="inactive">Inactive Sessions ({sessions.filter(s => !s.isActive).length})</TabsTrigger>
+                  <TabsTrigger value="all">All Sessions ({sessions.filter(s => sessionDepartmentFilter === 'all' || s.departmentId === sessionDepartmentFilter).length})</TabsTrigger>
+                  <TabsTrigger value="active">Active Sessions ({sessions.filter(s => s.isActive && (sessionDepartmentFilter === 'all' || s.departmentId === sessionDepartmentFilter)).length})</TabsTrigger>
+                  <TabsTrigger value="inactive">Inactive Sessions ({sessions.filter(s => !s.isActive && (sessionDepartmentFilter === 'all' || s.departmentId === sessionDepartmentFilter)).length})</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="all" className="mt-6">
                   <SessionTable
-                    sessions={sessions}
+                    sessions={sessions.filter(s => sessionDepartmentFilter === 'all' || s.departmentId === sessionDepartmentFilter)}
                     faculty={faculty}
                     departments={departments}
                     onRefresh={refreshSessions}
@@ -1545,7 +1609,7 @@ const AdminDashboard = () => {
 
                 <TabsContent value="active" className="mt-6">
                   <SessionTable
-                    sessions={sessions.filter(s => s.isActive)}
+                    sessions={sessions.filter(s => s.isActive && (sessionDepartmentFilter === 'all' || s.departmentId === sessionDepartmentFilter))}
                     faculty={faculty}
                     departments={departments}
                     onRefresh={refreshSessions}
@@ -1555,7 +1619,7 @@ const AdminDashboard = () => {
 
                 <TabsContent value="inactive" className="mt-6">
                   <SessionTable
-                    sessions={sessions.filter(s => !s.isActive)}
+                    sessions={sessions.filter(s => !s.isActive && (sessionDepartmentFilter === 'all' || s.departmentId === sessionDepartmentFilter))}
                     faculty={faculty}
                     departments={departments}
                     onRefresh={refreshSessions}

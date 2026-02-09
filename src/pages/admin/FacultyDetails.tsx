@@ -84,7 +84,7 @@ const FacultyDetails: React.FC = () => {
     };
 
     loadData();
-  }, [user?.collegeId]);
+  }, [user?.collegeId, user]);
 
   // Filter submissions based on selected time range
   const filteredSubmissions = useMemo(() => {
@@ -801,6 +801,9 @@ const FacultyDetails: React.FC = () => {
                         <MessageSquare className="h-5 w-5" />
                         Recent Comments & Feedback
                       </CardTitle>
+                      <p className="text-xs text-muted-foreground">
+                        Shows 10 most recent comments
+                      </p>
                     </CardHeader>
                     <CardContent>
                       {facultyData?.recentComments.length ? (
@@ -833,6 +836,9 @@ const FacultyDetails: React.FC = () => {
                         <MessageSquare className="h-5 w-5" />
                         Top Comments & Feedback
                       </CardTitle>
+                      <p className="text-xs text-muted-foreground">
+                        Shows up to 20 highest-rated comments
+                      </p>
                     </CardHeader>
                     <CardContent>
                       {(() => {
@@ -1180,6 +1186,9 @@ const FacultyDetails: React.FC = () => {
               <MessageSquare className="h-5 w-5" />
               Top Comments & Feedback
             </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Shows up to 20 highest-rated comments
+            </p>
           </CardHeader>
           <CardContent>
             {topComments.length > 0 ? (

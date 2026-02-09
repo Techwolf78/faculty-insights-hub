@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -151,6 +151,18 @@ const AcademicConfig: React.FC<AcademicConfigProps> = ({ open, onOpenChange, onS
     deptIndex?: number;
   }>({ open: false, type: 'course', courseIndex: 0 });
 
+  // Floating save button state
+  const [isHeaderVisible, setIsHeaderVisible] = useState(true);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const dialogContentRef = useRef<HTMLDivElement>(null);
+  const [hasScrolled, setHasScrolled] = useState(false);
+
+  // Track unsaved changes
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  // Confirmation dialog for unsaved changes
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+
   const loadConfig = useCallback(async () => {
     if (!user?.collegeId) return;
     
@@ -161,6 +173,7 @@ const AcademicConfig: React.FC<AcademicConfigProps> = ({ open, onOpenChange, onS
       setCourses(loadedCourses);
       // Expand all loaded courses by default
       setExpandedCourses(new Set(loadedCourses.map((_, index) => index)));
+      setHasUnsavedChanges(false); // Reset unsaved changes when loading fresh data
     } catch (error) {
       console.error('Error loading config:', error);
       setCourses([]);
@@ -172,8 +185,51 @@ const AcademicConfig: React.FC<AcademicConfigProps> = ({ open, onOpenChange, onS
   useEffect(() => {
     if (open) {
       loadConfig();
+      setIsHeaderVisible(true); // Reset header visibility when modal opens
+      setHasScrolled(false); // Reset scroll state when modal opens
     }
   }, [open, loadConfig]);
+
+  // Intersection Observer for floating save button
+  useEffect(() => {
+    if (!open || !headerRef.current) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        // Add small delay to prevent flickering
+        setTimeout(() => {
+          setIsHeaderVisible(entry.isIntersecting);
+        }, 50);
+      },
+      {
+        threshold: 0.1, // Use 10% visibility threshold for more reliable detection
+        rootMargin: '0px 0px -60px 0px' // Trigger when header is 60px from top
+      }
+    );
+
+    observer.observe(headerRef.current);
+
+    return () => observer.disconnect();
+  }, [open]);
+
+  // Scroll-based fallback for floating button
+  useEffect(() => {
+    if (!open || !dialogContentRef.current) return;
+
+    const handleScroll = () => {
+      const scrollTop = dialogContentRef.current?.scrollTop || 0;
+      const shouldShowFloating = scrollTop > 50; // Consider scrolled if more than 50px down
+      setHasScrolled(shouldShowFloating);
+    };
+
+    const scrollElement = dialogContentRef.current;
+    scrollElement.addEventListener('scroll', handleScroll, { passive: true });
+
+    // Check initial scroll position
+    handleScroll();
+
+    return () => scrollElement.removeEventListener('scroll', handleScroll);
+  }, [open]);
 
   const saveConfig = async () => {
     if (!user?.collegeId) return;
@@ -208,12 +264,37 @@ const AcademicConfig: React.FC<AcademicConfigProps> = ({ open, onOpenChange, onS
     const success = await saveAcademicConfig(user.collegeId, courseData, subjectsData);
     if (success) {
       toast.success('Academic configuration saved successfully!');
+      setHasUnsavedChanges(false); // Reset unsaved changes after successful save
       onSuccess?.();
       onOpenChange(false);
     } else {
       toast.error('Failed to save academic configuration');
     }
     setLoading(false);
+  };
+
+  // Handle modal close with unsaved changes confirmation
+  const handleCloseAttempt = (newOpenState: boolean) => {
+    if (!newOpenState && hasUnsavedChanges) {
+      // User is trying to close and has unsaved changes
+      setShowUnsavedDialog(true);
+    } else {
+      // No unsaved changes or user is opening, proceed normally
+      onOpenChange(newOpenState);
+    }
+  };
+
+  // Handle keep changes (save and close)
+  const handleKeepChanges = async () => {
+    setShowUnsavedDialog(false);
+    await saveConfig(); // This will close the modal after saving
+  };
+
+  // Handle discard changes (close without saving)
+  const handleDiscardChanges = () => {
+    setShowUnsavedDialog(false);
+    setHasUnsavedChanges(false);
+    onOpenChange(false);
   };
 
   const addCourse = () => {
@@ -346,6 +427,7 @@ const AcademicConfig: React.FC<AcademicConfigProps> = ({ open, onOpenChange, onS
     const newCourses = [...courses];
     newCourses[courseIndex].years[yearIndex].departments[deptIndex].subjects.splice(subjIndex, 1);
     setCourses(newCourses);
+    setHasUnsavedChanges(true);
   };
 
   const addBatch = (courseIndex: number, yearIndex: number, deptIndex: number, subjIndex: number) => {
@@ -374,6 +456,7 @@ const AcademicConfig: React.FC<AcademicConfigProps> = ({ open, onOpenChange, onS
     const newCourses = [...courses];
     newCourses[courseIndex].years[yearIndex].departments[deptIndex].subjects[subjIndex].batches.splice(batchIndex, 1);
     setCourses(newCourses);
+    setHasUnsavedChanges(true);
   };
 
   const toggleCourseExpansion = (courseIndex: number) => {
@@ -612,6 +695,7 @@ const AcademicConfig: React.FC<AcademicConfigProps> = ({ open, onOpenChange, onS
     }
 
     setCourses(newCourses);
+    setHasUnsavedChanges(true);
     setAddModal({ open: false, type: 'course' });
   };
 
@@ -674,6 +758,7 @@ const AcademicConfig: React.FC<AcademicConfigProps> = ({ open, onOpenChange, onS
     }
 
     setCourses(newCourses);
+    setHasUnsavedChanges(true);
     setEditModal({ open: false, type: 'course', courseIndex: 0, currentName: '' });
   };
 
@@ -710,6 +795,7 @@ const AcademicConfig: React.FC<AcademicConfigProps> = ({ open, onOpenChange, onS
     }
 
     setCourses(newCourses);
+    setHasUnsavedChanges(true);
     setDeleteModal({ open: false, type: 'course', courseIndex: 0 });
   };
 
@@ -889,21 +975,40 @@ const AcademicConfig: React.FC<AcademicConfigProps> = ({ open, onOpenChange, onS
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[1200px] max-h-[90vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={handleCloseAttempt}>
+      <DialogContent ref={dialogContentRef} className="sm:max-w-[1200px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Academic Configuration</DialogTitle>
           <DialogDescription>
             Configure the academic structure: Course - Year - Department - Subject - Batch
           </DialogDescription>
         </DialogHeader>
+
+        {/* Floating Save Button */}
+        {hasUnsavedChanges && (!isHeaderVisible || hasScrolled) && (
+          <div className="sticky top-0 z-10 mb-4 -mx-6 -mt-6 px-6 py-3">
+            <div className="flex justify-end">
+              <Button onClick={saveConfig} disabled={loading} size="sm" variant="outline">
+                {loading ? 'Saving...' : 'Save'}
+              </Button>
+            </div>
+          </div>
+        )}
+
         <div className="space-y-2">
-          <div className="flex justify-between items-center">
+          <div ref={headerRef} className="flex justify-between items-center">
             <h3 className="text-lg font-medium">Academic Structure Tree</h3>
-            <Button onClick={addCourse}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Course
-            </Button>
+            <div className="flex gap-2">
+              {hasUnsavedChanges && (
+                <Button onClick={saveConfig} disabled={loading} size="sm" variant="outline">
+                  {loading ? 'Saving...' : 'Save'}
+                </Button>
+              )}
+              <Button onClick={addCourse}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Course
+              </Button>
+            </div>
           </div>
           <div className="border rounded-lg p-2 min-h-[400px]">
             {loading ? (
@@ -916,7 +1021,7 @@ const AcademicConfig: React.FC<AcademicConfigProps> = ({ open, onOpenChange, onS
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+          <Button variant="outline" onClick={() => handleCloseAttempt(false)} disabled={loading}>
             Cancel
           </Button>
           <Button onClick={saveConfig} disabled={loading}>
@@ -1142,6 +1247,26 @@ const AcademicConfig: React.FC<AcademicConfigProps> = ({ open, onOpenChange, onS
           </AlertDialogContent>
         </AlertDialog>
       </DialogContent>
+
+      {/* Unsaved Changes Confirmation Dialog */}
+      <AlertDialog open={showUnsavedDialog} onOpenChange={setShowUnsavedDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unsaved Changes</AlertDialogTitle>
+            <AlertDialogDescription>
+              Your changes will be lost if you close this now. What would you like to do?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleDiscardChanges}>
+              Discard Changes
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleKeepChanges} className="bg-primary text-primary-foreground hover:bg-primary/90">
+              Keep Changes
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 };
