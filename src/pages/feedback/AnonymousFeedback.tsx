@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { GraduationCap, ChevronLeft, ChevronRight, Check, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -319,7 +319,21 @@ export const AnonymousFeedback: React.FC = () => {
     }
   };
 
-  const progress = (responses.filter(r => r.rating !== undefined || r.selectValue || r.booleanValue !== undefined).length / questions.length) * 100;
+  const [displayedProgress, setDisplayedProgress] = useState(0);
+
+  const progress = useMemo(() => {
+    const completedQuestions = responses.filter(r => r.rating !== undefined || r.selectValue || r.booleanValue !== undefined).length;
+    return questions.length > 0 ? (completedQuestions / questions.length) * 100 : 0;
+  }, [responses, questions.length]);
+
+  // Smooth progress transition
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDisplayedProgress(progress);
+    }, 100); // Small delay to prevent rapid updates
+
+    return () => clearTimeout(timer);
+  }, [progress]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -377,7 +391,7 @@ export const AnonymousFeedback: React.FC = () => {
               <div className="sticky top-4 z-10 bg-background/90 backdrop-blur-sm rounded-lg p-2 shadow-sm border">
                 <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
                   <span>{responses.filter(r => r.rating !== undefined || r.selectValue || r.booleanValue !== undefined).length}/{questions.length}</span>
-                  <ProgressBar value={progress} size="sm" />
+                  <ProgressBar value={displayedProgress} size="sm" />
                 </div>
               </div>
             )}
@@ -392,7 +406,7 @@ export const AnonymousFeedback: React.FC = () => {
                   {responses.filter(r => r.rating !== undefined || r.selectValue || r.booleanValue !== undefined).length} of {questions.length} questions completed
                 </span>
               </div>
-              <ProgressBar value={progress} size="md" />
+              <ProgressBar value={displayedProgress} size="md" />
             </div>
 
             {/* Faculty Card */}

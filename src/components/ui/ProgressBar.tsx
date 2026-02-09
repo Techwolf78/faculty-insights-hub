@@ -48,10 +48,13 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
       )}>
         <div
           className={cn(
-            "h-full rounded-full transition-all duration-500 ease-out",
+            "h-full rounded-full transition-all duration-700 ease-out transform",
             variantClasses[variant]
           )}
-          style={{ width: `${percentage}%` }}
+          style={{ 
+            width: `${percentage}%`,
+            transitionDelay: '50ms'
+          }}
         />
       </div>
     </div>
