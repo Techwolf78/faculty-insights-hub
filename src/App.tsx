@@ -73,7 +73,6 @@ const App = () => {
             {/* Faculty Routes */}
             <Route element={<DashboardLayout allowedRoles={['faculty']} />}>
               <Route path="/faculty/dashboard" element={<FacultyDashboard />} />
-              <Route path="/faculty/feedback" element={<FacultyDashboard />} />
               <Route path="/faculty/profile" element={<FacultyProfileSettings />} />
             </Route>
 

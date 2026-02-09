@@ -30,19 +30,9 @@ export const StatsCard: React.FC<StatsCardProps> = ({
       <div className="flex items-start justify-between">
         <div className="space-y-1">
           <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <p className="text-3xl font-bold font-display text-foreground">{value}</p>
+          <p className="text-3xl font-bold font-sans text-foreground">{value}</p>
           {subtitle && (
             <p className="text-sm text-muted-foreground">{subtitle}</p>
-          )}
-          {trend && (
-            <div className={cn(
-              "flex items-center gap-1 text-sm font-medium",
-              trend.isPositive ? "text-success" : "text-destructive"
-            )}>
-              <span>{trend.isPositive ? '↑' : '↓'}</span>
-              <span>{Math.abs(trend.value)}%</span>
-              <span className="text-muted-foreground font-normal">vs last cycle</span>
-            </div>
           )}
         </div>
         {Icon && (

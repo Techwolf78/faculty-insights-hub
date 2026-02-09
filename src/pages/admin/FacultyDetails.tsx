@@ -25,13 +25,12 @@ import {
   ArrowLeft,
   Star,
   BarChart3,
-  Filter,
   Download,
   Eye,
   Clock,
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
-import { format, subDays, isAfter } from 'date-fns';
+import { format, isAfter } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const CHART_COLORS = ['hsl(213, 96%, 16%)', 'hsl(213, 80%, 25%)', 'hsl(213, 60%, 35%)', 'hsl(160, 84%, 39%)'];
@@ -46,7 +45,6 @@ const FacultyDetails: React.FC = () => {
   const [submissions, setSubmissions] = useState<FeedbackSubmission[]>([]);
   const [sessions, setSessions] = useState<FeedbackSession[]>([]);
   const [selectedFaculty, setSelectedFaculty] = useState<string | null>(null);
-  const [selectedTimeRange, setSelectedTimeRange] = useState<string>('all');
   const [sessionPageSelected, setSessionPageSelected] = useState(1);
   const [sessionPageIndividual, setSessionPageIndividual] = useState(1);
   const sessionsPerPage = 5;
@@ -87,52 +85,8 @@ const FacultyDetails: React.FC = () => {
   }, [user?.collegeId, user]);
 
   // Filter submissions based on selected time range
-  const filteredSubmissions = useMemo(() => {
-    if (selectedTimeRange === 'all') return currentFacultySubmissions;
+  const filteredSubmissions = currentFacultySubmissions;
 
-    const now = new Date();
-    let startDate: Date;
-
-    switch (selectedTimeRange) {
-      case 'week':
-        startDate = subDays(now, 7);
-        break;
-      case 'month':
-        startDate = subDays(now, 30);
-        break;
-      case 'quarter':
-        startDate = subDays(now, 90);
-        break;
-      default:
-        return currentFacultySubmissions;
-    }
-
-    return currentFacultySubmissions.filter(sub => sub.submittedAt && sub.submittedAt.toDate() >= startDate);
-  }, [currentFacultySubmissions, selectedTimeRange]);
-
-  // Filter all submissions based on selected time range for overall stats
-  const filteredAllSubmissions = useMemo(() => {
-    if (selectedTimeRange === 'all') return submissions;
-
-    const now = new Date();
-    let startDate: Date;
-
-    switch (selectedTimeRange) {
-      case 'week':
-        startDate = subDays(now, 7);
-        break;
-      case 'month':
-        startDate = subDays(now, 30);
-        break;
-      case 'quarter':
-        startDate = subDays(now, 90);
-        break;
-      default:
-        return submissions;
-    }
-
-    return submissions.filter(sub => sub.submittedAt && sub.submittedAt.toDate() >= startDate);
-  }, [submissions, selectedTimeRange]);
 
   // Current faculty performance data
   const facultyData = useMemo(() => {
@@ -203,75 +157,28 @@ const FacultyDetails: React.FC = () => {
 
   // Overall statistics for current faculty
   const overallStats = useMemo(() => {
-    const totalResponses = filteredAllSubmissions.length;
+    const totalResponses = submissions.length;
     const avgRating = totalResponses > 0
-      ? filteredAllSubmissions.reduce((acc, sub) => {
+      ? submissions.reduce((acc, sub) => {
           const ratings = sub.responses.filter(r => r.rating).map(r => r.rating || 0);
           return acc + (ratings.reduce((sum, r) => sum + r, 0) / ratings.length || 0);
         }, 0) / totalResponses
       : 0;
 
-    const totalComments = filteredAllSubmissions.flatMap(sub =>
+    const totalComments = submissions.flatMap(sub =>
       sub.responses.filter(r => r.comment && r.comment.trim() !== '').length
     ).reduce((sum, count) => sum + count, 0);
-
-    // Calculate trend (compare with previous period)
-    const now = new Date();
-    let previousStartDate: Date;
-    let currentStartDate: Date;
-
-    switch (selectedTimeRange) {
-      case 'week':
-        currentStartDate = subDays(now, 7);
-        previousStartDate = subDays(now, 14);
-        break;
-      case 'month':
-        currentStartDate = subDays(now, 30);
-        previousStartDate = subDays(now, 60);
-        break;
-      case 'quarter':
-        currentStartDate = subDays(now, 90);
-        previousStartDate = subDays(now, 180);
-        break;
-      default:
-        currentStartDate = new Date(0); // All time
-        previousStartDate = new Date(0);
-    }
-
-    const currentPeriodSubs = selectedTimeRange === 'all' 
-      ? submissions 
-      : submissions.filter(sub => sub.submittedAt && sub.submittedAt.toDate() >= currentStartDate);
-    
-    const previousPeriodSubs = selectedTimeRange === 'all'
-      ? [] // No previous period for all time
-      : submissions.filter(sub => {
-          if (!sub.submittedAt) return false;
-          const subDate = sub.submittedAt.toDate();
-          return subDate >= previousStartDate && subDate < currentStartDate;
-        });
-
-    const previousAvgRating = previousPeriodSubs.length > 0
-      ? previousPeriodSubs.reduce((acc, sub) => {
-          const ratings = sub.responses.filter(r => r.rating).map(r => r.rating || 0);
-          return acc + (ratings.reduce((sum, r) => sum + r, 0) / ratings.length || 0);
-        }, 0) / previousPeriodSubs.length
-      : 0;
-    
-    const trendValue = previousAvgRating > 0 ? ((avgRating - previousAvgRating) / previousAvgRating) * 100 : 0;
-    const isPositive = trendValue >= 0;
 
     return {
       totalResponses,
       avgRating: Math.round(avgRating * 10) / 10,
-      totalComments,
-      trendValue: Math.abs(trendValue),
-      isPositive
+      totalComments
     };
-  }, [filteredAllSubmissions, submissions, selectedTimeRange]);
+  }, [submissions]);
 
   // Top comments for current faculty
   const topComments = useMemo(() => {
-    const allComments = filteredAllSubmissions.flatMap(sub =>
+    const allComments = submissions.flatMap(sub =>
       sub.responses
         .filter(r => r.comment && r.comment.trim() !== '')
         .map(r => {
@@ -289,7 +196,7 @@ const FacultyDetails: React.FC = () => {
     .slice(0, 20);
 
     return allComments;
-  }, [filteredAllSubmissions, sessions]);
+  }, [submissions, sessions]);
 
   // Function to get top comments for a specific faculty
   const getTopCommentsForFaculty = (facultyId: string) => {
@@ -383,20 +290,6 @@ const FacultyDetails: React.FC = () => {
             </Button>
 
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-muted-foreground" />
-                <select
-                  value={selectedTimeRange}
-                  onChange={(e) => setSelectedTimeRange(e.target.value)}
-                  className="px-3 py-1 border border-border rounded-md text-sm bg-background"
-                >
-                  <option value="all">All Time</option>
-                  <option value="week">Last Week</option>
-                  <option value="month">Last Month</option>
-                  <option value="quarter">Last Quarter</option>
-                </select>
-              </div>
-
               <Button variant="outline" size="sm">
                 <Download className="h-4 w-4 mr-2" />
                 Export Report
@@ -417,7 +310,7 @@ const FacultyDetails: React.FC = () => {
             <StatsCard
               title="Total Responses"
               value={overallStats.totalResponses}
-              subtitle={`${selectedTimeRange === 'all' ? 'All time' : `Last ${selectedTimeRange}`}`}
+              subtitle="All time"
               icon={MessageSquare}
             />
             <StatsCard
@@ -425,7 +318,6 @@ const FacultyDetails: React.FC = () => {
               value={overallStats.avgRating.toFixed(1)}
               subtitle="Out of 5.0"
               icon={TrendingUp}
-              trend={{ value: overallStats.trendValue, isPositive: overallStats.isPositive }}
             />
             <StatsCard
               title="Total Comments"
@@ -903,20 +795,6 @@ const FacultyDetails: React.FC = () => {
           </Button>
 
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <select
-                value={selectedTimeRange}
-                onChange={(e) => setSelectedTimeRange(e.target.value)}
-                className="px-3 py-1 border border-border rounded-md text-sm bg-background"
-              >
-                <option value="all">All Time</option>
-                <option value="week">Last Week</option>
-                <option value="month">Last Month</option>
-                <option value="quarter">Last Quarter</option>
-              </select>
-            </div>
-
             <Button variant="outline" size="sm">
               <Download className="h-4 w-4 mr-2" />
               Export Report
@@ -931,7 +809,7 @@ const FacultyDetails: React.FC = () => {
           <StatsCard
             title="Total Responses"
             value={overallStats.totalResponses}
-            subtitle={`${selectedTimeRange === 'all' ? 'All time' : `Last ${selectedTimeRange}`}`}
+            subtitle="All time"
             icon={MessageSquare}
           />
           <StatsCard

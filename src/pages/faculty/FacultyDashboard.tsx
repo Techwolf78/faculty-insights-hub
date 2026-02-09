@@ -13,7 +13,7 @@ import {
   useFacultyMemberStats,
   useAllFacultyStats,
 } from '@/hooks/useCollegeData';
-import { TrendingUp, MessageSquare, Award, Download, Users } from 'lucide-react';
+import { TrendingUp, MessageSquare, Award, Download, Users, BarChart3 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { Button } from '@/components/ui/button';
 import { format, subMonths } from 'date-fns';
@@ -36,18 +36,37 @@ export const FacultyDashboard: React.FC = () => {
 
   const isLoading = facultyLoading || submissionsLoading || questionsLoading;
 
+  // Pagination state for all comments
+  const [currentPage, setCurrentPage] = useState(1);
+  const commentsPerPage = 6;
+
   // Calculate current score from pre-computed stats
   const currentScore = facultyStats?.averageRating || 0;
 
-  // Calculate peer percentile from pre-computed stats
+  // Calculate peer ranking from pre-computed stats
   const allFacultyScores = allFacultyStats
-    .map(stats => stats.averageRating)
-    .filter(score => score > 0);
+    .map(stats => ({
+      id: stats.facultyId,
+      score: stats.averageRating
+    }))
+    .filter(item => item.score > 0)
+    .sort((a, b) => b.score - a.score); // Sort descending (highest first)
 
-  const belowMe = allFacultyScores.filter(s => s < currentScore).length;
-  const percentile = allFacultyScores.length > 0
-    ? Math.round((belowMe / allFacultyScores.length) * 100)
-    : 0;
+  const currentUserRanking = allFacultyScores.findIndex(item => item.id === facultyProfile?.id) + 1;
+  const totalFaculty = allFacultyScores.length;
+
+  // Convert ranking to ordinal (1st, 2nd, 3rd, etc.)
+  const getOrdinalSuffix = (num: number): string => {
+    if (num === 0) return '0th';
+    const j = num % 10;
+    const k = num % 100;
+    if (j === 1 && k !== 11) return num + 'st';
+    if (j === 2 && k !== 12) return num + 'nd';
+    if (j === 3 && k !== 13) return num + 'rd';
+    return num + 'th';
+  };
+
+  const ranking = currentUserRanking > 0 ? getOrdinalSuffix(currentUserRanking) : 'Unranked';
 
   // Category breakdown from pre-computed stats
   const categoryData = facultyStats?.categoryScores
@@ -68,116 +87,41 @@ export const FacultyDashboard: React.FC = () => {
         }))
     : [];
 
-  // Recent comments from pre-computed stats
-  const comments = facultyStats?.recentComments || [];
+  // Recent comments from submissions
+  const comments = submissions
+    .filter(s => s.responses && s.responses.length > 0)
+    .flatMap(s => s.responses
+      .filter(r => r.comment && r.comment.trim())
+      .map(r => ({
+        text: r.comment!,
+        rating: s.metrics?.overallRating || 0,
+        submittedAt: s.submittedAt!
+      }))
+    )
+    .sort((a, b) => b.rating - a.rating);
+
+  // Top 10 comments for the summary section
+  const topComments = comments.slice(0, 10);
+
+  // All comments sorted by date (most recent first) for pagination
+  const allCommentsSortedByDate = submissions
+    .filter(s => s.responses && s.responses.length > 0)
+    .flatMap(s => s.responses
+      .filter(r => r.comment && r.comment.trim())
+      .map(r => ({
+        text: r.comment!,
+        rating: s.metrics?.overallRating || 0,
+        submittedAt: s.submittedAt!
+      }))
+    )
+    .sort((a, b) => b.submittedAt.toDate().getTime() - a.submittedAt.toDate().getTime());
+
+  // Pagination for all comments
+  const totalPages = Math.ceil(allCommentsSortedByDate.length / commentsPerPage);
+  const paginatedComments = allCommentsSortedByDate.slice((currentPage - 1) * commentsPerPage, currentPage * commentsPerPage);
 
   const renderContent = () => {
     switch (currentSection) {
-      case 'feedback':
-        return (
-          <div className="min-h-screen">
-            <DashboardHeader
-              title="My Feedback"
-              subtitle="Detailed view of all student feedback and comments"
-            />
-
-            <div className="p-6 space-y-6">
-              {/* Profile Summary */}
-              <div className="glass-card rounded-xl p-6">
-                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
-                      <span className="text-xl font-semibold text-primary">
-                        {user?.name?.split(' ').map(n => n[0]).join('')}
-                      </span>
-                    </div>
-                    <div>
-                      <h2 className="font-display text-xl font-semibold text-foreground">{user?.name}</h2>
-                      <p className="text-muted-foreground">{facultyProfile?.subjects?.join(', ') || 'No subjects assigned'}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Feedback Stats */}
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-                <StatsCard
-                  title="Total Responses"
-                  value={submissions.length}
-                  subtitle="Student evaluations"
-                  icon={Users}
-                />
-                <StatsCard
-                  title="Comments"
-                  value={comments.length}
-                  subtitle="Student feedback"
-                  icon={MessageSquare}
-                />
-                <StatsCard
-                  title="Average Rating"
-                  value={currentScore.toFixed(1)}
-                  subtitle="Out of 5.0"
-                  icon={TrendingUp}
-                />
-                <StatsCard
-                  title="Peer Percentile"
-                  value={`${percentile}th`}
-                  subtitle="Among all faculty"
-                  icon={Award}
-                />
-              </div>
-
-              {/* Detailed Comments Section */}
-              <div className="glass-card rounded-xl p-6">
-                <h3 className="font-display text-lg font-semibold text-foreground mb-4">All Student Comments</h3>
-                <div className="space-y-4 max-h-96 overflow-y-auto">
-                  {comments.map((c, index) => (
-                    <div
-                      key={index}
-                      className="p-4 rounded-lg bg-secondary/50 animate-fade-up border-l-4 border-primary/20"
-                      style={{ animationDelay: `${index * 0.05}s` }}
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <span className="text-xs text-muted-foreground">
-                          {format(c.submittedAt.toDate(), 'MMM d, yyyy')}
-                        </span>
-                        {c.rating && (
-                          <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-1 rounded">
-                            {c.rating % 1 === 0 ? c.rating.toString() : c.rating.toFixed(1)}/5
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm text-foreground italic">"{c.text}"</p>
-                    </div>
-                  ))}
-                  {comments.length === 0 && (
-                    <p className="text-center text-muted-foreground py-8">No comments yet</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Category Details */}
-              <div className="glass-card rounded-xl p-6">
-                <h3 className="font-display text-lg font-semibold text-foreground mb-4">Detailed Category Scores</h3>
-                <div className="space-y-4">
-                  {categoryData.map((cat, index) => (
-                    <div key={cat.category} className="animate-fade-up" style={{ animationDelay: `${index * 0.05}s` }}>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-foreground">{cat.category}</span>
-                        <div className="flex items-center gap-2">
-                          <RatingStars value={Math.round(cat.score)} readonly size="sm" />
-                          <span className="text-sm font-medium text-muted-foreground">{cat.score.toFixed(1)}</span>
-                        </div>
-                      </div>
-                      <ProgressBar value={cat.score} max={5} size="sm" />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-
       case 'reports':
         return (
           <div className="min-h-screen">
@@ -201,12 +145,12 @@ export const FacultyDashboard: React.FC = () => {
                       <p className="text-muted-foreground">{facultyProfile?.subjects?.join(', ') || 'No subjects assigned'}</p>
                     </div>
                   </div>
-                  <FacultyExcelReport
+                  {/* <FacultyExcelReport
                     facultyId={facultyProfile?.id || ''}
                     facultyName={user?.name || 'Faculty Member'}
                     stats={facultyStats}
                     comments={comments}
-                  />
+                  /> */}
                 </div>
               </div>
 
@@ -218,7 +162,7 @@ export const FacultyDashboard: React.FC = () => {
                     <div className="p-4 bg-secondary/50 rounded-lg">
                       <h4 className="font-medium text-foreground mb-2">Performance Overview</h4>
                       <p className="text-sm text-muted-foreground">Current Score: {currentScore.toFixed(1)}/5.0</p>
-                      <p className="text-sm text-muted-foreground">Peer Percentile: {percentile}th</p>
+                      <p className="text-sm text-muted-foreground">Peer Ranking: {ranking}</p>
                       <p className="text-sm text-muted-foreground">Total Responses: {submissions.length}</p>
                     </div>
                     <div className="p-4 bg-secondary/50 rounded-lg">
@@ -241,8 +185,8 @@ export const FacultyDashboard: React.FC = () => {
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={trendData}>
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                          <XAxis dataKey="month" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
-                          <YAxis domain={[0, 5]} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                          <XAxis dataKey="month" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontFamily: "Inter" }} />
+                          <YAxis domain={[0, 5]} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontFamily: "Inter" }} />
                           <Tooltip
                             contentStyle={{
                               backgroundColor: 'hsl(var(--card))',
@@ -281,11 +225,11 @@ export const FacultyDashboard: React.FC = () => {
                           <PolarGrid stroke="hsl(var(--border))" />
                           <PolarAngleAxis
                             dataKey="category"
-                            tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
+                            tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10, fontFamily: "Inter" }}
                           />
                           <PolarRadiusAxis
                             domain={[0, 5]}
-                            tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
+                            tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10, fontFamily: "Inter" }}
                           />
                           <Radar
                             name="Score"
@@ -341,12 +285,12 @@ export const FacultyDashboard: React.FC = () => {
                       <p className="text-muted-foreground">{facultyProfile?.subjects?.join(', ') || 'No subjects assigned'}</p>
                     </div>
                   </div>
-                  <FacultyExcelReport
+                  {/* <FacultyExcelReport
                     facultyId={facultyProfile?.id || ''}
                     facultyName={user?.name || 'Faculty Member'}
                     stats={facultyStats}
                     comments={comments}
-                  />
+                  /> */}
                 </div>
               </div>
 
@@ -359,9 +303,9 @@ export const FacultyDashboard: React.FC = () => {
                   icon={TrendingUp}
                 />
                 <StatsCard
-                  title="Peer Percentile"
-                  value={`${percentile}th`}
-                  subtitle="Among all faculty"
+                  title="Peer Ranking"
+                  value={ranking}
+                  subtitle={`Out of ${totalFaculty} faculty`}
                   icon={Award}
                 />
                 <StatsCard
@@ -380,6 +324,60 @@ export const FacultyDashboard: React.FC = () => {
 
               {/* Charts Row */}
               <div className="grid gap-6 lg:grid-cols-2">
+                {/* Category Breakdown */}
+                <div className="glass-card rounded-xl p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <h3 className="font-display text-lg font-semibold text-foreground">Category Breakdown</h3>
+                      <p className="text-sm text-muted-foreground">Performance by category</p>
+                    </div>
+                    <BarChart3 className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                  <div className="h-64">
+                    {categoryData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <RadarChart data={categoryData}>
+                          <PolarGrid stroke="hsl(var(--border))" />
+                          <PolarAngleAxis
+                            dataKey="category"
+                            tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10, fontFamily: "Inter" }}
+                            className="text-xs"
+                          />
+                          <PolarRadiusAxis
+                            domain={[0, 5]}
+                            tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 9, fontFamily: "Inter" }}
+                            tickCount={6}
+                          />
+                          <Radar
+                            name="Average Score"
+                            dataKey="score"
+                            stroke="hsl(221, 83%, 53%)"
+                            fill="hsl(221, 83%, 53%)"
+                            fillOpacity={0.2}
+                            strokeWidth={2}
+                            dot={{ fill: 'hsl(221, 83%, 53%)', strokeWidth: 2, r: 3 }}
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: 'hsl(var(--card))',
+                              border: '1px solid hsl(var(--border))',
+                              borderRadius: '8px',
+                            }}
+                            formatter={(value) => [value, 'Average Score']}
+                          />
+                        </RadarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="flex items-center justify-center h-full text-muted-foreground">
+                        <div className="text-center">
+                          <p className="text-sm">No category data yet</p>
+                          <p className="text-xs">Data will appear after receiving feedback</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 {/* Historical Trend */}
                 <div className="glass-card rounded-xl p-6">
                   <h3 className="font-display text-lg font-semibold text-foreground mb-4">Performance Trend</h3>
@@ -388,8 +386,8 @@ export const FacultyDashboard: React.FC = () => {
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={trendData}>
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                          <XAxis dataKey="month" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
-                          <YAxis domain={[0, 5]} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                          <XAxis dataKey="month" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontFamily: "Inter" }} />
+                          <YAxis domain={[0, 5]} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontFamily: "Inter" }} />
                           <Tooltip
                             contentStyle={{
                               backgroundColor: 'hsl(var(--card))',
@@ -411,49 +409,6 @@ export const FacultyDashboard: React.FC = () => {
                       <div className="flex items-center justify-center h-full text-muted-foreground">
                         <div className="text-center">
                           <p className="text-sm">No performance data yet</p>
-                          <p className="text-xs">Data will appear after receiving feedback</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Category Radar */}
-                <div className="glass-card rounded-xl p-6">
-                  <h3 className="font-display text-lg font-semibold text-foreground mb-4">Category Breakdown</h3>
-                  <div className="h-64">
-                    {categoryData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <RadarChart data={categoryData}>
-                          <PolarGrid stroke="hsl(var(--border))" />
-                          <PolarAngleAxis
-                            dataKey="category"
-                            tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
-                          />
-                          <PolarRadiusAxis
-                            domain={[0, 5]}
-                            tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
-                          />
-                          <Radar
-                            name="Score"
-                            dataKey="score"
-                            stroke="hsl(213, 96%, 16%)"
-                            fill="hsl(213, 96%, 16%)"
-                            fillOpacity={0.3}
-                          />
-                          <Tooltip
-                            contentStyle={{
-                              backgroundColor: 'hsl(var(--card))',
-                              border: '1px solid hsl(var(--border))',
-                              borderRadius: '8px',
-                            }}
-                          />
-                        </RadarChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <div className="flex items-center justify-center h-full text-muted-foreground">
-                        <div className="text-center">
-                          <p className="text-sm">No category data yet</p>
                           <p className="text-xs">Data will appear after receiving feedback</p>
                         </div>
                       </div>
@@ -485,9 +440,12 @@ export const FacultyDashboard: React.FC = () => {
 
                 {/* Recent Comments */}
                 <div className="glass-card rounded-xl p-6">
-                  <h3 className="font-display text-lg font-semibold text-foreground mb-4">Student Comments</h3>
+                  <div className="mb-4">
+                    <h3 className="font-display text-lg font-semibold text-foreground">Top Student Comments</h3>
+                    <p className="text-sm text-muted-foreground">Showing 10 highest rated comments</p>
+                  </div>
                   <div className="space-y-4 max-h-80 overflow-y-auto">
-                    {comments.map((c, index) => (
+                    {topComments.map((c, index) => (
                       <div
                         key={index}
                         className="p-4 rounded-lg bg-secondary/50 animate-fade-up"
@@ -495,7 +453,7 @@ export const FacultyDashboard: React.FC = () => {
                       >
                         <div className="flex items-start justify-between mb-2">
                           <span className="text-xs text-muted-foreground">
-                            {format(c.submittedAt.toDate(), 'MMM d, yyyy')}
+                            {format(c.submittedAt.toDate(), 'MMM d, yyyy hh:mm a')}
                           </span>
                           {c.rating && (
                             <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-1 rounded">
@@ -506,11 +464,69 @@ export const FacultyDashboard: React.FC = () => {
                         <p className="text-sm text-foreground italic">"{c.text}"</p>
                       </div>
                     ))}
-                    {comments.length === 0 && (
+                    {topComments.length === 0 && (
                       <p className="text-center text-muted-foreground py-8">No comments yet</p>
                     )}
                   </div>
                 </div>
+              </div>
+
+              {/* All Student Comments Section */}
+              <div className="glass-card rounded-xl p-6">
+                <div className="mb-4">
+                  <h3 className="font-display text-lg font-semibold text-foreground">All Student Comments</h3>
+                  <p className="text-sm text-muted-foreground">Showing all {allCommentsSortedByDate.length} comments</p>
+                </div>
+                <div className="space-y-4 max-h-96 overflow-y-auto">
+                  {paginatedComments.map((c, index) => (
+                    <div
+                      key={index}
+                      className="p-4 rounded-lg bg-secondary/50 animate-fade-up border-l-4 border-primary/20"
+                      style={{ animationDelay: `${index * 0.05}s` }}
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <span className="text-xs text-muted-foreground">
+                          {format(c.submittedAt.toDate(), 'MMM d, yyyy hh:mm a')}
+                        </span>
+                        {c.rating && (
+                          <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-1 rounded">
+                            {c.rating % 1 === 0 ? c.rating.toString() : c.rating.toFixed(1)}/5
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-foreground italic">"{c.text}"</p>
+                    </div>
+                  ))}
+                  {paginatedComments.length === 0 && (
+                    <p className="text-center text-muted-foreground py-8">No comments yet</p>
+                  )}
+                </div>
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                    <p className="text-sm text-muted-foreground">
+                      Page {currentPage} of {totalPages}
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                        disabled={currentPage === 1}
+                      >
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                        disabled={currentPage === totalPages}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

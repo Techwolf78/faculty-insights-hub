@@ -46,7 +46,6 @@ const hodLinks: SidebarLink[] = [
 
 const facultyLinks: SidebarLink[] = [
   { to: '/faculty/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/faculty/feedback', icon: ClipboardList, label: 'My Feedback' },
   { to: '/faculty/profile', icon: User, label: 'Profile Settings' },
 ];
 

@@ -743,7 +743,7 @@ const AdminDashboard = () => {
     { name: 'Inactive', value: sessions.filter(s => !s.isActive).length },
   ].filter(d => d.value > 0);
 
-  // Performance Trend data (last 6 months) - calculated from filtered submissions
+  // Feedback Trend data (last 6 months) - calculated from filtered submissions
   const performanceTrendData = useMemo(() => {
     const monthlyMap = new Map<string, number>();
     
@@ -768,6 +768,26 @@ const AdminDashboard = () => {
     }
     return months;
   }, [filteredData.submissions]);
+
+  // Calculate Y-axis domain for feedback trend chart
+  const feedbackTrendYAxisDomain = useMemo(() => {
+    const maxValue = Math.max(...performanceTrendData.map(d => d.responses), 0);
+    if (maxValue === 0) return [0, 50]; // Minimum range for empty data
+    
+    // Round up to nearest multiple of 50
+    const roundedMax = Math.ceil(maxValue / 50) * 50;
+    return [0, roundedMax];
+  }, [performanceTrendData]);
+
+  // Calculate Y-axis domain for response trend chart
+  const responseTrendYAxisDomain = useMemo(() => {
+    const maxValue = Math.max(...trendData.map(d => d.responses), 0);
+    if (maxValue === 0) return [0, 50]; // Minimum range for empty data
+    
+    // Round up to nearest multiple of 50
+    const roundedMax = Math.ceil(maxValue / 50) * 50;
+    return [0, roundedMax];
+  }, [trendData]);
 
   // Category Breakdown data - calculated from filtered submissions
   const categoryBreakdownData = useMemo(() => {
@@ -1125,8 +1145,8 @@ const AdminDashboard = () => {
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={deptPerformance} layout="vertical">
                           <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="hsl(var(--border))" />
-                          <XAxis type="number" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
-                          <YAxis dataKey="department" type="category" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} width={80} />
+                          <XAxis type="number" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontFamily: "Inter" }} />
+                          <YAxis dataKey="department" type="category" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontFamily: "Inter" }} width={80} />
                           <Tooltip
                             contentStyle={{
                               backgroundColor: 'hsl(var(--card))',
@@ -1161,8 +1181,11 @@ const AdminDashboard = () => {
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={trendData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis dataKey="date" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
-                        <YAxis tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                        <XAxis dataKey="date" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontFamily: "Inter" }} />
+                        <YAxis 
+                          domain={responseTrendYAxisDomain}
+                          tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontFamily: "Inter" }} 
+                        />
                         <Tooltip
                           contentStyle={{
                             backgroundColor: 'hsl(var(--card))',
@@ -1187,8 +1210,8 @@ const AdminDashboard = () => {
                 <div className="glass-card rounded-xl p-6">
                   <div className="flex items-center justify-between mb-6">
                     <div>
-                      <h3 className="font-display text-lg font-semibold text-foreground">Performance Trend</h3>
-                      <p className="text-sm text-muted-foreground">Monthly overview</p>
+                      <h3 className="font-display text-lg font-semibold text-foreground">Feedback Trend</h3>
+                      <p className="text-sm text-muted-foreground">Monthly submission overview</p>
                     </div>
                     <TrendingUp className="h-5 w-5 text-muted-foreground" />
                   </div>
@@ -1196,8 +1219,11 @@ const AdminDashboard = () => {
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={performanceTrendData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis dataKey="month" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
-                        <YAxis tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                        <XAxis dataKey="month" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontFamily: "Inter" }} />
+                        <YAxis 
+                          domain={feedbackTrendYAxisDomain}
+                          tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontFamily: "Inter" }} 
+                        />
                         <Tooltip
                           contentStyle={{
                             backgroundColor: 'hsl(var(--card))',
@@ -1237,12 +1263,12 @@ const AdminDashboard = () => {
                           <PolarGrid stroke="hsl(var(--border))" />
                           <PolarAngleAxis
                             dataKey="category"
-                            tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
+                            tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10, fontFamily: "Inter" }}
                             className="text-xs"
                           />
                           <PolarRadiusAxis
                             domain={[0, 5]}
-                            tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 9 }}
+                            tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 9, fontFamily: "Inter" }}
                             tickCount={6}
                           />
                           <Radar
@@ -1555,7 +1581,7 @@ const AdminDashboard = () => {
                   <div className="flex items-center gap-1">
                     <Filter className="h-3 w-3 text-muted-foreground" />
                     <Select value={sessionDepartmentFilter} onValueChange={setSessionDepartmentFilter}>
-                      <SelectTrigger className="w-48 text-xs bg-background/80 backdrop-blur-sm border-primary/20 focus:border-primary">
+                      <SelectTrigger className="w-36 h-8 text-xs bg-background/80 backdrop-blur-sm border-primary/20 focus:border-primary">
                         <SelectValue placeholder="All Departments" />
                       </SelectTrigger>
                       <SelectContent>
