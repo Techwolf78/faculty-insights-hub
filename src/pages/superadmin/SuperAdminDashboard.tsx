@@ -9,11 +9,13 @@ import {
   feedbackSessionsApi,
   questionGroupsApi,
   questionsApi,
+  departmentsApi,
   College,
   User,
   FeedbackSession,
   QuestionGroup,
   Question,
+  Department,
   Timestamp,
 } from '@/lib/storage';
 import {
@@ -72,10 +74,12 @@ export const SuperAdminDashboard: React.FC = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
 
   const [colleges, setColleges] = useState<College[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [admins, setAdmins] = useState<User[]>([]);
   const [feedbackSessions, setFeedbackSessions] = useState<FeedbackSession[]>([]);
   const [questionGroups, setQuestionGroups] = useState<QuestionGroup[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(0);
 
@@ -255,12 +259,13 @@ export const SuperAdminDashboard: React.FC = () => {
 
   const loadData = async () => {
     try {
-      const [collegeList, userList, sessionList, groupList, questionList] = await Promise.all([
+      const [collegeList, userList, sessionList, groupList, questionList, departmentList] = await Promise.all([
         collegesApi.getAll(),
         usersApi.getAll(),
         feedbackSessionsApi.getAll(),
         questionGroupsApi.getAll(),
         questionsApi.getAll(),
+        departmentsApi.getAll(),
       ]);
 
       // Update expired sessions to inactive
@@ -288,10 +293,12 @@ export const SuperAdminDashboard: React.FC = () => {
       }
 
       setColleges(collegeList);
+      setUsers(userList);
       setAdmins(userList.filter(u => u.role === 'admin' && u.isActive));
       setFeedbackSessions(updatedSessions);
       setQuestionGroups(groupList);
       setQuestions(questionList);
+      setDepartments(departmentList);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -814,23 +821,33 @@ export const SuperAdminDashboard: React.FC = () => {
                 </div>
               </div>
 
-              {/* Recent Activity */}
+              {/* College Stats */}
               <div className="glass-card rounded-xl p-6">
-                <h3 className="font-display text-lg font-semibold text-foreground mb-4">Recent Activity</h3>
+                <h3 className="font-display text-lg font-semibold text-foreground mb-4">College Stats</h3>
                 <div className="space-y-3">
-                  {colleges.slice(0, 3).map((college, index) => (
-                    <div key={college.id} className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50">
-                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                        <Building2 className="h-4 w-4 text-primary" />
+                  {colleges.map((college) => {
+                    const collegeDepartments = departments.filter(d => d.collegeId === college.id);
+                    const collegeFaculty = users.filter(u => u.collegeId === college.id && (u.role === 'faculty' || u.role === 'hod') && u.isActive);
+                    const collegeActiveSessions = feedbackSessions.filter(s => s.collegeId === college.id && s.isActive);
+                    return (
+                      <div key={college.id} className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50">
+                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                          <Building2 className="h-4 w-4 text-primary" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-foreground">{college.name}</p>
+                          <p className="text-xs text-muted-foreground">Code: {college.code}</p>
+                          <div className="flex gap-4 mt-1">
+                            <span className="text-xs text-muted-foreground">Departments: {collegeDepartments.length}</span>
+                            <span className="text-xs text-muted-foreground">Faculty: {collegeFaculty.length}</span>
+                            <span className="text-xs text-muted-foreground">Active Sessions: {collegeActiveSessions.length}</span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-foreground">College created: {college.name}</p>
-                        <p className="text-xs text-muted-foreground">Code: {college.code}</p>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {colleges.length === 0 && (
-                    <p className="text-muted-foreground text-center py-4">No recent activity</p>
+                    <p className="text-muted-foreground text-center py-4">No colleges found</p>
                   )}
                 </div>
               </div>
