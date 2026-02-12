@@ -132,10 +132,6 @@ const FacultyReport: React.FC<FacultyReportProps> = ({ open, onOpenChange }) => 
                       <p className="text-sm text-muted-foreground">Experience</p>
                       <p className="font-medium">{selectedFaculty.experience} years</p>
                     </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Publications</p>
-                      <p className="font-medium">{selectedFaculty.publications}</p>
-                    </div>
                   </div>
                 </CardContent>
               </Card>

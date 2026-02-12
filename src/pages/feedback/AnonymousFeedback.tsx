@@ -419,7 +419,11 @@ export const AnonymousFeedback: React.FC = () => {
                 </div>
                 <div>
                   <h2 className="font-display text-base font-semibold text-foreground">{faculty.name}</h2>
-                  <p className="text-sm text-muted-foreground">{faculty.subjects.join(', ')}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {validatedSession?.subject}
+                    {validatedSession?.subjectCode && <span className="font-sans"> ({validatedSession.subjectCode})</span>}
+                    {validatedSession?.subjectType && ` - ${validatedSession.subjectType}`}
+                  </p>
                 </div>
               </div>
             </div>

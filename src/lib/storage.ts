@@ -88,13 +88,11 @@ export interface Faculty {
   avatar?: string;
   designation: string;
   specialization: string;
-  qualifications: string;
+  highestQualification: string;
   experience: number;
   subjects: string[];
-  teachingSubjects: string[];
-  researchInterests: string[];
-  publications: number;
-  achievements: string[];
+  subjectCode: string;
+  subjectType: 'Theory' | 'Practical';
   course: string;
   academicYear: string;
   role: 'faculty' | 'hod';
@@ -118,6 +116,8 @@ export interface FeedbackSession {
   course: string;
   academicYear: string;
   subject: string;
+  subjectCode: string;
+  subjectType: 'Theory' | 'Practical';
   batch: string;
   semester?: string;
   accessMode: 'anonymous' | 'authenticated' | 'mixed';

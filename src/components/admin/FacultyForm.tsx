@@ -39,13 +39,11 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
     designation: '',
     specialization: '',
     experience: '',
-    qualifications: '',
-    researchInterests: '',
-    publications: '',
-    teachingSubjects: '',
-    achievements: '',
+    highestQualification: '',
     department: '',
     subjects: '',
+    subjectCode: '',
+    subjectType: 'Theory' as 'Theory' | 'Practical',
     course: '',
     academicYear: '',
     role: 'faculty', // Default to faculty
@@ -108,13 +106,11 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
           designation: editingFaculty.designation,
           specialization: editingFaculty.specialization,
           experience: editingFaculty.experience.toString(),
-          qualifications: editingFaculty.qualifications,
-          researchInterests: editingFaculty.researchInterests.join(', '),
-          publications: editingFaculty.publications.toString(),
-          teachingSubjects: editingFaculty.teachingSubjects.join(', '),
-          achievements: editingFaculty.achievements.join(', '),
+          highestQualification: editingFaculty.highestQualification,
           department: dept?.name || editingFaculty.departmentId, // Use department name for form display
           subjects: editingFaculty.subjects.join(', '),
+          subjectCode: editingFaculty.subjectCode,
+          subjectType: editingFaculty.subjectType,
           course: editingFaculty.course,
           academicYear: editingFaculty.academicYear,
           role: editingFaculty.role || 'faculty', // Use existing role or default to faculty
@@ -191,14 +187,12 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
         designation: formData.designation.trim(),
         specialization: formData.specialization.trim(),
         experience: parseInt(formData.experience) || 0,
-        qualifications: formData.qualifications.trim(),
-        researchInterests: formData.researchInterests.split(',').map(s => s.trim()).filter(s => s),
-        publications: parseInt(formData.publications) || 0,
-        teachingSubjects: formData.teachingSubjects.split(',').map(s => s.trim()).filter(s => s),
-        achievements: formData.achievements.split(',').map(s => s.trim()).filter(s => s),
+        highestQualification: formData.highestQualification.trim(),
         departmentId: selectedDept.id, // Use the actual department document ID
         collegeId: user.collegeId,
         subjects: formData.subjects.split(',').map(s => s.trim()).filter(s => s),
+        subjectCode: formData.subjectCode.trim(),
+        subjectType: formData.subjectType,
         course: formData.course,
         academicYear: formData.academicYear,
         role: formData.role as 'faculty' | 'hod',
@@ -244,14 +238,15 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
           await facultyApi.create(facultyDataWithUserId);
 
           toast.success(`Faculty member added successfully! Login credentials: ${formData.email} / ${formData.password}`);
-        } catch (authError: any) {
+        } catch (authError: unknown) {
           console.error('Auth error:', authError);
-          if (authError.code === 'auth/email-already-in-use') {
+          const error = authError as { code?: string; message?: string };
+          if (error.code === 'auth/email-already-in-use') {
             toast.error('This email is already registered. Please use a different email.');
-          } else if (authError.code === 'auth/weak-password') {
+          } else if (error.code === 'auth/weak-password') {
             toast.error('Password is too weak. Please choose a stronger password.');
           } else {
-            toast.error(`Failed to create faculty account: ${authError.message || 'Unknown error'}`);
+            toast.error(`Failed to create faculty account: ${error.message || 'Unknown error'}`);
           }
           return;
         }
@@ -480,6 +475,35 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
               </Select>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="subjectCode" className="text-right">
+                Subject Code
+              </Label>
+              <Input
+                id="subjectCode"
+                value={formData.subjectCode}
+                onChange={(e) => setFormData(prev => ({ ...prev, subjectCode: e.target.value }))}
+                className="col-span-3"
+                placeholder="e.g., EP101, CS201"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="subjectType" className="text-right">
+                Subject Type
+              </Label>
+              <Select
+                value={formData.subjectType}
+                onValueChange={(value: 'Theory' | 'Practical') => setFormData(prev => ({ ...prev, subjectType: value }))}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select subject type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Theory">Theory</SelectItem>
+                  <SelectItem value="Practical">Practical</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="designation" className="text-right">
                 Designation
               </Label>
@@ -518,65 +542,15 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="qualifications" className="text-right">
-                Qualifications
+              <Label htmlFor="highestQualification" className="text-right">
+                Highest Qualification
               </Label>
               <Input
-                id="qualifications"
-                value={formData.qualifications}
-                onChange={(e) => setFormData(prev => ({ ...prev, qualifications: e.target.value }))}
+                id="highestQualification"
+                value={formData.highestQualification}
+                onChange={(e) => setFormData(prev => ({ ...prev, highestQualification: e.target.value }))}
                 className="col-span-3"
                 placeholder="e.g., PhD in Computer Science"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="publications" className="text-right">
-                Publications
-              </Label>
-              <Input
-                id="publications"
-                type="number"
-                value={formData.publications}
-                onChange={(e) => setFormData(prev => ({ ...prev, publications: e.target.value }))}
-                className="col-span-3"
-                placeholder="e.g., 15"
-                min="0"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="teachingSubjects" className="text-right">
-                Teaching Subjects
-              </Label>
-              <Input
-                id="teachingSubjects"
-                value={formData.teachingSubjects}
-                onChange={(e) => setFormData(prev => ({ ...prev, teachingSubjects: e.target.value }))}
-                className="col-span-3"
-                placeholder="e.g., Data Structures, Algorithms, AI (comma-separated)"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="researchInterests" className="text-right">
-                Research Interests
-              </Label>
-              <Input
-                id="researchInterests"
-                value={formData.researchInterests}
-                onChange={(e) => setFormData(prev => ({ ...prev, researchInterests: e.target.value }))}
-                className="col-span-3"
-                placeholder="e.g., Machine Learning, IoT, Cybersecurity (comma-separated)"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="achievements" className="text-right">
-                Achievements
-              </Label>
-              <Input
-                id="achievements"
-                value={formData.achievements}
-                onChange={(e) => setFormData(prev => ({ ...prev, achievements: e.target.value }))}
-                className="col-span-3"
-                placeholder="e.g., Best Teacher Award, Research Excellence (comma-separated)"
               />
             </div>
           </div>

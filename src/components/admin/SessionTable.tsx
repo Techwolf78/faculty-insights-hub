@@ -117,6 +117,8 @@ export const SessionTable: React.FC<SessionTableProps> = ({
               <div className="flex-1">
                 <CardTitle className="text-lg flex items-center gap-2">
                   {session.course} - {session.subject}
+                  {session.subjectCode && <span className="font-sans"> ({session.subjectCode})</span>}
+                  {session.subjectType && ` - ${session.subjectType}`}
                   <Badge variant={session.isActive ? 'default' : 'secondary'}>
                     {session.isActive ? 'Active' : 'Inactive'}
                   </Badge>

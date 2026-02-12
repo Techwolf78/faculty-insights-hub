@@ -44,6 +44,8 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
   const [questionGroup, setQuestionGroup] = useState('');
   const [selectedFaculty, setSelectedFaculty] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
+  const [subjectCode, setSubjectCode] = useState('');
+  const [subjectType, setSubjectType] = useState<'Theory' | 'Practical'>('Theory');
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -84,6 +86,8 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
     setQuestionGroup('');
     setSelectedFaculty('');
     setExpiresAt('');
+    setSubjectCode('');
+    setSubjectType('Theory');
   };
 
   const availableYears = course ? courseData[course as keyof typeof courseData]?.years || [] : [];
@@ -96,9 +100,27 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
   const availableBatches = (course && academicYear && department && subject)
     ? subjectsData[course as keyof typeof subjectsData]?.[academicYear]?.[department]?.[subject] || []
     : [];
-  const availableFaculty = faculty.filter(f =>
-    f.departmentId === departments.find(d => d.name === department)?.id
-  );
+  const availableFaculty = faculty.filter(f => {
+    const deptMatch = f.departmentId === departments.find(d => d.name === department)?.id;
+    const subjectMatch = !subject || f.subjects.includes(subject);
+    return deptMatch && subjectMatch;
+  });
+
+  // Auto-populate subject code and type when subject changes
+  useEffect(() => {
+    if (subject && faculty.length > 0) {
+      const facultyTeachingSubject = faculty.filter(f => f.subjects.includes(subject));
+      if (facultyTeachingSubject.length > 0) {
+        // Use the first faculty's subject code and type
+        const firstFaculty = facultyTeachingSubject[0];
+        setSubjectCode(firstFaculty.subjectCode);
+        setSubjectType(firstFaculty.subjectType);
+      }
+    } else {
+      setSubjectCode('');
+      setSubjectType('Theory');
+    }
+  }, [subject, faculty]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -119,6 +141,8 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
         course,
         academicYear,
         subject,
+        subjectCode,
+        subjectType,
         batch,
         accessMode: 'anonymous',
         uniqueUrl,
@@ -255,6 +279,31 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
                 </SelectContent>
               </Select>
             </div>
+
+            {subject && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="subjectCode">Subject Code</Label>
+                  <Input
+                    id="subjectCode"
+                    value={subjectCode}
+                    readOnly
+                    placeholder="Subject code will be auto-filled"
+                    className="font-sans"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="subjectType">Subject Type</Label>
+                  <Input
+                    id="subjectType"
+                    value={subjectType}
+                    readOnly
+                    placeholder="Subject type will be auto-filled"
+                  />
+                </div>
+              </>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="batch">Batch</Label>

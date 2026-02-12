@@ -170,6 +170,8 @@ const SessionResponses: React.FC = () => {
         <div className="flex flex-col items-center justify-center text-center space-y-2">
           <h1 className="text-3xl font-bold tracking-tight">
             {session.course} - {session.subject}
+            {session.subjectCode && <span className="font-sans"> ({session.subjectCode})</span>}
+            {session.subjectType && ` - ${session.subjectType}`}
           </h1>
           <div className="flex flex-wrap items-center justify-center gap-2 text-muted-foreground">
             <span>{session.academicYear}</span>
