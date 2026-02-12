@@ -228,7 +228,7 @@ export interface AcademicConfig {
     yearDepartments: Record<string, string[]>;
     semesters?: string[];
   }>;
-  subjectsData: Record<string, Record<string, Record<string, Record<string, string[]>>>>;
+  subjectsData: Record<string, Record<string, Record<string, Record<string, { code: string; type: string; batches: string[] }>>>>;
   batches: string[];
   createdAt: Timestamp;
   updatedAt: Timestamp;

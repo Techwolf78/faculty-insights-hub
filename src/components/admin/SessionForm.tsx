@@ -24,7 +24,7 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
   const [questionGroups, setQuestionGroups] = useState<QuestionGroup[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [courseData, setCourseData] = useState<Record<string, { years: string[]; yearDepartments: Record<string, string[]> }>>({});
-  const [subjectsData, setSubjectsData] = useState<Record<string, Record<string, Record<string, Record<string, string[]>>>>>({});
+  const [subjectsData, setSubjectsData] = useState<Record<string, Record<string, Record<string, Record<string, { code: string; type: string; batches: string[] }>>>>>({});
 
   // Refs for dropdowns
   const courseSelectRef = React.useRef<HTMLButtonElement>(null);
@@ -98,7 +98,7 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
     ? Object.keys(subjectsData[course as keyof typeof subjectsData]?.[academicYear]?.[department] || {})
     : [];
   const availableBatches = (course && academicYear && department && subject)
-    ? subjectsData[course as keyof typeof subjectsData]?.[academicYear]?.[department]?.[subject] || []
+    ? subjectsData[course as keyof typeof subjectsData]?.[academicYear]?.[department]?.[subject]?.batches || []
     : [];
   const availableFaculty = faculty.filter(f => {
     const deptMatch = f.departmentId === departments.find(d => d.name === department)?.id;

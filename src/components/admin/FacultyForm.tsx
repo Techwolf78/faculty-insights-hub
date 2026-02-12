@@ -26,7 +26,7 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
   const [isLoadingFacultyDetails, setIsLoadingFacultyDetails] = useState(false);
   const [isFormReady, setIsFormReady] = useState(false);
   const [courseData, setCourseData] = useState<Record<string, { years: string[]; yearDepartments: Record<string, string[]> }>>({});
-  const [subjectsData, setSubjectsData] = useState<Record<string, Record<string, Record<string, Record<string, string[]>>>>>({});
+  const [subjectsData, setSubjectsData] = useState<Record<string, Record<string, Record<string, Record<string, { code: string; type: string; batches: string[] }>>>>>({});
   const [departments, setDepartments] = useState<Department[]>([]);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -457,20 +457,41 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
               <Label htmlFor="subjects" className="text-right">
                 Subjects *
               </Label>
-              <Select 
-                value={formData.subjects} 
-                onValueChange={(value) => setFormData(prev => ({ ...prev, subjects: value }))}
+              <Select
+                value={(() => {
+                  // Find the subject key that matches the stored clean subject name
+                  const matchingKey = Object.keys(availableSubjects).find(key =>
+                    key.replace(/\s*\((Theory|Practical)\)$/, '') === formData.subjects
+                  );
+                  return matchingKey || '';
+                })()}
+                onValueChange={(value) => {
+                  const selectedSubject = availableSubjects[value];
+                  // Clean up the subject name by removing (Theory) and (Practical) suffixes for storage
+                  const cleanSubjectName = value.replace(/\s*\((Theory|Practical)\)$/, '');
+                  setFormData(prev => ({
+                    ...prev,
+                    subjects: cleanSubjectName,
+                    subjectCode: selectedSubject?.code || '',
+                    subjectType: (selectedSubject?.type as 'Theory' | 'Practical') || 'Theory'
+                  }));
+                }}
                 disabled={!formData.course || !formData.academicYear || !formData.department}
               >
                 <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Select subjects" />
                 </SelectTrigger>
                 <SelectContent>
-                  {Object.keys(availableSubjects).map((subject) => (
-                    <SelectItem key={subject} value={subject}>
-                      {subject}
-                    </SelectItem>
-                  ))}
+                  {Object.keys(availableSubjects).map((subject) => {
+                    const subjectData = availableSubjects[subject];
+                    // Clean up the display name by removing (Theory) and (Practical) suffixes
+                    const displayName = subject.replace(/\s*\((Theory|Practical)\)$/, '');
+                    return (
+                      <SelectItem key={subject} value={subject}>
+                        {displayName} {subjectData?.code ? `(${subjectData.code} - ${subjectData.type})` : ''}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
@@ -483,25 +504,22 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
                 value={formData.subjectCode}
                 onChange={(e) => setFormData(prev => ({ ...prev, subjectCode: e.target.value }))}
                 className="col-span-3"
-                placeholder="e.g., EP101, CS201"
+                placeholder="Auto-filled from selected subject"
+                readOnly
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="subjectType" className="text-right">
                 Subject Type
               </Label>
-              <Select
+              <Input
+                id="subjectType"
                 value={formData.subjectType}
-                onValueChange={(value: 'Theory' | 'Practical') => setFormData(prev => ({ ...prev, subjectType: value }))}
-              >
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Select subject type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Theory">Theory</SelectItem>
-                  <SelectItem value="Practical">Practical</SelectItem>
-                </SelectContent>
-              </Select>
+                onChange={(e) => setFormData(prev => ({ ...prev, subjectType: e.target.value as 'Theory' | 'Practical' }))}
+                className="col-span-3"
+                placeholder="Auto-filled from selected subject"
+                readOnly
+              />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="designation" className="text-right">

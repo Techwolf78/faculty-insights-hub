@@ -16,6 +16,8 @@ interface Batch {
 
 interface Subject {
   name: string;
+  code: string;
+  type: string;
   batches: string[];
 }
 
@@ -44,7 +46,7 @@ interface CourseData {
 }
 
 interface SubjectsData {
-  [courseName: string]: Record<string, Record<string, Record<string, string[]>>>;
+  [courseName: string]: Record<string, Record<string, Record<string, { code: string; type: string; batches: string[] }>>>;
 }
 
 interface AcademicConfigData {
@@ -74,12 +76,13 @@ const buildCoursesFromConfig = (config: AcademicConfigData): Course[] => {
           if (Array.isArray(deptSubjectsData)) {
             // Old format: array of subject names
             deptSubjectsData.forEach((subj: string) => {
-              subjects.push({ name: subj, batches: ['A', 'B', 'C', 'D'] });
+              subjects.push({ name: subj, code: '', type: 'Theory', batches: ['A', 'B', 'C', 'D'] });
             });
           } else {
-            // New format: object with subject: batches[]
+            // New format: object with subject: {code, type, batches}
             Object.keys(deptSubjectsData).forEach((subj: string) => {
-              subjects.push({ name: subj, batches: deptSubjectsData[subj] || ['A', 'B', 'C', 'D'] });
+              const subjData = deptSubjectsData[subj];
+              subjects.push({ name: subj, code: subjData.code || '', type: subjData.type || 'Theory', batches: subjData.batches || [] });
             });
           }
         }
@@ -128,6 +131,8 @@ const AcademicConfig: React.FC<AcademicConfigProps> = ({ open, onOpenChange, onS
     deptIndex?: number;
     subjIndex?: number;
     currentName?: string;
+    currentCode?: string;
+    currentType?: string;
     error?: string;
   }>({ open: false, type: 'course' });
 
@@ -140,6 +145,8 @@ const AcademicConfig: React.FC<AcademicConfigProps> = ({ open, onOpenChange, onS
     subjIndex?: number;
     batchIndex?: number;
     currentName: string;
+    currentCode?: string;
+    currentType?: string;
     error?: string;
   }>({ open: false, type: 'course', courseIndex: 0, currentName: '' });
 
@@ -412,6 +419,7 @@ const AcademicConfig: React.FC<AcademicConfigProps> = ({ open, onOpenChange, onS
   };
 
   const editSubject = (courseIndex: number, yearIndex: number, deptIndex: number, subjIndex: number) => {
+    const subj = courses[courseIndex].years[yearIndex].departments[deptIndex].subjects[subjIndex];
     setEditModal({
       open: true,
       type: 'subject',
@@ -419,7 +427,9 @@ const AcademicConfig: React.FC<AcademicConfigProps> = ({ open, onOpenChange, onS
       yearIndex,
       deptIndex,
       subjIndex,
-      currentName: courses[courseIndex].years[yearIndex].departments[deptIndex].subjects[subjIndex].name
+      currentName: subj.name,
+      currentCode: subj.code,
+      currentType: subj.type
     });
   };
 
@@ -684,7 +694,12 @@ const AcademicConfig: React.FC<AcademicConfigProps> = ({ open, onOpenChange, onS
         break;
       case 'subject':
         if (addModal.courseIndex !== undefined && addModal.yearIndex !== undefined && addModal.deptIndex !== undefined) {
-          newCourses[addModal.courseIndex].years[addModal.yearIndex].departments[addModal.deptIndex].subjects.push({ name, batches: ['A', 'B', 'C', 'D'] });
+          newCourses[addModal.courseIndex].years[addModal.yearIndex].departments[addModal.deptIndex].subjects.push({
+            name,
+            code: addModal.currentCode || '',
+            type: addModal.currentType || 'Theory',
+            batches: [] // ICEM has no batch divisions
+          });
         }
         break;
       case 'batch':
@@ -748,6 +763,8 @@ const AcademicConfig: React.FC<AcademicConfigProps> = ({ open, onOpenChange, onS
       case 'subject':
         if (editModal.yearIndex !== undefined && editModal.deptIndex !== undefined && editModal.subjIndex !== undefined) {
           newCourses[editModal.courseIndex].years[editModal.yearIndex].departments[editModal.deptIndex].subjects[editModal.subjIndex].name = name;
+          newCourses[editModal.courseIndex].years[editModal.yearIndex].departments[editModal.deptIndex].subjects[editModal.subjIndex].code = editModal.currentCode || '';
+          newCourses[editModal.courseIndex].years[editModal.yearIndex].departments[editModal.deptIndex].subjects[editModal.subjIndex].type = editModal.currentType || 'Theory';
         }
         break;
       case 'batch':
@@ -923,7 +940,13 @@ const AcademicConfig: React.FC<AcademicConfigProps> = ({ open, onOpenChange, onS
                             {dept.subjects.map((subj, subjIndex) => (
                               <div key={subjIndex} className="bg-white rounded p-2 border border-primary">
                                 <div className="flex items-center justify-between mb-0.5">
-                                  <span className="text-sm font-medium text-primary truncate">{subj.name}</span>
+                                  <div className="flex flex-col">
+                                    <span className="text-sm font-medium text-primary truncate">{subj.name}</span>
+                                    <div className="flex gap-2 text-xs text-gray-600">
+                                      <span>Code: {subj.code}</span>
+                                      <span>Type: {subj.type}</span>
+                                    </div>
+                                  </div>
                                   <div className="flex items-center gap-1">
                                     <Button variant="ghost" size="sm" onClick={() => editSubject(courseIndex, yearIndex, deptIndex, subjIndex)} className="h-6 w-6 p-0 text-primary hover:bg-primary/20">
                                       <Edit className="h-3 w-3" />
@@ -1087,6 +1110,52 @@ const AcademicConfig: React.FC<AcademicConfigProps> = ({ open, onOpenChange, onS
                     </TabsContent>
                   </Tabs>
                 </div>
+              ) : addModal.type === 'subject' ? (
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="add-subject-name">Subject Name</Label>
+                    <Input
+                      id="add-subject-name"
+                      placeholder="Enter subject name"
+                      value={addModal.currentName || ''}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        const error = validateSubjectInput(value, addModal.courseIndex, addModal.yearIndex, addModal.deptIndex);
+                        setAddModal(prev => ({ ...prev, currentName: value, error }));
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="add-subject-code">Subject Code</Label>
+                    <Input
+                      id="add-subject-code"
+                      placeholder="Enter subject code"
+                      value={addModal.currentCode || ''}
+                      onChange={(e) => {
+                        setAddModal(prev => ({ ...prev, currentCode: e.target.value }));
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="add-subject-type">Subject Type</Label>
+                    <select
+                      id="add-subject-type"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={addModal.currentType || 'Theory'}
+                      onChange={(e) => {
+                        setAddModal(prev => ({ ...prev, currentType: e.target.value }));
+                      }}
+                    >
+                      <option value="Theory">Theory</option>
+                      <option value="Practical">Practical</option>
+                      <option value="Tutorial">Tutorial</option>
+                      <option value="Theory / Practical">Theory / Practical</option>
+                    </select>
+                  </div>
+                  {addModal.error && (
+                    <p className="text-sm text-destructive">{addModal.error}</p>
+                  )}
+                </div>
               ) : (
                 <Input
                   placeholder={`Enter ${addModal.type} name`}
@@ -1102,9 +1171,6 @@ const AcademicConfig: React.FC<AcademicConfigProps> = ({ open, onOpenChange, onS
                         break;
                       case 'department':
                         error = validateDepartmentInput(value, addModal.courseIndex, addModal.yearIndex);
-                        break;
-                      case 'subject':
-                        error = validateSubjectInput(value, addModal.courseIndex, addModal.yearIndex, addModal.deptIndex);
                         break;
                       case 'batch':
                         error = validateBatchInput(value, addModal.courseIndex, addModal.yearIndex, addModal.deptIndex, addModal.subjIndex);
@@ -1123,7 +1189,7 @@ const AcademicConfig: React.FC<AcademicConfigProps> = ({ open, onOpenChange, onS
             </div>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleAddConfirm} disabled={!addModal.currentName?.trim() || !!addModal.error}>
+              <AlertDialogAction onClick={handleAddConfirm} disabled={!(addModal.currentName?.trim()) || !!addModal.error}>
                 Add
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -1186,6 +1252,52 @@ const AcademicConfig: React.FC<AcademicConfigProps> = ({ open, onOpenChange, onS
                     </TabsContent>
                   </Tabs>
                 </div>
+              ) : editModal.type === 'subject' ? (
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="subject-name">Subject Name</Label>
+                    <Input
+                      id="subject-name"
+                      placeholder="Enter subject name"
+                      value={editModal.currentName}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        const error = validateSubjectInput(value, editModal.courseIndex, editModal.yearIndex, editModal.deptIndex, editModal.subjIndex);
+                        setEditModal(prev => ({ ...prev, currentName: value, error }));
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="subject-code">Subject Code</Label>
+                    <Input
+                      id="subject-code"
+                      placeholder="Enter subject code"
+                      value={editModal.currentCode || ''}
+                      onChange={(e) => {
+                        setEditModal(prev => ({ ...prev, currentCode: e.target.value }));
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="subject-type">Subject Type</Label>
+                    <select
+                      id="subject-type"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={editModal.currentType || 'Theory'}
+                      onChange={(e) => {
+                        setEditModal(prev => ({ ...prev, currentType: e.target.value }));
+                      }}
+                    >
+                      <option value="Theory">Theory</option>
+                      <option value="Practical">Practical</option>
+                      <option value="Tutorial">Tutorial</option>
+                      <option value="Theory / Practical">Theory / Practical</option>
+                    </select>
+                  </div>
+                  {editModal.error && (
+                    <p className="text-sm text-destructive">{editModal.error}</p>
+                  )}
+                </div>
               ) : (
                 <Input
                   placeholder={`Enter ${editModal.type} name`}
@@ -1201,9 +1313,6 @@ const AcademicConfig: React.FC<AcademicConfigProps> = ({ open, onOpenChange, onS
                         break;
                       case 'department':
                         error = validateDepartmentInput(value, editModal.courseIndex, editModal.yearIndex, editModal.deptIndex);
-                        break;
-                      case 'subject':
-                        error = validateSubjectInput(value, editModal.courseIndex, editModal.yearIndex, editModal.deptIndex, editModal.subjIndex);
                         break;
                       case 'batch':
                         error = validateBatchInput(value, editModal.courseIndex, editModal.yearIndex, editModal.deptIndex, editModal.subjIndex, editModal.batchIndex);
