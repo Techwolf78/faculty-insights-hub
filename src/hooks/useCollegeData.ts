@@ -176,6 +176,24 @@ export function useDepartment(id: string | undefined) {
     });
 }
 
+export function useDepartmentByHodId(hodId: string | undefined) {
+    return useQuery({
+        queryKey: ['department', 'byHodId', hodId || ''],
+        queryFn: () => departmentsApi.getByHodId(hodId!),
+        enabled: !!hodId,
+        staleTime: STALE_TIME.SEMI_STATIC,
+    });
+}
+
+export function useDepartmentByName(name: string | undefined, collegeId: string | undefined) {
+    return useQuery({
+        queryKey: ['department', 'byName', name || '', collegeId || ''],
+        queryFn: () => departmentsApi.getByName(name!, collegeId!),
+        enabled: !!name && !!collegeId,
+        staleTime: STALE_TIME.SEMI_STATIC,
+    });
+}
+
 // ============================================================================
 // FACULTY HOOKS
 // ============================================================================
@@ -270,6 +288,15 @@ export function useSessionsByFaculty(facultyId: string | undefined) {
         queryKey: queryKeys.sessionsByFaculty(facultyId || ''),
         queryFn: () => feedbackSessionsApi.getByFaculty(facultyId!),
         enabled: !!facultyId,
+        staleTime: STALE_TIME.DYNAMIC,
+    });
+}
+
+export function useSessionsByDepartment(departmentId: string | undefined) {
+    return useQuery({
+        queryKey: [...queryKeys.sessionsByCollege(departmentId || ''), 'department'],
+        queryFn: () => feedbackSessionsApi.getByDepartment(departmentId!),
+        enabled: !!departmentId,
         staleTime: STALE_TIME.DYNAMIC,
     });
 }

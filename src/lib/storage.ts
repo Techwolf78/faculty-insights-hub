@@ -28,6 +28,9 @@ export { Timestamp };
 // TYPE DEFINITIONS - Production Schema
 // ============================================================================
 
+// Firestore field value types
+type FirestoreFieldValue = string | number | boolean | null | Timestamp | string[] | Record<string, unknown>;
+
 export interface College {
   id: string;
   name: string;
@@ -80,7 +83,6 @@ export interface Faculty {
   id: string;
   userId: string;
   collegeId: string;
-  departmentId: string;
   employeeId: string;
   name: string;
   email: string;
@@ -90,11 +92,6 @@ export interface Faculty {
   specialization: string;
   highestQualification: string;
   experience: number;
-  subjects: string[];
-  subjectCode: string;
-  subjectType: 'Theory' | 'Practical';
-  course: string;
-  academicYear: string;
   role: 'faculty' | 'hod';
   stats: {
     totalSessions: number;
@@ -102,6 +99,23 @@ export interface Faculty {
     averageRating: number;
     lastFeedbackAt?: Timestamp;
   };
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  isActive: boolean;
+}
+
+export interface FacultyAllocation {
+  id: string;
+  facultyId: string;
+  collegeId: string;
+  course: string;
+  department: string;
+  years: string[];
+  subjects: {
+    name: string;
+    code: string;
+    type: 'Theory' | 'Practical';
+  }[];
   createdAt: Timestamp;
   updatedAt: Timestamp;
   isActive: boolean;
@@ -454,6 +468,26 @@ export const departmentsApi = {
       updatedAt: Timestamp.now(),
     });
   },
+
+  getByHodId: async (hodId: string): Promise<Department | null> => {
+    const q = query(collection(db, 'departments'), where('hodId', '==', hodId));
+    const querySnapshot = await getDocs(q);
+    if (!querySnapshot.empty) {
+      const doc = querySnapshot.docs[0];
+      return { id: doc.id, ...doc.data() } as Department;
+    }
+    return null;
+  },
+
+  getByName: async (name: string, collegeId: string): Promise<Department | null> => {
+    const q = query(collection(db, 'departments'), where('name', '==', name), where('collegeId', '==', collegeId));
+    const querySnapshot = await getDocs(q);
+    if (!querySnapshot.empty) {
+      const doc = querySnapshot.docs[0];
+      return { id: doc.id, ...doc.data() } as Department;
+    }
+    return null;
+  },
 };
 
 // ============================================================================
@@ -530,26 +564,34 @@ export const facultyApi = {
     return facultyWithRoles;
   },
 
-  getByDepartment: async (departmentId: string): Promise<Faculty[]> => {
-    const q = query(collection(db, 'faculty'), where('departmentId', '==', departmentId));
-    const querySnapshot = await getDocs(q);
-    const facultyData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Omit<Faculty, 'role'>));
-
-    // Fetch roles from user documents
-    const facultyWithRoles = await Promise.all(
-      facultyData.map(async (faculty) => {
-        try {
-          const userDoc = await getDoc(doc(db, 'users', faculty.userId));
-          const role = userDoc.exists() ? (userDoc.data() as User).role : 'faculty';
-          return { ...faculty, role: role as 'faculty' | 'hod' };
-        } catch (error) {
-          console.error(`Error fetching role for faculty ${faculty.id}:`, error);
-          return { ...faculty, role: 'faculty' as const };
+  getByDepartment: async (departmentIdOrName: string): Promise<Faculty[]> => {
+    try {
+      // First, try to get department by ID to get its name
+      let departmentName = departmentIdOrName;
+      try {
+        const deptDoc = await getDoc(doc(db, 'departments', departmentIdOrName));
+        if (deptDoc.exists()) {
+          const deptData = deptDoc.data() as Department;
+          departmentName = deptData.name;
         }
-      })
-    );
+      } catch (e) {
+        // If not found by ID, assume it's already a department name
+        departmentName = departmentIdOrName;
+      }
 
-    return facultyWithRoles;
+      // Get allocations for this department
+      const q = query(collection(db, 'facultyAllocations'), where('department', '==', departmentName));
+      const querySnapshot = await getDocs(q);
+      const facultyIds = [...new Set(querySnapshot.docs.map(doc => (doc.data() as FacultyAllocation).facultyId))];
+
+      // Get faculty details
+      const facultyPromises = facultyIds.map(id => facultyApi.getById(id));
+      const facultyList = await Promise.all(facultyPromises);
+      return facultyList.filter(f => f !== null) as Faculty[];
+    } catch (error) {
+      console.error('Error fetching faculty by department:', error);
+      return [];
+    }
   },
 
   getActiveByCollege: async (collegeId: string): Promise<Faculty[]> => {
@@ -592,9 +634,6 @@ export const facultyApi = {
     };
     const docRef = await addDoc(collection(db, 'faculty'), facultyData);
     
-    // Increment department faculty count
-    await departmentsApi.incrementFacultyCount(member.departmentId, 1);
-    
     return { id: docRef.id, ...facultyData };
   },
 
@@ -619,12 +658,118 @@ export const facultyApi = {
   },
 
   delete: async (id: string): Promise<void> => {
-    const faculty = await facultyApi.getById(id);
-    if (faculty) {
-      // Decrement department faculty count before deleting
-      await departmentsApi.incrementFacultyCount(faculty.departmentId, -1);
-    }
     await deleteDoc(doc(db, 'faculty', id));
+  },
+};
+
+// ============================================================================
+// FACULTY ALLOCATIONS API
+// ============================================================================
+
+export const facultyAllocationsApi = {
+  getAll: async (): Promise<FacultyAllocation[]> => {
+    const querySnapshot = await getDocs(collection(db, 'facultyAllocations'));
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FacultyAllocation));
+  },
+
+  getById: async (id: string): Promise<FacultyAllocation | null> => {
+    const docSnap = await getDoc(doc(db, 'facultyAllocations', id));
+    if (docSnap.exists()) {
+      return { id: docSnap.id, ...docSnap.data() } as FacultyAllocation;
+    }
+    return null;
+  },
+
+  getByFaculty: async (facultyId: string): Promise<FacultyAllocation[]> => {
+    const q = query(collection(db, 'facultyAllocations'), where('facultyId', '==', facultyId));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FacultyAllocation));
+  },
+
+  getByCollege: async (collegeId: string): Promise<FacultyAllocation[]> => {
+    const q = query(collection(db, 'facultyAllocations'), where('collegeId', '==', collegeId));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FacultyAllocation));
+  },
+
+  getActiveByCollege: async (collegeId: string): Promise<FacultyAllocation[]> => {
+    const q = query(
+      collection(db, 'facultyAllocations'),
+      where('collegeId', '==', collegeId),
+      where('isActive', '==', true)
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FacultyAllocation));
+  },
+
+  create: async (allocation: Omit<FacultyAllocation, 'id' | 'createdAt' | 'updatedAt'>): Promise<FacultyAllocation> => {
+    const now = Timestamp.now();
+    const docRef = await addDoc(collection(db, 'facultyAllocations'), {
+      ...allocation,
+      createdAt: now,
+      updatedAt: now,
+    });
+    return { id: docRef.id, ...allocation, createdAt: now, updatedAt: now };
+  },
+
+  update: async (id: string, updates: Partial<Omit<FacultyAllocation, 'id' | 'createdAt'>>): Promise<FacultyAllocation | null> => {
+    const docRef = doc(db, 'facultyAllocations', id);
+    await updateDoc(docRef, { ...updates, updatedAt: Timestamp.now() });
+    const updatedDoc = await getDoc(docRef);
+    if (updatedDoc.exists()) {
+      return { id: updatedDoc.id, ...updatedDoc.data() } as FacultyAllocation;
+    }
+    return null;
+  },
+
+  delete: async (id: string): Promise<void> => {
+    await deleteDoc(doc(db, 'facultyAllocations', id));
+  },
+
+  checkSubjectConflicts: async (
+    collegeId: string,
+    course: string,
+    department: string,
+    year: string,
+    subjects: { name: string; code: string; type: 'Theory' | 'Practical' }[],
+    excludeFacultyId?: string
+  ): Promise<{ subjectName: string; facultyName: string; facultyId: string }[]> => {
+    // Fetch all active allocations for the college
+    const allocations = await facultyAllocationsApi.getActiveByCollege(collegeId);
+
+    // Filter allocations that match course, department, and include the year
+    const relevantAllocations = allocations.filter(
+      (alloc) =>
+        alloc.course === course &&
+        alloc.department === department &&
+        alloc.years.includes(year) &&
+        alloc.facultyId !== excludeFacultyId
+    );
+
+    const conflicts: { subjectName: string; facultyName: string; facultyId: string }[] = [];
+
+    // For each subject, check if it's already allocated
+    for (const subject of subjects) {
+      for (const alloc of relevantAllocations) {
+        const hasSubject = alloc.subjects.some(
+          (s) => s.name === subject.name && s.code === subject.code
+        );
+        if (hasSubject) {
+          // Fetch faculty name
+          const faculty = await facultyApi.getById(alloc.facultyId);
+          if (faculty) {
+            conflicts.push({
+              subjectName: subject.name,
+              facultyName: faculty.name,
+              facultyId: alloc.facultyId,
+            });
+          }
+          break; // Only report once per subject
+        }
+      }
+    }
+
+    return conflicts;
   },
 };
 
@@ -720,9 +865,14 @@ export const feedbackSessionsApi = {
   },
 
   getByDepartment: async (departmentId: string): Promise<FeedbackSession[]> => {
-    const q = query(collection(db, 'feedbackSessions'), where('departmentId', '==', departmentId));
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FeedbackSession));
+    try {
+      const q = query(collection(db, 'feedbackSessions'), where('departmentId', '==', departmentId));
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FeedbackSession));
+    } catch (error) {
+      console.error('Error fetching sessions by department:', error);
+      return [];
+    }
   },
 
   getActive: async (): Promise<FeedbackSession[]> => {
@@ -868,9 +1018,14 @@ export const submissionsApi = {
   },
 
   getByDepartment: async (departmentId: string): Promise<FeedbackSubmission[]> => {
-    const q = query(collection(db, 'feedbackSubmissions'), where('departmentId', '==', departmentId));
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FeedbackSubmission));
+    try {
+      const q = query(collection(db, 'feedbackSubmissions'), where('departmentId', '==', departmentId));
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FeedbackSubmission));
+    } catch (error) {
+      console.error('Error fetching submissions by department:', error);
+      return [];
+    }
   },
 
   create: async (submission: Omit<FeedbackSubmission, 'id' | 'submittedAt' | 'metrics'>): Promise<FeedbackSubmission> => {
@@ -1260,7 +1415,7 @@ export const questionGroupsApi = {
     const now = Timestamp.now();
     
     // Filter out undefined values to prevent Firestore errors
-    const cleanGroup: any = {};
+    const cleanGroup: Record<string, FirestoreFieldValue> = {};
     Object.entries(group).forEach(([key, value]) => {
       if (value !== undefined) {
         cleanGroup[key] = value;
@@ -1279,7 +1434,7 @@ export const questionGroupsApi = {
     const docRef = doc(db, 'questionGroups', id);
     
     // Filter out undefined values to prevent Firestore errors
-    const cleanUpdates: any = { updatedAt: Timestamp.now() };
+    const cleanUpdates: Record<string, FirestoreFieldValue> = { updatedAt: Timestamp.now() };
     Object.entries(updates).forEach(([key, value]) => {
       if (value !== undefined) {
         cleanUpdates[key] = value;
@@ -1388,7 +1543,7 @@ export const questionsApi = {
     const now = Timestamp.now();
     
     // Filter out undefined values to prevent Firestore errors
-    const cleanQuestion: any = {};
+    const cleanQuestion: Record<string, FirestoreFieldValue> = {};
     Object.entries(question).forEach(([key, value]) => {
       if (value !== undefined) {
         cleanQuestion[key] = value;
@@ -1407,7 +1562,7 @@ export const questionsApi = {
     const docRef = doc(db, 'questions', id);
     
     // Filter out undefined values to prevent Firestore errors
-    const cleanUpdates: any = { updatedAt: Timestamp.now() };
+    const cleanUpdates: Record<string, FirestoreFieldValue> = { updatedAt: Timestamp.now() };
     Object.entries(updates).forEach(([key, value]) => {
       if (value !== undefined) {
         cleanUpdates[key] = value;

@@ -219,7 +219,7 @@ const SeedData = () => {
       const faculty1Credential = await createUserWithEmailAndPassword(auth, faculty1Email, faculty1Password);
       const faculty1User = await usersApi.create({
         email: faculty1Email,
-        name: 'Dr. John Doe',
+        name: 'Rishikesh Sonawane',
         role: 'faculty' as const,
         collegeId: college.id,
         departmentId: cseDept.id,
@@ -230,10 +230,10 @@ const SeedData = () => {
         userId: faculty1User.id,
         collegeId: college.id,
         departmentId: cseDept.id,
-        employeeId: 'EMP001',
-        name: 'Dr. John Doe',
+        employeeId: 'FAC001',
+        name: 'Rishikesh Sonawane',
         email: faculty1Email,
-        designation: 'Associate Professor',
+        designation: 'Faculty Member',
         specialization: 'Computer Science',
         highestQualification: 'Ph.D. in Computer Science',
         experience: 8,
@@ -244,35 +244,40 @@ const SeedData = () => {
         academicYear: '2024-25',
       });
 
-      const faculty2Email = 'jane.smith@icem.edu';
-      const faculty2Password = 'faculty123';
-      const faculty2Credential = await createUserWithEmailAndPassword(auth, faculty2Email, faculty2Password);
-      const faculty2User = await usersApi.create({
-        email: faculty2Email,
-        name: 'Prof. Jane Smith',
-        role: 'faculty' as const,
+      // Create HOD user
+      const hodEmail = 'hod@icem.edu';
+      const hodPassword = 'hod123';
+      const hodCredential = await createUserWithEmailAndPassword(auth, hodEmail, hodPassword);
+      const hodUser = await usersApi.create({
+        email: hodEmail,
+        name: 'CS HOD',
+        role: 'hod' as const,
         collegeId: college.id,
-        departmentId: itDept.id,
+        departmentId: cseDept.id,
         isActive: true,
-      }, faculty2Credential.user.uid);
+      }, hodCredential.user.uid);
 
-      const faculty2 = await facultyApi.create({
-        userId: faculty2User.id,
+      const hodFaculty = await facultyApi.create({
+        userId: hodUser.id,
         collegeId: college.id,
-        departmentId: itDept.id,
-        employeeId: 'EMP002',
-        name: 'Prof. Jane Smith',
-        email: faculty2Email,
-        designation: 'Assistant Professor',
-        specialization: 'Information Technology',
-        highestQualification: 'M.Tech in Information Technology',
-        experience: 5,
-        subjects: ['Web Development', 'Networking', 'Cyber Security'],
-        subjectCode: 'IT101',
-        subjectType: 'Practical',
+        departmentId: cseDept.id,
+        employeeId: 'FAC002',
+        name: 'CS HOD',
+        email: hodEmail,
+        designation: 'Head of Department',
+        specialization: 'Computer Science & Engineering',
+        highestQualification: 'Ph.D. in Computer Science',
+        experience: 12,
+        subjects: ['Computer Networks', 'Software Engineering', 'Database Systems'],
+        subjectCode: 'CS201',
+        subjectType: 'Theory',
         course: 'B.E',
         academicYear: '2024-25',
+        role: 'hod',
       });
+
+      // Update department with HOD
+      await departmentsApi.update(cseDept.id, { hodId: hodUser.id });
 
       setMessage('Faculty members created successfully!');
 

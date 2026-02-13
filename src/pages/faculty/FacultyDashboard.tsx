@@ -13,11 +13,15 @@ import {
   useFacultyMemberStats,
   useAllFacultyStats,
 } from '@/hooks/useCollegeData';
-import { TrendingUp, MessageSquare, Award, Download, Users, BarChart3 } from 'lucide-react';
+import { facultyAllocationsApi, FacultyAllocation, feedbackSessionsApi, FeedbackSession } from '@/lib/storage';
+import { TrendingUp, MessageSquare, Award, Download, Users, BarChart3, Filter, BookOpen } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { Button } from '@/components/ui/button';
 import { format, subMonths } from 'date-fns';
 import { FacultyExcelReport } from '@/components/reports/FacultyExcelReport';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export const FacultyDashboard: React.FC = () => {
   const { user } = useAuth();
@@ -36,12 +40,125 @@ export const FacultyDashboard: React.FC = () => {
 
   const isLoading = facultyLoading || submissionsLoading || questionsLoading;
 
-  // Pagination state for all comments
+  // State declarations
   const [currentPage, setCurrentPage] = useState(1);
   const commentsPerPage = 6;
+  const [allocations, setAllocations] = useState<FacultyAllocation[]>([]);
+  const [sessions, setSessions] = useState<FeedbackSession[]>([]);
+  const [selectedSubject, setSelectedSubject] = useState<string>('all');
+
+  useEffect(() => {
+    if (facultyProfile?.id) {
+      facultyAllocationsApi.getByFaculty(facultyProfile.id).then(setAllocations);
+      feedbackSessionsApi.getByFaculty(facultyProfile.id).then(setSessions);
+    }
+  }, [facultyProfile?.id]);
+
+  // Reset pagination when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedSubject]);
+
+  // Extract unique subjects from sessions
+  const uniqueSubjects = useMemo(() => {
+    const subjects = new Set<string>();
+    sessions.forEach(session => {
+      if (session.subject) {
+        subjects.add(session.subject);
+      }
+    });
+    return Array.from(subjects).sort();
+  }, [sessions]);
+
+  // Filter submissions based on selected subject
+  const filteredSubmissions = useMemo(() => {
+    if (selectedSubject === 'all') {
+      return submissions;
+    }
+    // Get session IDs for the selected subject
+    const sessionIdsForSubject = sessions
+      .filter(s => s.subject === selectedSubject)
+      .map(s => s.id);
+    // Filter submissions by session ID
+    return submissions.filter(sub => sessionIdsForSubject.includes(sub.sessionId));
+  }, [submissions, sessions, selectedSubject]);
+
+  // Calculate stats based on filtered submissions
+  const filteredStats = useMemo(() => {
+    if (selectedSubject === 'all' || filteredSubmissions.length === 0) {
+      return {
+        currentScore: facultyStats?.averageRating || 0,
+        categoryData: facultyStats?.categoryScores
+          ? Object.entries(facultyStats.categoryScores).map(([category, score]) => ({
+              category,
+              score: parseFloat(score.average.toFixed(2)),
+              fullMark: 5,
+            }))
+          : [],
+        trendData: facultyStats?.monthly
+          ? Object.entries(facultyStats.monthly)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([month, data]) => ({
+                month: format(new Date(month), 'MMM'),
+                score: data.averageRating.toFixed(2),
+              }))
+          : [],
+      };
+    }
+
+    // Calculate stats from filtered submissions
+    const totalRating = filteredSubmissions.reduce((sum, sub) => sum + (sub.metrics?.overallRating || 0), 0);
+    const avgRating = filteredSubmissions.length > 0 ? totalRating / filteredSubmissions.length : 0;
+
+    // Calculate category breakdown
+    const categoryScores: Record<string, { total: number; count: number }> = {};
+    filteredSubmissions.forEach(sub => {
+      if (sub.metrics?.categoryRatings) {
+        Object.entries(sub.metrics.categoryRatings).forEach(([category, rating]) => {
+          if (!categoryScores[category]) {
+            categoryScores[category] = { total: 0, count: 0 };
+          }
+          categoryScores[category].total += rating;
+          categoryScores[category].count += 1;
+        });
+      }
+    });
+
+    const categoryData = Object.entries(categoryScores).map(([category, data]) => ({
+      category,
+      score: parseFloat((data.total / data.count).toFixed(2)),
+      fullMark: 5,
+    }));
+
+    // Calculate monthly trend
+    const monthlyData: Record<string, { total: number; count: number }> = {};
+    filteredSubmissions.forEach(sub => {
+      if (sub.submittedAt) {
+        const monthKey = format(sub.submittedAt.toDate(), 'yyyy-MM');
+        if (!monthlyData[monthKey]) {
+          monthlyData[monthKey] = { total: 0, count: 0 };
+        }
+        monthlyData[monthKey].total += sub.metrics?.overallRating || 0;
+        monthlyData[monthKey].count += 1;
+      }
+    });
+
+    const trendData = Object.entries(monthlyData)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, data]) => ({
+        month: format(new Date(month), 'MMM'),
+        score: (data.total / data.count).toFixed(2),
+      }));
+
+    return {
+      currentScore: avgRating,
+      categoryData,
+      trendData,
+    };
+  }, [filteredSubmissions, selectedSubject, facultyStats]);
 
   // Calculate current score from pre-computed stats
-  const currentScore = facultyStats?.averageRating || 0;
+  const currentScore = filteredStats.currentScore;
 
   // Calculate peer ranking from pre-computed stats
   const allFacultyScores = allFacultyStats
@@ -68,27 +185,14 @@ export const FacultyDashboard: React.FC = () => {
 
   const ranking = currentUserRanking > 0 ? getOrdinalSuffix(currentUserRanking) : 'Unranked';
 
-  // Category breakdown from pre-computed stats
-  const categoryData = facultyStats?.categoryScores
-    ? Object.entries(facultyStats.categoryScores).map(([category, score]) => ({
-        category,
-        score: parseFloat(score.average.toFixed(2)),
-        fullMark: 5,
-      }))
-    : [];
+  // Category breakdown from filtered stats
+  const categoryData = filteredStats.categoryData;
 
-  // Historical trend from pre-computed stats
-  const trendData = facultyStats?.monthly
-    ? Object.entries(facultyStats.monthly)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([month, data]) => ({
-          month: format(new Date(month), 'MMM'),
-          score: data.averageRating.toFixed(2),
-        }))
-    : [];
+  // Historical trend from filtered stats
+  const trendData = filteredStats.trendData;
 
-  // Recent comments from submissions
-  const comments = submissions
+  // Recent comments from filtered submissions
+  const comments = filteredSubmissions
     .filter(s => s.responses && s.responses.length > 0)
     .flatMap(s => s.responses
       .filter(r => r.comment && r.comment.trim())
@@ -104,7 +208,7 @@ export const FacultyDashboard: React.FC = () => {
   const topComments = comments.slice(0, 10);
 
   // All comments sorted by date (most recent first) for pagination
-  const allCommentsSortedByDate = submissions
+  const allCommentsSortedByDate = filteredSubmissions
     .filter(s => s.responses && s.responses.length > 0)
     .flatMap(s => s.responses
       .filter(r => r.comment && r.comment.trim())
@@ -142,7 +246,12 @@ export const FacultyDashboard: React.FC = () => {
                     </div>
                     <div>
                       <h2 className="font-display text-xl font-semibold text-foreground">{user?.name}</h2>
-                      <p className="text-muted-foreground">{facultyProfile?.subjects?.join(', ') || 'No subjects assigned'}</p>
+                      <p className="text-muted-foreground">
+                        {allocations.length > 0
+                          ? allocations.flatMap(a => a.subjects.map(s => s.name)).join(', ')
+                          : 'No subjects assigned'
+                        }
+                      </p>
                     </div>
                   </div>
                   {/* <FacultyExcelReport
@@ -282,15 +391,38 @@ export const FacultyDashboard: React.FC = () => {
                     </div>
                     <div>
                       <h2 className="font-display text-xl font-semibold text-foreground">{user?.name}</h2>
-                      <p className="text-muted-foreground">{facultyProfile?.subjects?.join(', ') || 'No subjects assigned'}</p>
+                      <p className="text-muted-foreground">
+                        {allocations.length > 0
+                          ? allocations.flatMap(a => a.subjects.map(s => s.name)).join(', ')
+                          : 'No subjects assigned'
+                        }
+                      </p>
                     </div>
                   </div>
-                  {/* <FacultyExcelReport
-                    facultyId={facultyProfile?.id || ''}
-                    facultyName={user?.name || 'Faculty Member'}
-                    stats={facultyStats}
-                    comments={comments}
-                  /> */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Subject:</span>
+                    <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Select subject" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Subjects</SelectItem>
+                        {uniqueSubjects.map((subject) => {
+                          const subjectSessionIds = sessions
+                            .filter(s => s.subject === subject)
+                            .map(s => s.id);
+                          const subjectResponseCount = submissions.filter(sub =>
+                            subjectSessionIds.includes(sub.sessionId)
+                          ).length;
+                          return (
+                            <SelectItem key={subject} value={subject} disabled={subjectResponseCount === 0}>
+                              {subject} ({subjectResponseCount})
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
 
@@ -310,8 +442,8 @@ export const FacultyDashboard: React.FC = () => {
                 />
                 <StatsCard
                   title="Total Responses"
-                  value={submissions.length}
-                  subtitle="Student evaluations"
+                  value={filteredSubmissions.length}
+                  subtitle={selectedSubject === 'all' ? "Student evaluations" : `For ${selectedSubject}`}
                   icon={Users}
                 />
                 <StatsCard
@@ -321,6 +453,71 @@ export const FacultyDashboard: React.FC = () => {
                   icon={MessageSquare}
                 />
               </div>
+
+              {/* Subject-wise Performance Summary (only when "All Subjects" selected) */}
+              {selectedSubject === 'all' && uniqueSubjects.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                          <BookOpen className="h-4 w-4 text-primary" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-base">Subject Performance</CardTitle>
+                          <CardDescription className="text-xs">Click any subject to filter</CardDescription>
+                        </div>
+                      </div>
+                      <Badge variant="outline" className="text-xs">
+                        {uniqueSubjects.length} subjects
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                      {uniqueSubjects.map((subject) => {
+                        const subjectSessionIds = sessions
+                          .filter(s => s.subject === subject)
+                          .map(s => s.id);
+                        const subjectSubmissions = submissions.filter(sub =>
+                          subjectSessionIds.includes(sub.sessionId)
+                        );
+                        const avgRating = subjectSubmissions.length > 0
+                          ? subjectSubmissions.reduce((sum, sub) => sum + (sub.metrics?.overallRating || 0), 0) / subjectSubmissions.length
+                          : 0;
+
+                        return (
+                          <div
+                            key={subject}
+                            className="p-3 rounded-lg border border-border bg-card hover:border-primary/50 hover:shadow-sm transition-all cursor-pointer group"
+                            onClick={() => setSelectedSubject(subject)}
+                          >
+                            <div className="flex items-start justify-between mb-2">
+                              <h4 className="font-medium text-sm text-foreground line-clamp-2 flex-1 leading-tight">
+                                {subject}
+                              </h4>
+                              <Badge variant="secondary" className="ml-2 shrink-0 text-[10px] h-5 px-1.5">
+                                {subjectSubmissions.length}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1">
+                                <RatingStars value={Math.round(avgRating)} readonly size="sm" />
+                                <span className="text-sm font-semibold text-primary ml-1">
+                                  {avgRating.toFixed(1)}
+                                </span>
+                              </div>
+                              <div className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+                                Filter →
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Charts Row */}
               <div className="grid gap-6 lg:grid-cols-2">

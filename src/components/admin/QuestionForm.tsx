@@ -67,6 +67,8 @@ const QuestionForm: React.FC<QuestionFormProps> = ({ open, onOpenChange, onSucce
         responseType: formData.responseType,
         required: formData.required,
         order: parseInt(formData.order) || 0,
+        categoryOrder: 0, // Default category order
+        isActive: true, // Default to active
         options,
       });
 

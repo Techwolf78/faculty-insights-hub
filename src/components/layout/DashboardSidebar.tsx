@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   ChevronRight,
   User,
+  TrendingUp,
 } from 'lucide-react';
 
 interface SidebarLink {
@@ -30,6 +31,7 @@ const adminLinks: SidebarLink[] = [
   { to: '/admin/sessions', icon: RefreshCw, label: 'Feedback Sessions' },
   { to: '/admin/departments', icon: GraduationCap, label: 'Academic Config' },
   { to: '/admin/faculty', icon: Users, label: 'Faculty' },
+  { to: '/admin/faculty-allocation', icon: UserCheck, label: 'Faculty Allocation' },
 ];
 
 const superAdminLinks: SidebarLink[] = [
@@ -40,7 +42,7 @@ const superAdminLinks: SidebarLink[] = [
 
 const hodLinks: SidebarLink[] = [
   { to: '/hod/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/hod/faculty', icon: Users, label: 'Faculty Performance' },
+  { to: '/hod/performance', icon: TrendingUp, label: 'My Performance' },
   { to: '/hod/profile', icon: User, label: 'Profile Settings' },
 ];
 

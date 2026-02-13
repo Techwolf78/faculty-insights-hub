@@ -1148,8 +1148,6 @@ const AcademicConfig: React.FC<AcademicConfigProps> = ({ open, onOpenChange, onS
                     >
                       <option value="Theory">Theory</option>
                       <option value="Practical">Practical</option>
-                      <option value="Tutorial">Tutorial</option>
-                      <option value="Theory / Practical">Theory / Practical</option>
                     </select>
                   </div>
                   {addModal.error && (
@@ -1290,8 +1288,6 @@ const AcademicConfig: React.FC<AcademicConfigProps> = ({ open, onOpenChange, onS
                     >
                       <option value="Theory">Theory</option>
                       <option value="Practical">Practical</option>
-                      <option value="Tutorial">Tutorial</option>
-                      <option value="Theory / Practical">Theory / Practical</option>
                     </select>
                   </div>
                   {editModal.error && (

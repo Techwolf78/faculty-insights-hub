@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { GraduationCap, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { departmentsApi, facultyApi, feedbackSessionsApi, Department, Faculty, questionGroupsApi, QuestionGroup } from '@/lib/storage';
+import { departmentsApi, facultyApi, feedbackSessionsApi, Department, Faculty, questionGroupsApi, QuestionGroup, facultyAllocationsApi, FacultyAllocation } from '@/lib/storage';
 import { getAcademicConfig } from '@/lib/academicConfig';
 import { toast } from 'sonner';
 import { Timestamp } from 'firebase/firestore';
@@ -21,6 +21,7 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
   const { user } = useAuth();
   const [departments, setDepartments] = useState<Department[]>([]);
   const [faculty, setFaculty] = useState<Faculty[]>([]);
+  const [allocations, setAllocations] = useState<FacultyAllocation[]>([]);
   const [questionGroups, setQuestionGroups] = useState<QuestionGroup[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [courseData, setCourseData] = useState<Record<string, { years: string[]; yearDepartments: Record<string, string[]> }>>({});
@@ -50,11 +51,12 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [depts, fac, groups, config] = await Promise.all([
+      const [depts, fac, groups, config, allocs] = await Promise.all([
         departmentsApi.getByCollege(user!.collegeId!),
         facultyApi.getByCollege(user!.collegeId!),
         questionGroupsApi.getByCollege(user!.collegeId!),
-        getAcademicConfig(user!.collegeId!)
+        getAcademicConfig(user!.collegeId!),
+        facultyAllocationsApi.getByCollege(user!.collegeId!)
       ]);
 
       setDepartments(depts);
@@ -62,6 +64,7 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
       setQuestionGroups(groups);
       setCourseData(config.courseData);
       setSubjectsData(config.subjectsData);
+      setAllocations(allocs);
     } catch (error) {
       console.error('Error loading data:', error);
       toast.error('Failed to load data');
@@ -90,37 +93,105 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
     setSubjectType('Theory');
   };
 
-  const availableYears = course ? courseData[course as keyof typeof courseData]?.years || [] : [];
-  const availableDepartments = (course && academicYear) 
-    ? courseData[course as keyof typeof courseData]?.yearDepartments?.[academicYear] || [] 
-    : [];
-  const availableSubjects = (course && academicYear && department)
-    ? Object.keys(subjectsData[course as keyof typeof subjectsData]?.[academicYear]?.[department] || {})
-    : [];
-  const availableBatches = (course && academicYear && department && subject)
-    ? subjectsData[course as keyof typeof subjectsData]?.[academicYear]?.[department]?.[subject]?.batches || []
-    : [];
-  const availableFaculty = faculty.filter(f => {
-    const deptMatch = f.departmentId === departments.find(d => d.name === department)?.id;
-    const subjectMatch = !subject || f.subjects.includes(subject);
-    return deptMatch && subjectMatch;
-  });
+  // Get faculty allocations
+  const facultyAllocations = useMemo(() =>
+    selectedFaculty ? allocations.filter(a => a.facultyId === selectedFaculty) : [],
+    [selectedFaculty, allocations]
+  );
+
+  // Derive available options from faculty allocations
+  const availableCourses = useMemo(() =>
+    [...new Set(facultyAllocations.map(a => a.course))],
+    [facultyAllocations]
+  );
+
+  const availableYears = useMemo(() => {
+    if (course) {
+      return [...new Set(facultyAllocations.filter(a => a.course === course).flatMap(a => a.years))];
+    }
+    return [...new Set(facultyAllocations.flatMap(a => a.years))];
+  }, [facultyAllocations, course]);
+
+  const availableDepartments = useMemo(() => {
+    if (course && academicYear) {
+      return [...new Set(facultyAllocations.filter(a => a.course === course && a.years.includes(academicYear)).map(a => a.department))];
+    }
+    return [];
+  }, [facultyAllocations, course, academicYear]);
+
+  const availableSubjects = useMemo(() => {
+    if (course && academicYear && department) {
+      return facultyAllocations
+        .filter(a => a.course === course && a.years.includes(academicYear) && a.department === department)
+        .flatMap(a => a.subjects.map(s => s.name));
+    }
+    return [];
+  }, [facultyAllocations, course, academicYear, department]);
+
+  const availableBatches = useMemo(() => {
+    if (course && academicYear && department && subject) {
+      return subjectsData[course as keyof typeof subjectsData]?.[academicYear]?.[department]?.[subject]?.batches || [];
+    }
+    return [];
+  }, [subjectsData, course, academicYear, department, subject]);
+
+  // Auto-set batch to empty when no batches are available
+  useEffect(() => {
+    if (subject && availableBatches.length === 0 && batch !== '') {
+      setBatch('');
+    }
+  }, [subject, availableBatches, batch]);
+
+  // Auto-select single options
+  useEffect(() => {
+    if (availableCourses.length === 1 && !course) {
+      setCourse(availableCourses[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableCourses]);
+
+  useEffect(() => {
+    if (availableYears.length === 1 && !academicYear) {
+      setAcademicYear(availableYears[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableYears]);
+
+  useEffect(() => {
+    if (availableDepartments.length === 1 && !department) {
+      setDepartment(availableDepartments[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableDepartments]);
+
+  useEffect(() => {
+    if (availableSubjects.length === 1 && !subject) {
+      setSubject(availableSubjects[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableSubjects]);
 
   // Auto-populate subject code and type when subject changes
   useEffect(() => {
-    if (subject && faculty.length > 0) {
-      const facultyTeachingSubject = faculty.filter(f => f.subjects.includes(subject));
-      if (facultyTeachingSubject.length > 0) {
-        // Use the first faculty's subject code and type
-        const firstFaculty = facultyTeachingSubject[0];
-        setSubjectCode(firstFaculty.subjectCode);
-        setSubjectType(firstFaculty.subjectType);
+    if (subject && facultyAllocations.length > 0) {
+      const matchingAllocation = facultyAllocations.find(a =>
+        a.course === course &&
+        a.years.includes(academicYear) &&
+        a.department === department &&
+        a.subjects.some(s => s.name === subject)
+      );
+      if (matchingAllocation) {
+        const subjectData = matchingAllocation.subjects.find(s => s.name === subject);
+        if (subjectData) {
+          setSubjectCode(subjectData.code);
+          setSubjectType(subjectData.type);
+        }
       }
     } else {
       setSubjectCode('');
       setSubjectType('Theory');
     }
-  }, [subject, faculty]);
+  }, [subject, course, department, academicYear, facultyAllocations]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,8 +199,23 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
 
     setIsLoading(true);
     try {
-      const selectedDept = departments.find(d => d.name === department);
-      if (!selectedDept) throw new Error('Department not found');
+      // Find or create department
+      let selectedDept = departments.find(d => d.name === department);
+      
+      // If department doesn't exist, create it automatically
+      if (!selectedDept) {
+        console.log(`Department "${department}" not found, creating it automatically...`);
+        const deptCode = department.split(' ').map(word => word[0]).join('').toUpperCase();
+        selectedDept = await departmentsApi.create({
+          collegeId: user.collegeId,
+          name: department,
+          code: deptCode,
+          isActive: true,
+        });
+        // Refresh departments list
+        setDepartments([...departments, selectedDept]);
+        toast.success(`Department "${department}" created automatically`);
+      }
 
       const uniqueUrl = `session-${crypto.randomUUID().slice(0, 8)}`;
 
@@ -185,6 +271,34 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="faculty">Faculty Member</Label>
+            <Select value={selectedFaculty} onValueChange={(value) => {
+              setSelectedFaculty(value);
+              setCourse(''); // Reset all dependent fields
+              setAcademicYear('');
+              setDepartment('');
+              setSubject('');
+              setBatch('');
+              setQuestionGroup('');
+              // Close the dropdown after selection
+              setTimeout(() => {
+                facultySelectRef.current?.click();
+              }, 100);
+            }}>
+              <SelectTrigger ref={facultySelectRef}>
+                <SelectValue placeholder="Select faculty member" />
+              </SelectTrigger>
+              <SelectContent>
+                {faculty.map((f) => (
+                  <SelectItem key={f.id} value={f.id}>
+                    {f.name}{f.designation ? ` - ${f.designation}` : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="course">Course/Program</Label>
@@ -194,16 +308,17 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
                 setDepartment('');
                 setSubject('');
                 setBatch('');
+                setQuestionGroup('');
                 // Close the dropdown after selection
                 setTimeout(() => {
                   courseSelectRef.current?.click();
                 }, 100);
-              }}>
+              }} disabled={!selectedFaculty}>
                 <SelectTrigger ref={courseSelectRef}>
                   <SelectValue placeholder="Select course" />
                 </SelectTrigger>
                 <SelectContent>
-                  {Object.keys(courseData).map((c) => (
+                  {availableCourses.map((c) => (
                     <SelectItem key={c} value={c}>{c}</SelectItem>
                   ))}
                 </SelectContent>
@@ -215,13 +330,14 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
               <Select value={academicYear} onValueChange={(value) => {
                 setAcademicYear(value);
                 setDepartment(''); // Reset dependent fields
+                setSubject('');
+                setBatch('');
                 setQuestionGroup('');
-                setSelectedFaculty('');
                 // Close the dropdown after selection
                 setTimeout(() => {
                   yearSelectRef.current?.click();
                 }, 100);
-              }} disabled={!course}>
+              }} disabled={!selectedFaculty || !course}>
                 <SelectTrigger ref={yearSelectRef}>
                   <SelectValue placeholder="Select year" />
                 </SelectTrigger>
@@ -240,12 +356,11 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
                 setSubject(''); // Reset dependent fields
                 setBatch('');
                 setQuestionGroup('');
-                setSelectedFaculty('');
                 // Close the dropdown after selection
                 setTimeout(() => {
                   departmentSelectRef.current?.click();
                 }, 100);
-              }} disabled={!course || !academicYear}>
+              }} disabled={!selectedFaculty || !course || !academicYear}>
                 <SelectTrigger ref={departmentSelectRef}>
                   <SelectValue placeholder="Select department" />
                 </SelectTrigger>
@@ -263,12 +378,11 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
                 setSubject(value);
                 setBatch(''); // Reset dependent fields
                 setQuestionGroup('');
-                setSelectedFaculty('');
                 // Close the dropdown after selection
                 setTimeout(() => {
                   subjectSelectRef.current?.click();
                 }, 100);
-              }} disabled={!course || !academicYear || !department}>
+              }} disabled={!selectedFaculty || !course || !academicYear || !department}>
                 <SelectTrigger ref={subjectSelectRef}>
                   <SelectValue placeholder="Select subject" />
                 </SelectTrigger>
@@ -306,18 +420,17 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="batch">Batch</Label>
+              <Label htmlFor="batch">Batch {availableBatches.length === 0 && subject && <span className="text-xs text-muted-foreground">(Optional - No batches configured)</span>}</Label>
               <Select value={batch} onValueChange={(value) => {
                 setBatch(value);
                 setQuestionGroup(''); // Reset dependent fields
-                setSelectedFaculty('');
                 // Close the dropdown after selection
                 setTimeout(() => {
                   batchSelectRef.current?.click();
                 }, 100);
-              }} disabled={!course || !academicYear || !department || !subject}>
+              }} disabled={!selectedFaculty || !course || !academicYear || !department || !subject || availableBatches.length === 0}>
                 <SelectTrigger ref={batchSelectRef}>
-                  <SelectValue placeholder="Select batch" />
+                  <SelectValue placeholder={availableBatches.length === 0 && subject ? "No batches" : "Select batch"} />
                 </SelectTrigger>
                 <SelectContent>
                   {availableBatches.map((b) => (
@@ -335,7 +448,7 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
                 setTimeout(() => {
                   questionGroupSelectRef.current?.click();
                 }, 100);
-              }} disabled={!course || !academicYear || !department || !subject || !batch}>
+              }} disabled={!selectedFaculty || !course || !academicYear || !department || !subject || (availableBatches.length > 0 && !batch)}>
                 <SelectTrigger ref={questionGroupSelectRef}>
                   <SelectValue placeholder="Select question group" />
                 </SelectTrigger>
@@ -348,28 +461,6 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
                 </SelectContent>
               </Select>
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="faculty">Faculty Member</Label>
-            <Select value={selectedFaculty} onValueChange={(value) => {
-              setSelectedFaculty(value);
-              // Close the dropdown after selection
-              setTimeout(() => {
-                facultySelectRef.current?.click();
-              }, 100);
-            }} disabled={!course || !academicYear || !department || !subject || !batch}>
-              <SelectTrigger ref={facultySelectRef}>
-                <SelectValue placeholder="Select faculty member" />
-              </SelectTrigger>
-              <SelectContent>
-                {availableFaculty.map((f) => (
-                  <SelectItem key={f.id} value={f.id}>
-                    {f.name}{f.designation ? ` - ${f.designation}` : ''}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
 
           <div className="space-y-2">

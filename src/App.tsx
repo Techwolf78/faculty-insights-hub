@@ -14,6 +14,7 @@ import { IGSBLogin } from "@/pages/IGSBLogin";
 import { SuperAdminDashboard } from "@/pages/superadmin/SuperAdminDashboard";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
 import FacultyDetails from "@/pages/admin/FacultyDetails";
+import FacultyAllocation from "@/pages/admin/FacultyAllocation";
 import SessionResponses from "@/pages/admin/SessionResponses";
 import { HodDashboard } from "@/pages/hod/HodDashboard";
 import HodProfileSettings from "@/pages/hod/HodProfileSettings";
@@ -59,6 +60,7 @@ const App = () => {
               <Route path="/admin/sessions/:sessionId/responses" element={<SessionResponses />} />
               <Route path="/admin/departments" element={<AdminDashboard />} />
               <Route path="/admin/faculty" element={<AdminDashboard />} />
+              <Route path="/admin/faculty-allocation" element={<FacultyAllocation />} />
               <Route path="/admin/faculty-details" element={<FacultyDetails />} />
               <Route path="/admin/questions" element={<AdminDashboard />} />
             </Route>
@@ -66,7 +68,7 @@ const App = () => {
             {/* HOD Routes */}
             <Route element={<DashboardLayout allowedRoles={['hod']} />}>
               <Route path="/hod/dashboard" element={<HodDashboard />} />
-              <Route path="/hod/faculty" element={<HodDashboard />} />
+              <Route path="/hod/performance" element={<HodDashboard />} />
               <Route path="/hod/profile" element={<HodProfileSettings />} />
             </Route>
 

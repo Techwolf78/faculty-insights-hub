@@ -43,6 +43,8 @@ import {
   QuestionGroup,
   Question,
   collegesApi,
+  facultyAllocationsApi,
+  FacultyAllocation,
 } from '@/lib/storage';
 import { SessionForm } from '@/components/admin/SessionForm';
 import DepartmentForm from '@/components/admin/DepartmentForm';
@@ -98,12 +100,33 @@ const AdminDashboard = () => {
   const { data: college, isLoading: collegeLoading } = useCollege(user?.collegeId);
   const { data: academicConfig, isLoading: academicConfigLoading } = useAcademicConfig(user?.collegeId);
 
+  // Faculty allocations state
+  const [allocations, setAllocations] = useState<FacultyAllocation[]>([]);
+  const [allocationsLoading, setAllocationsLoading] = useState(false);
+
+  // Load faculty allocations
+  useEffect(() => {
+    const loadAllocations = async () => {
+      if (!user?.collegeId) return;
+      setAllocationsLoading(true);
+      try {
+        const allocs = await facultyAllocationsApi.getByCollege(user.collegeId);
+        setAllocations(allocs);
+      } catch (error) {
+        console.error('Error loading allocations:', error);
+      } finally {
+        setAllocationsLoading(false);
+      }
+    };
+    loadAllocations();
+  }, [user?.collegeId]);
+
   // Stats hooks for pre-computed analytics
   const { data: collegeStats, isLoading: collegeStatsLoading } = useCollegeStats(user?.collegeId);
   const { data: departmentStats = [], isLoading: departmentStatsLoading } = useAllDepartmentStats(user?.collegeId);
   const { data: facultyStats = [], isLoading: facultyStatsLoading } = useAllFacultyStats(user?.collegeId);
 
-  const isLoading = departmentsLoading || facultyLoading || questionGroupsLoading || questionsLoading || sessionsLoading || submissionsLoading || collegeLoading || academicConfigLoading || collegeStatsLoading || departmentStatsLoading || facultyStatsLoading;
+  const isLoading = departmentsLoading || facultyLoading || questionGroupsLoading || questionsLoading || sessionsLoading || submissionsLoading || collegeLoading || academicConfigLoading || collegeStatsLoading || departmentStatsLoading || facultyStatsLoading || allocationsLoading;
 
   // Get current user's department name
   const userDepartmentName = useMemo(() => {
@@ -225,16 +248,23 @@ const AdminDashboard = () => {
     const wb = XLSX.utils.book_new();
 
     // Prepare data
-    const headers = ['Faculty ID', 'Name', 'Email', 'Password', 'Department', 'Role'];
+    const headers = ['Faculty ID', 'Name', 'Email', 'Password', 'Departments', 'Role'];
     const rows = faculty.map(member => {
-      const dept = departments.find(d => d.id === member.departmentId);
+      // Get unique departments from faculty allocations
+      const memberAllocations = allocations.filter(a => a.facultyId === member.id);
+      const uniqueDepartments = [...new Set(memberAllocations.map(a => a.department))];
+      const departmentNames = uniqueDepartments.map(deptName => {
+        const dept = departments.find(d => d.name === deptName);
+        return dept?.name || deptName;
+      }).join(', ');
+
       const password = member.employeeId.replace('FAC', 'Fac') + '@';
       return [
         member.employeeId,
         member.name,
         member.email,
         password,
-        dept?.name || 'Unknown Department',
+        departmentNames || 'No Allocations',
         member.role === 'hod' ? 'Head of Department' : 'Faculty Member'
       ];
     });
@@ -582,7 +612,7 @@ const AdminDashboard = () => {
     if (!departmentSubjects) return [];
 
     const subjectBatches = departmentSubjects[selectedSubject as keyof typeof departmentSubjects];
-    return subjectBatches || [];
+    return subjectBatches?.batches || [];
   }, [selectedCourse, selectedYear, selectedDepartment, selectedSubject, subjectsData]);
 
   // Get current section from URL
@@ -1514,7 +1544,13 @@ const AdminDashboard = () => {
                           <p className="text-sm text-muted-foreground truncate">{member.employeeId}</p>
                           <p className="text-sm text-muted-foreground truncate">{member.email}</p>
                           <p className="text-xs text-muted-foreground truncate">
-                            {departments.find(d => d.id === member.departmentId)?.name || 'Unknown Department'}
+                            {(() => {
+                              const memberAllocations = allocations.filter(a => a.facultyId === member.id);
+                              const uniqueDepartments = [...new Set(memberAllocations.map(a => a.department))];
+                              return uniqueDepartments.length > 0
+                                ? uniqueDepartments.slice(0, 2).join(', ') + (uniqueDepartments.length > 2 ? '...' : '')
+                                : 'No Allocations';
+                            })()}
                           </p>
                         </div>
                       </div>
@@ -1723,15 +1759,15 @@ const AdminDashboard = () => {
                                           <div>
                                             <span className="text-xs font-medium text-muted-foreground mr-2">Subjects:</span>
                                             <div className="flex flex-wrap gap-1 mt-1">
-                                              {Object.entries(subjectsData[courseName][yearName][deptName]).map(([subject, batches]) => (
+                                              {Object.entries(subjectsData[courseName][yearName][deptName]).map(([subject, subjectData]) => (
                                                 <div key={subject} className="flex flex-col gap-1">
                                                   <Badge variant="outline" className="text-xs">
                                                     <FileText className="h-3 w-3 mr-1" />
                                                     {subject}
                                                   </Badge>
-                                                  {batches && batches.length > 0 && (
+                                                  {subjectData.batches && subjectData.batches.length > 0 && (
                                                     <div className="flex flex-wrap gap-1 ml-2">
-                                                      {batches.map((batch) => (
+                                                      {subjectData.batches.map((batch) => (
                                                         <Badge key={batch} variant="secondary" className="text-xs">
                                                           <Users className="h-3 w-3 mr-1" />
                                                           {batch}
