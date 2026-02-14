@@ -9,6 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Progress } from '@/components/ui/progress';
 import { useAuth } from '@/contexts/AuthContext';
@@ -51,6 +53,7 @@ import DepartmentForm from '@/components/admin/DepartmentForm';
 import FacultyForm from '@/components/admin/FacultyForm';
 import QuestionForm from '@/components/admin/QuestionForm';
 import QuestionGroupForm from '@/components/admin/QuestionGroupForm';
+import BulkCreateFaculty from '@/components/admin/BulkCreateFaculty';
 import FacultyReport from '@/components/admin/FacultyReport';
 import { DepartmentExcelReport } from '@/components/reports/DepartmentExcelReport';
 import { CollegeExcelReport } from '@/components/reports/CollegeExcelReport';
@@ -219,6 +222,8 @@ const AdminDashboard = () => {
   const [facultyFormOpen, setFacultyFormOpen] = useState(false);
   const [editingFaculty, setEditingFaculty] = useState<Faculty | null>(null);
   const [deletingFaculty, setDeletingFaculty] = useState<Faculty | null>(null);
+  const [bulkCreateOpen, setBulkCreateOpen] = useState(false);
+  const [facultyRoleFilter, setFacultyRoleFilter] = useState<'all' | 'faculty' | 'hod'>('all');
   const handleEditFaculty = (faculty: Faculty) => {
     setEditingFaculty(faculty);
     setFacultyFormOpen(true);
@@ -1513,6 +1518,16 @@ const AdminDashboard = () => {
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="font-display text-lg font-semibold text-foreground">Faculty Members</h3>
                   <div className="flex gap-2">
+                    <Select value={facultyRoleFilter} onValueChange={(value: 'all' | 'faculty' | 'hod') => setFacultyRoleFilter(value)}>
+                      <SelectTrigger className="w-32">
+                        <SelectValue placeholder="Filter by role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="faculty">faculty</SelectItem>
+                        <SelectItem value="hod">HOD</SelectItem>
+                      </SelectContent>
+                    </Select>
                     {/* <Button variant="outline" onClick={handleDownloadICEMTemplate}>
                       <Download className="h-4 w-4 mr-2" />
                       Download ICEM Template
@@ -1529,11 +1544,18 @@ const AdminDashboard = () => {
                       <Plus className="h-4 w-4 mr-2" />
                       Add Faculty
                     </Button>
+                    <Button variant="outline" className="border-primary text-primary hover:bg-primary hover:text-primary-foreground" onClick={() => setBulkCreateOpen(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Bulk Create Faculty
+                    </Button>
                   </div>
                 </div>
 
                 <div className="space-y-4">
-                  {faculty.map((member) => (
+                  {faculty
+                    .filter(member => facultyRoleFilter === 'all' || member.role === facultyRoleFilter)
+                    .sort((a, b) => a.employeeId.localeCompare(b.employeeId))
+                    .map((member) => (
                     <div key={member.id} className="grid grid-cols-12 gap-4 items-center p-4 border border-border rounded-lg">
                       <div className="col-span-6 flex items-center gap-4">
                         <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
@@ -1952,6 +1974,18 @@ const AdminDashboard = () => {
         }}
         editingFaculty={editingFaculty}
       />
+
+      {/* Bulk Create Faculty Dialog */}
+      <BulkCreateFaculty
+        open={bulkCreateOpen}
+        onOpenChange={setBulkCreateOpen}
+        collegeId={user?.collegeId || ''}
+        onSuccess={() => {
+          // Invalidate faculty data to refresh the list
+          queryClient.invalidateQueries({ queryKey: ['faculty', 'college', user?.collegeId] });
+        }}
+      />
+
       <QuestionForm
         open={questionFormOpen}
         onOpenChange={setQuestionFormOpen}

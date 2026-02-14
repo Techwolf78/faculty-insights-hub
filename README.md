@@ -203,6 +203,36 @@ VITE_FIREBASE_MEASUREMENT_ID=your_measurement_id
 * Create feedback sessions
 * Manage question bank
 * View full college reports
+* **Bulk import faculty allocations** from JSON data
+
+#### Bulk Import Faculty Allocations
+
+College administrators can bulk import faculty subject allocations using JSON data. This is useful for initial setup or large-scale updates.
+
+**JSON Format:**
+```json
+[
+  {
+    "Full Name *": "Dr. Priyanka Pawar",
+    "Program *": "MBA",
+    "Year *": "1",
+    "Department *": "Marketing Management",
+    "Subjects *": "Marketing Management",
+    "Subject Code*": "GC–09",
+    "Subject Type*": "Theory",
+    "Specialization": "Marketing Management"
+  }
+]
+```
+
+**Features:**
+- Validates faculty names against existing faculty records
+- Checks for subject conflicts before allocation
+- Groups multiple subjects per faculty/course/department/year
+- Updates existing allocations or creates new ones
+- Provides detailed success/error reporting
+
+**Access:** Available in the Faculty Allocation page via the "Bulk Import" button.
 
 ### HOD
 

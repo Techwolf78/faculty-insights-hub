@@ -1,171 +1,19 @@
 {
     "indexes": [
         {
-            "collectionGroup": "feedbackSessions",
+            "collectionGroup": "courses",
             "queryScope": "COLLECTION",
             "fields": [
                 {
                     "fieldPath": "collegeId",
-                    "order": "ASCENDING"
-                },
-                {
-                    "fieldPath": "isActive",
                     "order": "ASCENDING"
                 },
                 {
                     "fieldPath": "createdAt",
-                    "order": "DESCENDING"
-                }
-            ]
-        },
-        {
-            "collectionGroup": "feedbackSessions",
-            "queryScope": "COLLECTION",
-            "fields": [
-                {
-                    "fieldPath": "facultyId",
                     "order": "ASCENDING"
                 },
                 {
-                    "fieldPath": "isActive",
-                    "order": "ASCENDING"
-                }
-            ]
-        },
-        {
-            "collectionGroup": "feedbackSessions",
-            "queryScope": "COLLECTION",
-            "fields": [
-                {
-                    "fieldPath": "departmentId",
-                    "order": "ASCENDING"
-                },
-                {
-                    "fieldPath": "isActive",
-                    "order": "ASCENDING"
-                }
-            ]
-        },
-        {
-            "collectionGroup": "feedbackSubmissions",
-            "queryScope": "COLLECTION",
-            "fields": [
-                {
-                    "fieldPath": "collegeId",
-                    "order": "ASCENDING"
-                },
-                {
-                    "fieldPath": "submittedAt",
-                    "order": "DESCENDING"
-                }
-            ]
-        },
-        {
-            "collectionGroup": "feedbackSubmissions",
-            "queryScope": "COLLECTION",
-            "fields": [
-                {
-                    "fieldPath": "facultyId",
-                    "order": "ASCENDING"
-                },
-                {
-                    "fieldPath": "submittedAt",
-                    "order": "DESCENDING"
-                }
-            ]
-        },
-        {
-            "collectionGroup": "feedbackSubmissions",
-            "queryScope": "COLLECTION",
-            "fields": [
-                {
-                    "fieldPath": "departmentId",
-                    "order": "ASCENDING"
-                },
-                {
-                    "fieldPath": "submittedAt",
-                    "order": "DESCENDING"
-                }
-            ]
-        },
-        {
-            "collectionGroup": "feedbackSubmissions",
-            "queryScope": "COLLECTION",
-            "fields": [
-                {
-                    "fieldPath": "sessionId",
-                    "order": "ASCENDING"
-                },
-                {
-                    "fieldPath": "submittedAt",
-                    "order": "DESCENDING"
-                }
-            ]
-        },
-        {
-            "collectionGroup": "questions",
-            "queryScope": "COLLECTION",
-            "fields": [
-                {
-                    "fieldPath": "collegeId",
-                    "order": "ASCENDING"
-                },
-                {
-                    "fieldPath": "categoryOrder",
-                    "order": "ASCENDING"
-                },
-                {
-                    "fieldPath": "order",
-                    "order": "ASCENDING"
-                }
-            ]
-        },
-        {
-            "collectionGroup": "questions",
-            "queryScope": "COLLECTION",
-            "fields": [
-                {
-                    "fieldPath": "collegeId",
-                    "order": "ASCENDING"
-                },
-                {
-                    "fieldPath": "isActive",
-                    "order": "ASCENDING"
-                },
-                {
-                    "fieldPath": "categoryOrder",
-                    "order": "ASCENDING"
-                },
-                {
-                    "fieldPath": "order",
-                    "order": "ASCENDING"
-                }
-            ]
-        },
-        {
-            "collectionGroup": "feedbackStats",
-            "queryScope": "COLLECTION",
-            "fields": [
-                {
-                    "fieldPath": "type",
-                    "order": "ASCENDING"
-                },
-                {
-                    "fieldPath": "collegeId",
-                    "order": "ASCENDING"
-                }
-            ]
-        },
-        {
-            "collectionGroup": "feedbackStats",
-            "queryScope": "COLLECTION",
-            "fields": [
-                {
-                    "fieldPath": "type",
-                    "order": "ASCENDING"
-                },
-                {
-                    "fieldPath": "departmentId",
+                    "fieldPath": "__name__",
                     "order": "ASCENDING"
                 }
             ]
@@ -179,7 +27,29 @@
                     "order": "ASCENDING"
                 },
                 {
-                    "fieldPath": "isActive",
+                    "fieldPath": "name",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "__name__",
+                    "order": "ASCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "faculties",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "collegeId",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "createdAt",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "__name__",
                     "order": "ASCENDING"
                 }
             ]
@@ -193,27 +63,53 @@
                     "order": "ASCENDING"
                 },
                 {
-                    "fieldPath": "departmentId",
+                    "fieldPath": "employeeId",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "__name__",
                     "order": "ASCENDING"
                 }
             ]
         },
         {
-            "collectionGroup": "faculty",
+            "collectionGroup": "faculty-feedback-sessions",
             "queryScope": "COLLECTION",
             "fields": [
                 {
-                    "fieldPath": "collegeId",
+                    "fieldPath": "status",
                     "order": "ASCENDING"
                 },
+                {
+                    "fieldPath": "startedAt",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "__name__",
+                    "order": "ASCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "faculty-feedback-sessions",
+            "queryScope": "COLLECTION",
+            "fields": [
                 {
                     "fieldPath": "isActive",
                     "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "startedAt",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "__name__",
+                    "order": "ASCENDING"
                 }
             ]
         },
         {
-            "collectionGroup": "users",
+            "collectionGroup": "feedbacks",
             "queryScope": "COLLECTION",
             "fields": [
                 {
@@ -221,31 +117,65 @@
                     "order": "ASCENDING"
                 },
                 {
-                    "fieldPath": "role",
-                    "order": "ASCENDING"
-                }
-            ]
-        },
-        {
-            "collectionGroup": "accessCodes",
-            "queryScope": "COLLECTION",
-            "fields": [
-                {
-                    "fieldPath": "sessionId",
+                    "fieldPath": "createdAt",
                     "order": "ASCENDING"
                 },
                 {
-                    "fieldPath": "used",
+                    "fieldPath": "__name__",
                     "order": "ASCENDING"
                 }
             ]
         },
         {
-            "collectionGroup": "feedbackSessions",
+            "collectionGroup": "forms",
             "queryScope": "COLLECTION",
             "fields": [
                 {
-                    "fieldPath": "uniqueUrl",
+                    "fieldPath": "college",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "createdDate",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "__name__",
+                    "order": "ASCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "forms",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "isActive",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "createdDate",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "__name__",
+                    "order": "ASCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "questions",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "collegeId",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "categoryOrder",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "order",
                     "order": "ASCENDING"
                 }
             ]

@@ -262,7 +262,11 @@ const AcademicConfig: React.FC<AcademicConfigProps> = ({ open, onOpenChange, onS
         year.departments.forEach(dept => {
           subjectsData[course.name][year.name][dept.name] = {};
           dept.subjects.forEach(subj => {
-            subjectsData[course.name][year.name][dept.name][subj.name] = subj.batches.length > 0 ? subj.batches : ['A', 'B', 'C', 'D'];
+            subjectsData[course.name][year.name][dept.name][subj.name] = {
+              code: subj.code,
+              type: subj.type,
+              batches: subj.batches
+            };
           });
         });
       });

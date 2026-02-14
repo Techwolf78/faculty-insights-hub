@@ -114,7 +114,7 @@ export interface FacultyAllocation {
   subjects: {
     name: string;
     code: string;
-    type: 'Theory' | 'Practical';
+    type: 'Theory' | 'Practical' | 'Tutorial';
   }[];
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -660,6 +660,154 @@ export const facultyApi = {
   delete: async (id: string): Promise<void> => {
     await deleteDoc(doc(db, 'faculty', id));
   },
+
+  // Generate next faculty ID (e.g., FAC005)
+  generateNextFacultyId: async (collegeId: string): Promise<string> => {
+    const q = query(
+      collection(db, 'faculty'),
+      where('collegeId', '==', collegeId),
+      orderBy('employeeId', 'desc'),
+      limit(1)
+    );
+    const querySnapshot = await getDocs(q);
+    
+    if (querySnapshot.empty) {
+      return 'FAC001';
+    }
+    
+    const lastFaculty = querySnapshot.docs[0].data() as Faculty;
+    const lastId = lastFaculty.employeeId;
+    
+    // Extract number from FACXXX format
+    const match = lastId.match(/FAC(\d+)/);
+    if (!match) {
+      return 'FAC001';
+    }
+    
+    const nextNumber = parseInt(match[1]) + 1;
+    return `FAC${nextNumber.toString().padStart(3, '0')}`;
+  },
+
+// Bulk create faculty members
+  bulkCreate: async (facultyData: Array<{
+    name: string;
+    email: string;
+    password: string;
+    role: 'faculty' | 'hod';
+    designation?: string;
+    specialization?: string;
+    highestQualification?: string;
+    experience?: number;
+    phone?: string;
+  }>, collegeId: string): Promise<{
+    success: Faculty[];
+    errors: Array<{ index: number; data: {
+      name: string;
+      email: string;
+      password: string;
+      role: 'faculty' | 'hod';
+      designation?: string;
+      specialization?: string;
+      highestQualification?: string;
+      experience?: number;
+      phone?: string;
+    }; error: string }>;
+  }> => {
+    const results = {
+      success: [] as Faculty[],
+      errors: [] as Array<{ index: number; data: {
+        name: string;
+        email: string;
+        password: string;
+        role: 'faculty' | 'hod';
+        designation?: string;
+        specialization?: string;
+        highestQualification?: string;
+        experience?: number;
+        phone?: string;
+      }; error: string }>,
+    };
+
+    // Process each faculty member
+    for (let i = 0; i < facultyData.length; i++) {
+      const member = facultyData[i];
+      
+      try {
+        // Validate required fields
+        if (!member.name?.trim()) {
+          results.errors.push({ index: i, data: member, error: 'Name is required' });
+          continue;
+        }
+        if (!member.email?.trim()) {
+          results.errors.push({ index: i, data: member, error: 'Email is required' });
+          continue;
+        }
+        if (!member.password?.trim()) {
+          results.errors.push({ index: i, data: member, error: 'Password is required' });
+          continue;
+        }
+        if (!member.role || !['faculty', 'hod'].includes(member.role)) {
+          results.errors.push({ index: i, data: member, error: 'Role must be either "faculty" or "hod"' });
+          continue;
+        }
+
+        // Check for duplicate email
+        const existingFaculty = await facultyApi.getByCollege(collegeId);
+        const emailExists = existingFaculty.some(f => f.email.toLowerCase() === member.email.toLowerCase());
+        if (emailExists) {
+          results.errors.push({ index: i, data: member, error: `Email "${member.email}" already exists` });
+          continue;
+        }
+
+        // Generate next faculty ID
+        const employeeId = await facultyApi.generateNextFacultyId(collegeId);
+
+        // Create user account first
+        const { createUserWithEmailAndPassword } = await import('firebase/auth');
+        const auth = getAuth();
+        
+        const userCredential = await createUserWithEmailAndPassword(auth, member.email, member.password);
+        const userId = userCredential.user.uid;
+
+        // Set user role
+        await setDoc(doc(db, 'users', userId), {
+          email: member.email,
+          role: member.role,
+          collegeId,
+          createdAt: Timestamp.now(),
+          isActive: true,
+        });
+
+        // Create faculty record
+        const facultyMember = await facultyApi.create({
+          userId,
+          collegeId,
+          employeeId,
+          name: member.name.trim(),
+          email: member.email.toLowerCase().trim(),
+          phone: member.phone?.trim() || '',
+          designation: member.designation?.trim() || 'Assistant Professor',
+          specialization: member.specialization?.trim() || '',
+          highestQualification: member.highestQualification?.trim() || '',
+          experience: member.experience || 0,
+          role: member.role,
+          isActive: true,
+        });
+
+        results.success.push(facultyMember);
+        
+      } catch (error: unknown) {
+        console.error(`Error creating faculty at index ${i}:`, error);
+        results.errors.push({ 
+          index: i, 
+          data: member, 
+          error: error instanceof Error ? error.message : 'Unknown error occurred' 
+        });
+      }
+    }
+
+    return results;
+  },
 };
 
 // ============================================================================
@@ -731,7 +879,7 @@ export const facultyAllocationsApi = {
     course: string,
     department: string,
     year: string,
-    subjects: { name: string; code: string; type: 'Theory' | 'Practical' }[],
+    subjects: { name: string; code: string; type: 'Theory' | 'Practical' | 'Tutorial' }[],
     excludeFacultyId?: string
   ): Promise<{ subjectName: string; facultyName: string; facultyId: string }[]> => {
     // Fetch all active allocations for the college
@@ -770,6 +918,181 @@ export const facultyAllocationsApi = {
     }
 
     return conflicts;
+  },
+
+  bulkImportAllocations: async (
+    collegeId: string,
+    allocationData: Array<{
+      facultyName: string;
+      course: string;
+      year: string;
+      department: string;
+      subjectName: string;
+      subjectCode: string;
+      subjectType: 'Theory' | 'Practical' | 'Tutorial';
+    }>
+  ): Promise<{ success: number; errors: string[] }> => {
+    const errors: string[] = [];
+
+    try {
+      // Get all faculty for the college to map names to IDs
+      const facultyList = await facultyApi.getByCollege(collegeId);
+      const facultyMap = new Map(facultyList.map(f => [f.name.toLowerCase().trim(), f.id]));
+
+      // Get existing allocations for conflict checking
+      const existingAllocations = await facultyAllocationsApi.getActiveByCollege(collegeId);
+
+      // First pass: Validate all allocations and collect errors
+      const groupedAllocations = new Map<string, {
+        facultyId: string;
+        course: string;
+        department: string;
+        year: string;
+        subjects: { name: string; code: string; type: 'Theory' | 'Practical' | 'Tutorial' }[];
+      }>();
+
+      for (const item of allocationData) {
+        const facultyId = facultyMap.get(item.facultyName.toLowerCase().trim());
+        if (!facultyId) {
+          errors.push(`Faculty "${item.facultyName}" not found`);
+          continue;
+        }
+
+        const key = `${facultyId}-${item.course}-${item.department}-${item.year}`;
+        const existing = groupedAllocations.get(key);
+
+        if (existing) {
+          // Check if subject already exists in this batch
+          const subjectExists = existing.subjects.some(s => s.name === item.subjectName && s.code === item.subjectCode);
+          if (!subjectExists) {
+            existing.subjects.push({
+              name: item.subjectName,
+              code: item.subjectCode,
+              type: item.subjectType
+            });
+          }
+        } else {
+          groupedAllocations.set(key, {
+            facultyId,
+            course: item.course,
+            department: item.department,
+            year: item.year,
+            subjects: [{
+              name: item.subjectName,
+              code: item.subjectCode,
+              type: item.subjectType
+            }]
+          });
+        }
+      }
+
+      // Check for conflicts in all grouped allocations
+      for (const [key, allocation] of groupedAllocations) {
+        // Check if allocation already exists
+        const existingAllocation = existingAllocations.find(alloc =>
+          alloc.facultyId === allocation.facultyId &&
+          alloc.course === allocation.course &&
+          alloc.department === allocation.department &&
+          alloc.years.includes(allocation.year)
+        );
+
+        if (existingAllocation) {
+          // Check for subject conflicts with existing allocation
+          const conflicts = await facultyAllocationsApi.checkSubjectConflicts(
+            collegeId,
+            allocation.course,
+            allocation.department,
+            allocation.year,
+            allocation.subjects,
+            allocation.facultyId
+          );
+
+          if (conflicts.length > 0) {
+            errors.push(`Subject conflict for ${allocation.course} ${allocation.department} Year ${allocation.year}: ${conflicts.map(c => c.subjectName).join(', ')}`);
+          }
+        } else {
+          // Check for subject conflicts for new allocation
+          const conflicts = await facultyAllocationsApi.checkSubjectConflicts(
+            collegeId,
+            allocation.course,
+            allocation.department,
+            allocation.year,
+            allocation.subjects,
+            allocation.facultyId
+          );
+
+          if (conflicts.length > 0) {
+            errors.push(`Subject conflict for ${allocation.course} ${allocation.department} Year ${allocation.year}: ${conflicts.map(c => c.subjectName).join(', ')}`);
+          }
+        }
+      }
+
+      // If there are any errors, don't import anything
+      if (errors.length > 0) {
+        return { success: 0, errors };
+      }
+
+      // No errors, proceed with import
+      const batch = writeBatch(db);
+      let successCount = 0;
+
+      for (const [key, allocation] of groupedAllocations) {
+        try {
+          // Check if allocation already exists (re-check in case of concurrent changes)
+          const currentExistingAllocations = await facultyAllocationsApi.getActiveByCollege(collegeId);
+          const existingAllocation = currentExistingAllocations.find(alloc =>
+            alloc.facultyId === allocation.facultyId &&
+            alloc.course === allocation.course &&
+            alloc.department === allocation.department &&
+            alloc.years.includes(allocation.year)
+          );
+
+          if (existingAllocation) {
+            // Update existing allocation by adding new subjects
+            const updatedSubjects = [...existingAllocation.subjects];
+            for (const newSubject of allocation.subjects) {
+              const exists = updatedSubjects.some(s => s.name === newSubject.name && s.code === newSubject.code);
+              if (!exists) {
+                updatedSubjects.push(newSubject);
+              }
+            }
+
+            batch.update(doc(db, 'facultyAllocations', existingAllocation.id), {
+              subjects: updatedSubjects,
+              updatedAt: Timestamp.now()
+            });
+          } else {
+            // Create new allocation
+            const newAllocation = {
+              facultyId: allocation.facultyId,
+              collegeId,
+              course: allocation.course,
+              department: allocation.department,
+              years: [allocation.year],
+              subjects: allocation.subjects,
+              isActive: true,
+              createdAt: Timestamp.now(),
+              updatedAt: Timestamp.now()
+            };
+
+            const docRef = doc(collection(db, 'facultyAllocations'));
+            batch.set(docRef, newAllocation);
+          }
+
+          successCount++;
+        } catch (error) {
+          errors.push(`Error processing allocation for ${allocation.course} ${allocation.department} Year ${allocation.year}: ${error}`);
+        }
+      }
+
+      // Commit all changes
+      await batch.commit();
+
+      return { success: successCount, errors };
+    } catch (error) {
+      errors.push(`Bulk import failed: ${error}`);
+      return { success: 0, errors };
+    }
   },
 };
 

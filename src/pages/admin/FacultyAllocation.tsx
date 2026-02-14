@@ -3,15 +3,18 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { facultyApi, facultyAllocationsApi, Faculty, type FacultyAllocation, College, collegesApi } from '@/lib/storage';
 import { getAcademicConfig } from '@/lib/academicConfig';
 import { toast } from 'sonner';
-import { X, Plus, Users, BookOpen, GraduationCap, Trash2, Calendar, AlertTriangle } from 'lucide-react';
+import { X, Plus, Users, BookOpen, GraduationCap, Trash2, Calendar, AlertTriangle, Upload, Check, ChevronsUpDown } from 'lucide-react';
 import { DashboardHeader } from '@/components/layout/DashboardHeader';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import BulkImportAllocations from '@/components/admin/BulkImportAllocations';
 
 const FacultyAllocation: React.FC = () => {
   const { user } = useAuth();
@@ -23,11 +26,13 @@ const FacultyAllocation: React.FC = () => {
   const [selectedFaculty, setSelectedFaculty] = useState<string>('');
   const [selectedCourse, setSelectedCourse] = useState<string>('');
   const [selectedYears, setSelectedYears] = useState<string[]>([]);
-  const [yearSubjects, setYearSubjects] = useState<Record<string, { department: string; subjects: { name: string; code: string; type: 'Theory' | 'Practical' }[] }[]>>({});
+  const [yearSubjects, setYearSubjects] = useState<Record<string, { department: string; subjects: { name: string; code: string; type: 'Theory' | 'Practical' | 'Tutorial' }[] }[]>>({});
   const [college, setCollege] = useState<College | null>(null);
   const [deletingAllocation, setDeletingAllocation] = useState<FacultyAllocation | null>(null);
   const [deletingSubject, setDeletingSubject] = useState<{ allocation: FacultyAllocation; subjectIndex: number } | null>(null);
   const [subjectConflicts, setSubjectConflicts] = useState<Record<string, { subjectName: string; facultyName: string; facultyId: string }[]>>({});
+  const [showBulkImport, setShowBulkImport] = useState(false);
+  const [facultyComboboxOpen, setFacultyComboboxOpen] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!user?.collegeId) return;
@@ -111,7 +116,7 @@ const FacultyAllocation: React.FC = () => {
     });
   };
 
-  const handleSubjectToggle = (year: string, department: string, subject: { name: string; code: string; type: 'Theory' | 'Practical' }) => {
+  const handleSubjectToggle = (year: string, department: string, subject: { name: string; code: string; type: 'Theory' | 'Practical' | 'Tutorial' }) => {
     setYearSubjects(prev => {
       const current = prev[year] || [];
       return {
@@ -288,97 +293,145 @@ const FacultyAllocation: React.FC = () => {
         college={college}
       />
 
-      <div className="p-6 space-y-6">
+      <div className="p-2 space-y-6">
 
         {/* Allocation Form */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Plus className="h-5 w-5 text-primary" />
+        <Card className="border-0 bg-white">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
+                  <Plus className="h-4 w-4 text-primary-foreground" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Create Allocation</CardTitle>
+                  <CardDescription className="text-sm">Select faculty and subjects</CardDescription>
+                </div>
               </div>
-              <div>
-                <CardTitle>Create New Allocation</CardTitle>
-                <CardDescription>Select a faculty member and allocate their teaching responsibilities</CardDescription>
-              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowBulkImport(true)}
+                className="flex items-center gap-2"
+              >
+                <Upload className="h-4 w-4" />
+                Bulk Import
+              </Button>
             </div>
           </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Faculty Selection */}
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label className="text-right">Faculty *</Label>
-            <Select value={selectedFaculty} onValueChange={setSelectedFaculty}>
-              <SelectTrigger className="col-span-3">
-                <SelectValue placeholder="Select faculty member" />
-              </SelectTrigger>
-              <SelectContent>
-                {faculty.map((f) => (
-                  <SelectItem key={f.id} value={f.id}>
-                    {f.name} ({f.employeeId})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <CardContent className="space-y-4">
 
-          {/* Course Selection */}
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label className="text-right">Course *</Label>
-            <Select value={selectedCourse} onValueChange={(value) => {
-              setSelectedCourse(value);
-              setSelectedYears([]);
-              setYearSubjects({});
-            }}>
-              <SelectTrigger className="col-span-3">
-                <SelectValue placeholder="Select course" />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.keys(courseData).map((course) => (
-                  <SelectItem key={course} value={course}>
-                    {course}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+            {/* Faculty, Course, and Years Selection in same row */}
+            <div className="grid grid-cols-1 md:grid-cols-[40%_20%_40%] gap-4">
+              {/* Faculty Selection */}
+              <div className="space-y-1">
+                <Label className="text-sm font-medium">Faculty *</Label>
+                <Popover open={facultyComboboxOpen} onOpenChange={setFacultyComboboxOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={facultyComboboxOpen}
+                      className="w-full justify-between h-9"
+                    >
+                      {selectedFaculty
+                        ? faculty.find((f) => f.id === selectedFaculty)?.name + " (" + faculty.find((f) => f.id === selectedFaculty)?.employeeId + ")"
+                        : "Select faculty"}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-full p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search faculty..." />
+                      <CommandList>
+                        <CommandEmpty>No faculty found.</CommandEmpty>
+                        <CommandGroup>
+                          {faculty.map((f) => (
+                            <CommandItem
+                              key={f.id}
+                              value={f.name + " " + f.employeeId}
+                              onSelect={() => {
+                                setSelectedFaculty(f.id);
+                                setSelectedCourse('');
+                                setSelectedYears([]);
+                                setYearSubjects({});
+                                setFacultyComboboxOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={`mr-2 h-4 w-4 ${
+                                  selectedFaculty === f.id ? "opacity-100" : "opacity-0"
+                                }`}
+                              />
+                              {f.name} ({f.employeeId})
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
 
-          {/* Year Selection */}
-          {selectedCourse && (
-            <div className="grid grid-cols-4 items-start gap-4">
-              <Label className="text-right pt-2">Years *</Label>
-              <div className="col-span-3 space-y-2">
-                {availableYears.map((year) => (
-                  <div key={year} className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      id={`year-${year}`}
-                      checked={selectedYears.includes(year)}
-                      onChange={() => handleYearToggle(year)}
-                      className="rounded"
-                    />
-                    <Label htmlFor={`year-${year}`}>{year}</Label>
+              {/* Course Selection */}
+              <div className="space-y-1">
+                <Label className="text-sm font-medium">Course *</Label>
+                <Select value={selectedCourse} disabled={!selectedFaculty} onValueChange={(value) => {
+                  setSelectedCourse(value);
+                  setSelectedYears([]);
+                  setYearSubjects({});
+                }}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder={selectedFaculty ? "Select course" : "Select faculty first"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.keys(courseData).map((course) => (
+                      <SelectItem key={course} value={course}>
+                        {course}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Year Selection */}
+              <div className="space-y-1">
+                <Label className="text-sm font-medium">Years *</Label>
+                {selectedCourse ? (
+                  <div className="flex flex-wrap gap-1">
+                    {availableYears.map((year) => (
+                      <Badge
+                        key={year}
+                        variant={selectedYears.includes(year) ? "default" : "outline"}
+                        className="cursor-pointer text-xs px-2 py-1"
+                        onClick={() => handleYearToggle(year)}
+                      >
+                        {year}
+                      </Badge>
+                    ))}
                   </div>
-                ))}
+                ) : (
+                  <div className="text-xs text-muted-foreground">Select course first</div>
+                )}
               </div>
             </div>
-          )}
 
           {/* Department and Subject Selection per Year */}
           {selectedYears.map((year) => (
-            <Card key={year} className="border-l-4 border-l-primary">
-              <CardHeader>
-                <CardTitle className="text-lg">{year} - Department & Subject Selection</CardTitle>
+            <Card key={year} className="border-l-4 border-l-primary bg-card/50">
+              <CardHeader className="pb-1 pt-3 px-4">
+                <CardTitle className="text-base">{year} - Subjects</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="px-4 pb-3 pt-0 space-y-2">
                 {/* Departments */}
                 <div>
-                  <Label className="text-sm font-medium">Departments</Label>
-                  <div className="flex flex-wrap gap-2 mt-2">
+                  <Label className="text-xs font-medium text-gray-600">Departments</Label>
+                  <div className="flex flex-wrap gap-1 mt-1">
                     {getAvailableDepartments(year).map((dept) => (
                       <Badge
                         key={dept}
                         variant={(yearSubjects[year] || []).some(d => d.department === dept) ? "default" : "outline"}
-                        className="cursor-pointer"
+                        className="cursor-pointer text-xs px-2 py-0.5"
                         onClick={() => handleDepartmentToggle(year, dept)}
                       >
                         {dept}
@@ -389,9 +442,9 @@ const FacultyAllocation: React.FC = () => {
 
                 {/* Subjects per Department */}
                 {(yearSubjects[year] || []).map((deptData) => (
-                  <div key={deptData.department} className="space-y-2">
-                    <Label className="text-sm font-medium">{deptData.department} - Subjects</Label>
-                    <div className="flex flex-wrap gap-2">
+                  <div key={deptData.department} className="space-y-1">
+                    <Label className="text-xs font-medium text-gray-600">{deptData.department}</Label>
+                    <div className="flex flex-wrap gap-1">
                       {Object.entries(getAvailableSubjects(year, deptData.department)).map(([subjectKey, subjectData]) => {
                         const subject = { name: subjectKey.replace(/\s*\((Theory|Practical)\)$/, ''), code: subjectData.code, type: subjectData.type as 'Theory' | 'Practical' };
                         const isSelected = deptData.subjects.some(s => s.name === subject.name);
@@ -409,24 +462,21 @@ const FacultyAllocation: React.FC = () => {
                           <Badge
                             key={subjectKey}
                             variant={isAlreadyAllocated ? "secondary" : isSelected ? "default" : "outline"}
-                            className={isAlreadyAllocated ? "cursor-not-allowed opacity-60" : "cursor-pointer"}
+                            className={isAlreadyAllocated ? "cursor-not-allowed opacity-60 text-xs px-2 py-0.5" : "cursor-pointer text-xs px-2 py-0.5"}
                             onClick={() => !isAlreadyAllocated && handleSubjectToggle(year, deptData.department, subject)}
                           >
-                            {subject.name} ({subject.code} - {subject.type})
+                            {subject.name} ({subject.code || 'N/A'}) - {subject.type || 'N/A'}
                             {isAlreadyAllocated && " ✓"}
                           </Badge>
                         );
                       })}
                     </div>
                     {subjectConflicts[`${year}-${deptData.department}`]?.length > 0 && (
-                      <div className="mt-2 space-y-1">
+                      <div className="mt-1 space-y-1">
                         {subjectConflicts[`${year}-${deptData.department}`].map((conflict, idx) => (
-                          <div key={idx} className="text-sm text-yellow-600 flex items-center gap-2 mt-1">
-                            <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
-                            First remove <span className="text-red-600 font-medium">{conflict.subjectName}</span> from <span className="text-red-600 font-medium">{conflict.facultyName}</span>.
-                            <span className="text-yellow-700 text-xs">
-                              Subject path: {selectedCourse}/{deptData.department}/{year}/{conflict.subjectName}
-                            </span>
+                          <div key={idx} className="text-xs text-yellow-600 flex items-center gap-1">
+                            <AlertTriangle className="h-3 w-3 text-destructive flex-shrink-0" />
+                            <span>Remove <strong>{conflict.subjectName}</strong> from <strong>{conflict.facultyName}</strong> • Path: {selectedCourse}/{deptData.department}/{year}/{conflict.subjectName}</span>
                           </div>
                         ))}
                       </div>
@@ -437,12 +487,12 @@ const FacultyAllocation: React.FC = () => {
             </Card>
           ))}
 
-          <div className="flex justify-end space-x-2">
-            <Button variant="outline" onClick={resetForm}>
+          <div className="flex justify-end gap-1.5 pt-1.5 border-t">
+            <Button variant="outline" onClick={resetForm} className="px-2.5 py-1 h-7 text-xs">
               Reset
             </Button>
-            <Button onClick={handleSave} disabled={isLoading}>
-              {isLoading ? 'Saving...' : 'Save Allocation'}
+              <Button onClick={handleSave} disabled={isLoading} className="px-2.5 py-1 h-7 bg-primary hover:bg-primary/90 text-primary-foreground text-xs">
+              {isLoading ? 'Saving...' : 'Save'}
             </Button>
           </div>
         </CardContent>
@@ -523,7 +573,7 @@ const FacultyAllocation: React.FC = () => {
                                       {allocation.subjects.map((subject, idx) => (
                                         <div key={idx} className="flex items-center gap-1">
                                           <Badge variant="default" className="text-xs">
-                                            {subject.name} ({subject.code}) - {subject.type}
+                                            {subject.name} ({subject.code || 'N/A'}) - {subject.type || 'N/A'}
                                           </Badge>
                                           <Button
                                             variant="ghost"
@@ -595,7 +645,7 @@ const FacultyAllocation: React.FC = () => {
               <div><strong>Course:</strong> {deletingSubject?.allocation.course}</div>
               <div><strong>Department:</strong> {deletingSubject?.allocation.department}</div>
               <div><strong>Years:</strong> {deletingSubject?.allocation.years.join(', ')}</div>
-              <div><strong>Subject:</strong> {deletingSubject?.allocation.subjects[deletingSubject.subjectIndex]?.name} ({deletingSubject?.allocation.subjects[deletingSubject.subjectIndex]?.code}) - {deletingSubject?.allocation.subjects[deletingSubject.subjectIndex]?.type}</div>
+              <div><strong>Subject:</strong> {deletingSubject?.allocation.subjects[deletingSubject.subjectIndex]?.name} ({deletingSubject?.allocation.subjects[deletingSubject.subjectIndex]?.code || 'N/A'}) - {deletingSubject?.allocation.subjects[deletingSubject.subjectIndex]?.type || 'N/A'}</div>
             </div>
           </div>
           <AlertDialogFooter>
@@ -609,6 +659,14 @@ const FacultyAllocation: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Bulk Import Dialog */}
+      <BulkImportAllocations
+        open={showBulkImport}
+        onOpenChange={setShowBulkImport}
+        collegeId={user?.collegeId || ''}
+        onSuccess={loadData}
+      />
     </div>
   );
 };
