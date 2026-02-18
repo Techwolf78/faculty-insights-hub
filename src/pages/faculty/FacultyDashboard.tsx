@@ -12,6 +12,7 @@ import {
   useQuestions,
   useFacultyMemberStats,
   useAllFacultyStats,
+  useCollege,
 } from '@/hooks/useCollegeData';
 import { facultyAllocationsApi, FacultyAllocation, feedbackSessionsApi, FeedbackSession } from '@/lib/storage';
 import { TrendingUp, MessageSquare, Award, Download, Users, BarChart3, Filter, BookOpen } from 'lucide-react';
@@ -39,6 +40,9 @@ export const FacultyDashboard: React.FC = () => {
   const { data: allFacultyStats = [] } = useAllFacultyStats(user?.collegeId);
 
   const isLoading = facultyLoading || submissionsLoading || questionsLoading;
+
+  // College info (for header logo)
+  const { data: college } = useCollege(user?.collegeId);
 
   // State declarations
   const [currentPage, setCurrentPage] = useState(1);
@@ -232,6 +236,7 @@ export const FacultyDashboard: React.FC = () => {
             <DashboardHeader
               title="Performance Reports"
               subtitle="Generate and download detailed performance reports"
+              college={college}
             />
 
             <div className="p-6 space-y-6">
@@ -376,8 +381,7 @@ export const FacultyDashboard: React.FC = () => {
           <div className="min-h-screen">
             <DashboardHeader
               title="My Performance"
-              subtitle="View your feedback scores and student comments"
-            />
+              subtitle="View your feedback scores and student comments"              college={college}            />
 
             <div className="p-6 space-y-6">
               {/* Profile Summary */}

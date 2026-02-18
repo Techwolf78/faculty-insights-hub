@@ -22,15 +22,12 @@ interface FacultyFormProps {
 const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess, editingFaculty }) => {
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
-  const [isFormReady, setIsFormReady] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
 
   // Default form data structure - used for both add and edit operations
   const defaultFormData = useMemo(() => ({
     employeeId: '',
     name: '',
     email: '',
-    password: '', // For new faculty accounts only
     designation: '',
     specialization: '',
     experience: '',
@@ -63,7 +60,6 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
 
   useEffect(() => {
     if (open && user?.collegeId) {
-      setIsFormReady(false); // Reset form ready state when dialog opens
       loadData();
     }
   }, [open, user?.collegeId, loadData]);
@@ -75,22 +71,17 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
         employeeId: editingFaculty.employeeId,
         name: editingFaculty.name,
         email: editingFaculty.email,
-        password: '', // Password not editable by admin
         designation: editingFaculty.designation,
         specialization: editingFaculty.specialization,
         experience: editingFaculty.experience.toString(),
         highestQualification: editingFaculty.highestQualification,
         role: editingFaculty.role || 'faculty', // Use existing role or default to faculty
       });
-      setIsFormReady(true);
     } else if (!editingFaculty && open) {
       // Reset form for new faculty and generate faculty ID
       const generateId = async () => {
         const newId = await generateFacultyId();
-        const password = newId.replace('FAC', 'Fac') + '@';
-        setFormData({ ...defaultFormData, employeeId: newId, password });
-        setShowPassword(true); // Show password by default
-        setIsFormReady(true);
+        setFormData({ ...defaultFormData, employeeId: newId });
       };
       generateId();
     }
@@ -102,14 +93,6 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
     if (!formData.name.trim() || !formData.email.trim() || !formData.employeeId.trim()) {
       toast.error('Please fill in all required fields');
       return;
-    }
-
-    // Password validation only for new faculty
-    if (!editingFaculty) {
-      if (!formData.password || formData.password.length < 6) {
-        toast.error('Password must be at least 6 characters long');
-        return;
-      }
     }
 
     if (!user?.collegeId) {
@@ -144,8 +127,11 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
       } else {
         // Create new faculty account
         try {
+          // Generate password based on employee ID
+          const password = formData.employeeId.replace('FAC', 'Fac') + '@';
+
           // 1. Create user in Firebase Auth using secondary app
-          const userCredential = await createUserWithEmailAndPassword(secondaryAuth, formData.email.trim(), formData.password);
+          const userCredential = await createUserWithEmailAndPassword(secondaryAuth, formData.email.trim(), password);
           const firebaseUser = userCredential.user;
 
           // Sign out from secondary auth to avoid session conflicts
@@ -171,7 +157,7 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
           };
           await facultyApi.create(facultyDataWithUserId);
 
-          toast.success(`Faculty member added successfully! Login credentials: ${formData.email} / ${formData.password}`);
+          toast.success(`Faculty member added successfully! Login credentials: ${formData.email} / ${password}`);
         } catch (authError: unknown) {
           console.error('Auth error:', authError);
           const error = authError as { code?: string; message?: string };
@@ -202,7 +188,6 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
 
   const handleClose = () => {
     setFormData(defaultFormData);
-    setIsFormReady(false);
     onOpenChange(false);
   };
 
@@ -215,14 +200,7 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
             {editingFaculty ? 'Update faculty member information.' : 'Add a new faculty member to your college. Fill in the required information below.'}
           </DialogDescription>
         </DialogHeader>
-        {editingFaculty && !isFormReady ? (
-          <div className="flex items-center justify-center py-8">
-            <div className="flex items-center gap-2">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-              <span className="text-sm text-muted-foreground">Fetching faculty details...</span>
-            </div>
-          </div>
-        ) : (
+        {
           <form onSubmit={handleSubmit}>
             <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
@@ -266,37 +244,6 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
                 required
               />
             </div>
-            {!editingFaculty && (
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="password" className="text-right">
-                  Password *
-                </Label>
-                <div className="col-span-3 relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    value={formData.password}
-                    onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
-                    className="pr-10"
-                    placeholder="Minimum 6 characters"
-                    required
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <Eye className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </Button>
-                </div>
-              </div>
-            )}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="role" className="text-right">
                 Role *
@@ -374,7 +321,7 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
               </Button>
             </DialogFooter>
           </form>
-        )}
+        }
       </DialogContent>
     </Dialog>
   );

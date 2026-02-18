@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { FirebaseError } from 'firebase/app';
 import { auth, db } from '@/lib/firebase';
 import { User, usersApi, facultyApi } from '@/lib/storage';
 
@@ -11,6 +12,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
+  setActiveRole: (role: 'admin' | 'hod' | 'faculty') => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -32,6 +34,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const userDoc = querySnapshot.docs[0];
             const userData = userDoc.data() as User;
             const fullUserData = { ...userData, id: userDoc.id };
+            
+            // Initialize activeRole if user has multiple roles
+            if (fullUserData.roles && fullUserData.roles.length > 0) {
+              if (!fullUserData.activeRole) {
+                fullUserData.activeRole = fullUserData.roles[0];
+              }
+            } else {
+              fullUserData.activeRole = fullUserData.role as 'admin' | 'hod' | 'faculty';
+            }
+            
             setUser(fullUserData);
             localStorage.setItem('currentUser', JSON.stringify(fullUserData));
           }
@@ -54,7 +66,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await signInWithEmailAndPassword(auth, email, password);
       return { success: true };
-    } catch (error: any) {
+    } catch (error: FirebaseError) {
       console.error('Login error:', error);
       let errorMessage = 'An error occurred during login';
       if (error.code === 'auth/user-not-found') {
@@ -80,8 +92,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  const setActiveRole = useCallback(async (role: 'admin' | 'hod' | 'faculty') => {
+    if (!user) return;
+
+    // Verify the user has this role
+    const availableRoles = user.roles || [user.role as 'admin' | 'hod' | 'faculty'];
+    if (!availableRoles.includes(role)) {
+      console.error(`User does not have role: ${role}`);
+      return;
+    }
+
+    const updatedUser = { ...user, activeRole: role };
+    setUser(updatedUser);
+    localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+  }, [user]);
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, setActiveRole }}>
       {children}
     </AuthContext.Provider>
   );

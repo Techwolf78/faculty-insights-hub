@@ -1,8 +1,8 @@
-# Faculty Insights Hub
+# INSYT - Turn Feedback into Insight
 
 ## Overview
 
-**Faculty Insights Hub** is a **multi-college, role-based Faculty Feedback System** built as a **React application** using **Firebase Firestore** as its data store.
+**INSYT** is a **multi-college, role-based Faculty Feedback System** built as a **React application** using **Firebase Firestore** as its data store.
 
 The system is designed for **academic institutions** to collect **anonymous and authenticated student feedback**, analyze faculty performance, and generate rich analytics.
 
@@ -587,4 +587,4 @@ Use the `/seed-data` page to initialize demo data for development.
 
 ---
 
-> This README represents the **final, production-grade architecture** for the Faculty Insights Hub using a **Session-first academic model**.
+> This README represents the **final, production-grade architecture** for the INSYT platform using a **Session-first academic model**.

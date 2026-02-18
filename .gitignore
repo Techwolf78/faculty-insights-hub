@@ -19,6 +19,21 @@ dist-ssr
 
 # Firebase
 .firebase/
+serviceAccountKey.json
+
+# Sensitive data files
+faculty_registration.json
+icem_fac_sub_allocation.json
+
+# Development scripts (remove before production)
+bulk-delete-users.js
+bulk-import-script.ts
+migrate_faculty.js
+update_submissions.js
+analyze-json.ts
+
+# Internal documentation
+implementation_plan.md.resolved
 
 # Editor directories and files
 .vscode/*

@@ -40,6 +40,7 @@ const DepartmentForm: React.FC<DepartmentFormProps> = ({ open, onOpenChange, onS
         name: formData.name.trim(),
         code: formData.code.trim().toUpperCase(),
         collegeId: user.collegeId,
+        isActive: true,
       });
 
       toast.success('Department added successfully');

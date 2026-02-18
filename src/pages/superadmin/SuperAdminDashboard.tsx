@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useLocation, useParams, Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { firebaseConfig, auth } from '@/lib/firebase';
@@ -10,6 +10,7 @@ import {
   questionGroupsApi,
   questionsApi,
   departmentsApi,
+  facultyApi,
   College,
   User,
   FeedbackSession,
@@ -17,6 +18,7 @@ import {
   Question,
   Department,
   Timestamp,
+  HelpTicket,
 } from '@/lib/storage';
 import {
   Building2,
@@ -34,6 +36,7 @@ import {
   Eye,
   EyeOff,
   Share,
+  HelpCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -61,11 +64,33 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { toast } from 'sonner';
 import QRCode from 'react-qr-code';
 import SessionResponses from '../admin/SessionResponses';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
+import {
+  useAllHelpTickets,
+  useHelpTicketsByStatus,
+  useUpdateHelpTicketStatus,
+  useAddHelpTicketRemark,
+} from '@/hooks/useCollegeData';
+import { TicketDetailModal } from '@/components/help/TicketDetailModal';
+import {
+  TicketStatusBadge,
+  TicketPriorityBadge,
+  TicketCategoryBadge,
+} from '@/components/help/TicketStatusBadge';
+import { formatDistanceToNow } from 'date-fns';
+import { AlertCircle, Clock, CheckCircle } from 'lucide-react';
 
 export const SuperAdminDashboard: React.FC = () => {
   const { user, logout } = useAuth();
@@ -111,6 +136,7 @@ export const SuperAdminDashboard: React.FC = () => {
     switch (section) {
       case 'dashboard': return 'overview';
       case 'question-bank': return 'questionBank';
+      case 'help-portal': return 'helpPortal';
       default: return section;
     }
   };
@@ -127,6 +153,7 @@ export const SuperAdminDashboard: React.FC = () => {
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [adminCollegeId, setAdminCollegeId] = useState('');
+  const [adminRoles, setAdminRoles] = useState<('admin' | 'hod')[]>(['admin']);
 
   // Question Group form state
   const [questionGroupDialogOpen, setQuestionGroupDialogOpen] = useState(false);
@@ -163,6 +190,12 @@ export const SuperAdminDashboard: React.FC = () => {
   // Share dialog state
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [shareSession, setShareSession] = useState<FeedbackSession | null>(null);
+
+  // Help Portal state
+  const [selectedTicket, setSelectedTicket] = useState<HelpTicket | null>(null);
+  const [helpPortalTab, setHelpPortalTab] = useState<'all' | 'open' | 'in-progress' | 'pending-info' | 'on-hold' | 'resolved' | 'rejected' | 'closed'>('all');
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [isAddingRemark, setIsAddingRemark] = useState(false);
 
   // Predefined question templates
   const questionTemplates = [
@@ -253,11 +286,7 @@ export const SuperAdminDashboard: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    loadData();
-  }, [user, navigate]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const [collegeList, userList, sessionList, groupList, questionList, departmentList] = await Promise.all([
         collegesApi.getAll(),
@@ -304,7 +333,16 @@ export const SuperAdminDashboard: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Help Ticket hooks
+  const { data: allTickets = [], isLoading: isLoadingTickets, error: ticketsError } = useAllHelpTickets();
+  const updateStatusMutation = useUpdateHelpTicketStatus();
+  const addRemarkMutation = useAddHelpTicketRemark();
 
   const handleCreateCollege = async () => {
     if (!collegeName.trim() || !collegeCode.trim()) {
@@ -345,26 +383,81 @@ export const SuperAdminDashboard: React.FC = () => {
       return;
     }
 
+    if (adminRoles.length === 0) {
+      toast.error('Please select at least one role');
+      return;
+    }
+
     try {
       // Create admin user in Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(auth, adminEmail.trim().toLowerCase(), adminPassword);
       const firebaseUser = userCredential.user;
 
-      // Create admin user document in Firestore
-      await usersApi.create({
+      // Determine primary role (admin by default)
+      const primaryRole = adminRoles.includes('admin') ? 'admin' : 'hod';
+
+      // Create admin user document in Firestore with multi-role support
+      const userData: {
+        name: string;
+        email: string;
+        role: 'admin' | 'hod';
+        collegeId: string;
+        isActive: boolean;
+        roles?: ('admin' | 'hod')[];
+        activeRole?: 'admin' | 'hod';
+      } = {
         name: adminName.trim(),
         email: adminEmail.trim().toLowerCase(),
-        role: 'admin',
+        role: primaryRole,
         collegeId: adminCollegeId,
         isActive: true,
-      }, firebaseUser.uid);
+      };
 
-      toast.success('College Admin created successfully!');
+      // Add multi-role fields if admin has multiple roles
+      if (adminRoles.length > 1) {
+        userData.roles = adminRoles;
+        userData.activeRole = 'admin'; // Default to admin role
+      }
+
+      await usersApi.create(userData, firebaseUser.uid);
+
+      // If admin has HOD role, also create a faculty record so they appear in Faculty Management
+      if (adminRoles.includes('hod')) {
+        // Generate employee ID for faculty record
+        const allFaculty = await facultyApi.getByCollege(adminCollegeId);
+        const existingIds = allFaculty.map(f => f.employeeId).filter(id => id.startsWith('FAC'));
+        let nextId = 'FAC001';
+        if (existingIds.length > 0) {
+          const numbers = existingIds.map(id => parseInt(id.replace('FAC', ''))).filter(n => !isNaN(n));
+          const maxNum = Math.max(...numbers);
+          nextId = `FAC${(maxNum + 1).toString().padStart(3, '0')}`;
+        }
+        const employeeId = nextId;
+
+        // Create faculty document
+        await facultyApi.create({
+          userId: firebaseUser.uid,
+          employeeId: employeeId,
+          name: adminName.trim(),
+          email: adminEmail.trim().toLowerCase(),
+          designation: 'Dean',
+          specialization: '',
+          experience: 0,
+          highestQualification: '',
+          collegeId: adminCollegeId,
+          role: 'hod',
+          isActive: true,
+        });
+      }
+
+      const roleDisplay = adminRoles.length > 1 ? `Admin + HOD` : 'Admin';
+      toast.success(`College Admin created successfully! (${roleDisplay})`);
       setAdminDialogOpen(false);
       setAdminName('');
       setAdminEmail('');
       setAdminPassword('');
       setAdminCollegeId('');
+      setAdminRoles(['admin']);
       loadData();
     } catch (error: unknown) {
       console.error('Error creating admin:', error);
@@ -384,6 +477,22 @@ export const SuperAdminDashboard: React.FC = () => {
       // For security, we can't delete other users from Firebase Auth via client SDK
       // Instead, we'll deactivate the user in Firestore
       await usersApi.update(adminId, { isActive: false });
+      
+      // Also deactivate associated faculty record if it exists (for multi-role admins)
+      try {
+        const collegeAdmins = users.filter(u => u.id === adminId);
+        if (collegeAdmins.length > 0 && collegeAdmins[0].roles?.includes('hod')) {
+          // Find and deactivate the associated faculty document
+          const collegeFaculty = await facultyApi.getByCollege(collegeAdmins[0].collegeId);
+          const facultyRecord = collegeFaculty.find(f => f.userId === adminId);
+          if (facultyRecord) {
+            await facultyApi.update(facultyRecord.id, { isActive: false });
+          }
+        }
+      } catch (facultyError) {
+        // Faculty document not found or error - that's okay, just continue
+        console.log('No associated faculty record to deactivate');
+      }
       
       toast.success('Admin deactivated successfully. Note: Firebase Auth user remains active for security reasons.');
       loadData();
@@ -607,6 +716,60 @@ export const SuperAdminDashboard: React.FC = () => {
     }
   };
 
+  // Help Ticket handlers
+  const handleTicketStatusChange = async (ticketId: string, newStatus: HelpTicket['status']) => {
+    try {
+      setIsUpdatingStatus(true);
+      const updated = await updateStatusMutation.mutateAsync({
+        id: ticketId,
+        status: newStatus,
+      });
+      if (updated) {
+        setSelectedTicket(updated);
+        toast.success('Status updated successfully');
+      }
+    } catch (error) {
+      console.error('Error updating status:', error);
+      toast.error('Failed to update status');
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
+  const handleAddTicketRemark = async (ticketId: string, remarkText: string) => {
+    if (!user?.id) {
+      toast.error('User information not available');
+      return;
+    }
+
+    try {
+      setIsAddingRemark(true);
+      const updated = await addRemarkMutation.mutateAsync({
+        id: ticketId,
+        remark: {
+          text: remarkText,
+          adminId: user.id,
+        },
+      });
+      if (updated) {
+        setSelectedTicket(updated);
+        toast.success('Remark added successfully');
+      }
+    } catch (error) {
+      console.error('Error adding remark:', error);
+      toast.error('Failed to add remark');
+    } finally {
+      setIsAddingRemark(false);
+    }
+  };
+
+  const getStatusIcon = (status: HelpTicket['status']) => {
+    if (status === 'open') return <AlertCircle className="h-4 w-4 text-red-500" />;
+    if (status === 'in-progress') return <Clock className="h-4 w-4 text-blue-500" />;
+    if (status === 'resolved' || status === 'closed') return <CheckCircle className="h-4 w-4 text-green-500" />;
+    return null;
+  };
+
   const handleLogout = () => {
     logout();
     navigate('/');
@@ -669,7 +832,7 @@ export const SuperAdminDashboard: React.FC = () => {
           <div className="flex h-auto w-auto items-center justify-center p-1">
             <img
               src="https://res.cloudinary.com/dcjmaapvi/image/upload/v1749719287/juqqmxevqyys5fbavatm.png"
-              alt="Gryphon Academy Logo"
+              alt="Gryphon Academy INSYT Logo"
               className="h-auto w-36"
             />
           </div>
@@ -678,7 +841,7 @@ export const SuperAdminDashboard: React.FC = () => {
         {/* Sidebar Navigation */}
         <div className="flex-1 p-2 overflow-y-auto">
           <nav className="space-y-1">
-            <div className="grid w-full grid-rows-5 h-auto gap-1">
+            <div className="grid w-full grid-rows-6 h-auto gap-1">
               <Button
                 variant={activeTab === 'overview' ? 'default' : 'ghost'}
                 className={`w-full justify-start gap-3 h-10 px-3 text-sm ${
@@ -738,6 +901,18 @@ export const SuperAdminDashboard: React.FC = () => {
               >
                 <BookOpen className="h-4 w-4" />
                 Question Bank ({questionGroups.length})
+              </Button>
+              <Button
+                variant={activeTab === 'helpPortal' ? 'default' : 'ghost'}
+                className={`w-full justify-start gap-3 h-10 px-3 text-sm ${
+                  activeTab === 'helpPortal' 
+                    ? 'bg-primary text-primary-foreground' 
+                    : 'hover:bg-primary/30 hover:text-primary'
+                }`}
+                onClick={() => navigate('/super-admin/help-portal')}
+              >
+                <HelpCircle className="h-4 w-4" />
+                Help Portal
               </Button>
             </div>
           </nav>
@@ -1016,6 +1191,48 @@ export const SuperAdminDashboard: React.FC = () => {
                           ))}
                         </select>
                       </div>
+                      <div className="space-y-3 border-t pt-3">
+                        <Label className="text-sm font-medium">Roles</Label>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              id="adminRole"
+                              checked={adminRoles.includes('admin')}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setAdminRoles(prev => [...prev, 'admin']);
+                                } else {
+                                  setAdminRoles(prev => prev.filter(r => r !== 'admin'));
+                                }
+                              }}
+                            />
+                            <Label htmlFor="adminRole" className="text-sm font-normal cursor-pointer">
+                              College Administrator
+                            </Label>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              id="hodRole"
+                              checked={adminRoles.includes('hod')}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setAdminRoles(prev => [...prev, 'hod']);
+                                } else {
+                                  setAdminRoles(prev => prev.filter(r => r !== 'hod'));
+                                }
+                              }}
+                            />
+                            <Label htmlFor="hodRole" className="text-sm font-normal cursor-pointer">
+                              Head of Department (HOD)
+                            </Label>
+                          </div>
+                          {adminRoles.length > 1 && (
+                            <p className="text-xs text-muted-foreground mt-2">
+                              ✓ This admin will have both roles and can switch between them
+                            </p>
+                          )}
+                        </div>
+                      </div>
                     </div>
                     <DialogFooter>
                       <Button variant="outline" onClick={() => setAdminDialogOpen(false)}>
@@ -1055,7 +1272,16 @@ export const SuperAdminDashboard: React.FC = () => {
                           {college?.code || 'N/A'}
                         </span>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs text-muted-foreground">Admin</span>
+                          <div className="flex items-center gap-1 flex-wrap justify-end">
+                            {admin.roles && admin.roles.length > 1 ? (
+                              <>
+                                <span className="text-xs bg-primary/20 text-primary px-2 py-1 rounded-full">Admin</span>
+                                <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full">HOD</span>
+                              </>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">Admin</span>
+                            )}
+                          </div>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive hover:text-destructive">
@@ -1685,6 +1911,154 @@ export const SuperAdminDashboard: React.FC = () => {
             </div>
           )}
 
+          {/* Help Portal Tab */}
+          {activeTab === 'helpPortal' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="font-display text-2xl font-bold text-foreground">Help Tickets Portal</h1>
+                  <p className="text-muted-foreground">Manage all support tickets from users, HODs, and admins</p>
+                </div>
+              </div>
+
+              {/* Statistics */}
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+                <div className="glass-card rounded-xl p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 rounded-lg bg-blue-100">
+                      <HelpCircle className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-foreground">{allTickets.length}</p>
+                      <p className="text-sm text-muted-foreground">Total Tickets</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="glass-card rounded-xl p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 rounded-lg bg-red-100">
+                      <AlertCircle className="h-5 w-5 text-red-600" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-foreground">{allTickets.filter(t => t.status === 'open').length}</p>
+                      <p className="text-sm text-muted-foreground">Open</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="glass-card rounded-xl p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 rounded-lg bg-yellow-100">
+                      <Clock className="h-5 w-5 text-yellow-600" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-foreground">{allTickets.filter(t => t.status === 'in-progress').length}</p>
+                      <p className="text-sm text-muted-foreground">In Progress</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="glass-card rounded-xl p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 rounded-lg bg-green-100">
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-foreground">{allTickets.filter(t => ['resolved', 'closed'].includes(t.status)).length}</p>
+                      <p className="text-sm text-muted-foreground">Resolved</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tickets Table */}
+              <div className="glass-card rounded-xl p-6">
+                <Tabs value={helpPortalTab} onValueChange={(value) => setHelpPortalTab(value as typeof helpPortalTab)}>
+                  <TabsList className="grid w-full grid-cols-8">
+                    <TabsTrigger value="all">All ({allTickets.length})</TabsTrigger>
+                    <TabsTrigger value="open">Open ({allTickets.filter(t => t.status === 'open').length})</TabsTrigger>
+                    <TabsTrigger value="in-progress">In Progress ({allTickets.filter(t => t.status === 'in-progress').length})</TabsTrigger>
+                    <TabsTrigger value="pending-info">Pending Info ({allTickets.filter(t => t.status === 'pending-info').length})</TabsTrigger>
+                    <TabsTrigger value="on-hold">On Hold ({allTickets.filter(t => t.status === 'on-hold').length})</TabsTrigger>
+                    <TabsTrigger value="resolved">Resolved ({allTickets.filter(t => t.status === 'resolved').length})</TabsTrigger>
+                    <TabsTrigger value="rejected">Rejected ({allTickets.filter(t => t.status === 'rejected').length})</TabsTrigger>
+                    <TabsTrigger value="closed">Closed ({allTickets.filter(t => t.status === 'closed').length})</TabsTrigger>
+                  </TabsList>
+
+                  <div className="mt-6">
+                    {isLoadingTickets ? (
+                      <div className="text-center py-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                        <p className="text-muted-foreground mt-2">Loading tickets...</p>
+                      </div>
+                    ) : ticketsError ? (
+                      <div className="text-center py-8">
+                        <p className="text-red-500">Error loading tickets</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Status</TableHead>
+                              <TableHead>Priority</TableHead>
+                              <TableHead>Category</TableHead>
+                              <TableHead>Subject</TableHead>
+                              <TableHead>User</TableHead>
+                              <TableHead>College</TableHead>
+                              <TableHead>Created</TableHead>
+                              <TableHead>Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {(helpPortalTab === 'all' ? allTickets : allTickets.filter(ticket => ticket.status === helpPortalTab)).map((ticket) => (
+                              <TableRow key={ticket.id} className="cursor-pointer hover:bg-secondary/50" onClick={() => setSelectedTicket(ticket)}>
+                                <TableCell>
+                                  <TicketStatusBadge status={ticket.status} />
+                                </TableCell>
+                                <TableCell>
+                                  <TicketPriorityBadge priority={ticket.priority} />
+                                </TableCell>
+                                <TableCell>
+                                  <TicketCategoryBadge category={ticket.category} />
+                                </TableCell>
+                                <TableCell className="font-medium max-w-xs truncate" title={ticket.title}>
+                                  {ticket.title}
+                                </TableCell>
+                                <TableCell>
+                                  {users.find(u => u.id === ticket.createdBy)?.name || 'Unknown User'}
+                                </TableCell>
+                                <TableCell>
+                                  {colleges.find(c => c.id === ticket.collegeId)?.name || 'Unknown College'}
+                                </TableCell>
+                                <TableCell>
+                                  {formatDistanceToNow(ticket.createdAt.toDate(), { addSuffix: true })}
+                                </TableCell>
+                                <TableCell>
+                                  <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setSelectedTicket(ticket); }}>
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                        {(helpPortalTab === 'all' ? allTickets : allTickets.filter(ticket => ticket.status === helpPortalTab)).length === 0 && (
+                          <div className="text-center py-8">
+                            <HelpCircle className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                            <h3 className="text-lg font-medium text-muted-foreground mb-2">No tickets found</h3>
+                            <p className="text-muted-foreground">No tickets match the current filter</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </Tabs>
+              </div>
+            </div>
+          )}
+
           {/* Question Group Create Dialog */}
           <Dialog open={questionGroupDialogOpen} onOpenChange={setQuestionGroupDialogOpen}>
             <DialogContent>
@@ -2099,6 +2473,18 @@ export const SuperAdminDashboard: React.FC = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Ticket Detail Modal */}
+        {selectedTicket && (
+          <TicketDetailModal
+            ticket={selectedTicket}
+            onClose={() => setSelectedTicket(null)}
+            onStatusChange={handleTicketStatusChange}
+            onAddRemark={handleAddTicketRemark}
+            isSuperAdmin={true}
+            isSubmitting={isUpdatingStatus || isAddingRemark}
+          />
+        )}
       </div>
     </div>
   );

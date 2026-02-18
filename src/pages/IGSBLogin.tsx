@@ -18,32 +18,24 @@ export const IGSBLogin: React.FC = () => {
 
   // Handle navigation when user data becomes available after login
   useEffect(() => {
-    console.log('useEffect triggered: user =', user, 'isLoading =', isLoading);
     if (user && !isLoading) {
-      console.log('Navigating user with role:', user.role);
-      switch (user.role) {
+      const roleToNavigate = user.activeRole || user.role;
+      switch (roleToNavigate) {
         case 'superAdmin':
-          console.log('Navigating to /super-admin');
           navigate('/super-admin');
           break;
         case 'admin':
-          console.log('Navigating to /admin/dashboard');
           navigate('/admin/dashboard');
           break;
         case 'hod':
-          console.log('Navigating to /hod/dashboard');
           navigate('/hod/dashboard');
           break;
         case 'faculty':
-          console.log('Navigating to /faculty/dashboard');
           navigate('/faculty/dashboard');
           break;
         default:
-          console.log('Navigating to /');
           navigate('/');
       }
-    } else {
-      console.log('Not navigating: user or isLoading condition not met');
     }
   }, [user, isLoading, navigate]);
 
@@ -52,29 +44,14 @@ export const IGSBLogin: React.FC = () => {
     setError('');
     setIsSubmitting(true);
 
-    console.log('Starting login process');
     const result = await login(email, password);
-    console.log('Login result:', result);
 
     if (!result.success) {
       setError(result.error || 'Login failed');
       setIsSubmitting(false);
     } else {
-      console.log('Login successful, setting isSubmitting to false');
       setIsSubmitting(false);
     }
-  };
-
-  const demoCredentials = [
-    { role: 'IGSB Admin', email: 'admin@igsb.edu', password: 'password123' },
-    { role: 'IGSB HOD (MBA)', email: 'hod.mba@igsb.edu', password: 'password123' },
-    { role: 'IGSB Faculty', email: 'faculty3@igsb.edu', password: 'password123' },
-  ];
-
-  const fillCredentials = (email: string, password: string) => {
-    setEmail(email);
-    setPassword(password);
-    setError('');
   };
 
   return (
@@ -86,10 +63,9 @@ export const IGSBLogin: React.FC = () => {
         <div className="relative z-10 flex flex-col justify-center items-center px-12 xl:px-20 text-center">
           <div className="flex flex-col items-center gap-6 mb-8">
             <img
-              src="https://indiraigsb.edu.in/assets/images/igsb-logo.png"
+              src="https://indiraigsb.edu.in/Home/Logo.webp"
               alt="IGSB College Logo"
               className="h-28 w-auto object-contain rounded-lg"
-              style={{ backgroundColor: '#072F61' }}
             />
             <div>
               <h1 className="font-display text-4xl font-bold text-primary-foreground">Faculty Feedback System</h1>
@@ -186,31 +162,6 @@ export const IGSBLogin: React.FC = () => {
               )}
             </Button>
           </form>
-
-          <div className="mt-8">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-border" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">Demo Credentials</span>
-              </div>
-            </div>
-
-            <div className="mt-4 space-y-2">
-              {demoCredentials.map((cred) => (
-                <button
-                  key={cred.role}
-                  type="button"
-                  onClick={() => fillCredentials(cred.email, cred.password)}
-                  className="w-full flex items-center justify-between p-3 rounded-lg border border-border hover:bg-secondary transition-colors text-sm"
-                >
-                  <span className="font-medium text-foreground">{cred.role}</span>
-                  <span className="text-muted-foreground">{cred.email}</span>
-                </button>
-              ))}
-            </div>
-          </div>
 
           <p className="mt-8 text-center text-sm text-muted-foreground">
             <Link to="/" className="hover:text-primary transition-colors">

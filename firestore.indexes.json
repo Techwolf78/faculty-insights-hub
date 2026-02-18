@@ -179,6 +179,33 @@
                     "order": "ASCENDING"
                 }
             ]
+        },
+        {
+            "collectionGroup": "feedbackSubmissions",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "collegeId", "order": "ASCENDING" },
+                { "fieldPath": "submittedAt", "order": "ASCENDING" },
+                { "fieldPath": "__name__", "order": "ASCENDING" }
+            ]
+        },
+        {
+            "collectionGroup": "feedbackSubmissions",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "facultyId", "order": "ASCENDING" },
+                { "fieldPath": "submittedAt", "order": "ASCENDING" },
+                { "fieldPath": "__name__", "order": "ASCENDING" }
+            ]
+        },
+        {
+            "collectionGroup": "feedbackSubmissions",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "departmentId", "order": "ASCENDING" },
+                { "fieldPath": "submittedAt", "order": "ASCENDING" },
+                { "fieldPath": "__name__", "order": "ASCENDING" }
+            ]
         }
     ],
     "fieldOverrides": []

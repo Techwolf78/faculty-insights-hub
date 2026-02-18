@@ -168,7 +168,7 @@ const QuestionForm: React.FC<QuestionFormProps> = ({ open, onOpenChange, onSucce
               </Label>
               <Select
                 value={formData.responseType}
-                onValueChange={(value: any) => setFormData(prev => ({ ...prev, responseType: value }))}
+                onValueChange={(value: 'rating' | 'text' | 'both' | 'select' | 'boolean') => setFormData(prev => ({ ...prev, responseType: value }))}
               >
                 <SelectTrigger className="col-span-3">
                   <SelectValue />

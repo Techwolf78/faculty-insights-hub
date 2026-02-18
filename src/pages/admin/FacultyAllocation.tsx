@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,6 +13,7 @@ import { getAcademicConfig } from '@/lib/academicConfig';
 import { toast } from 'sonner';
 import { X, Plus, Users, BookOpen, GraduationCap, Trash2, Calendar, AlertTriangle, Upload, Check, ChevronsUpDown } from 'lucide-react';
 import { DashboardHeader } from '@/components/layout/DashboardHeader';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import BulkImportAllocations from '@/components/admin/BulkImportAllocations';
 
@@ -33,6 +34,7 @@ const FacultyAllocation: React.FC = () => {
   const [subjectConflicts, setSubjectConflicts] = useState<Record<string, { subjectName: string; facultyName: string; facultyId: string }[]>>({});
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [facultyComboboxOpen, setFacultyComboboxOpen] = useState(false);
+  const [showUnallocated, setShowUnallocated] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!user?.collegeId) return;
@@ -80,12 +82,26 @@ const FacultyAllocation: React.FC = () => {
     setSubjectConflicts(newConflicts);
   }, [user?.collegeId, selectedCourse, selectedYears, yearSubjects, selectedFaculty]);
 
+  const checkConflictsRef = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
     loadData();
   }, [loadData]);
 
   useEffect(() => {
-    checkConflicts();
+    // Debounce conflict checking by 500ms to avoid excessive API calls
+    if (checkConflictsRef.current) {
+      clearTimeout(checkConflictsRef.current);
+    }
+    checkConflictsRef.current = setTimeout(() => {
+      checkConflicts();
+    }, 500);
+
+    return () => {
+      if (checkConflictsRef.current) {
+        clearTimeout(checkConflictsRef.current);
+      }
+    };
   }, [checkConflicts]);
 
   const availableYears = selectedCourse ? courseData[selectedCourse]?.years || [] : [];
@@ -125,8 +141,8 @@ const FacultyAllocation: React.FC = () => {
           d.department === department
             ? {
                 ...d,
-                subjects: d.subjects.some(s => s.name === subject.name)
-                  ? d.subjects.filter(s => s.name !== subject.name)
+                subjects: d.subjects.some(s => s.name === subject.name && s.code === subject.code && s.type === subject.type)
+                  ? d.subjects.filter(s => !(s.name === subject.name && s.code === subject.code && s.type === subject.type))
                   : [...d.subjects, subject]
               }
             : d
@@ -178,7 +194,7 @@ const FacultyAllocation: React.FC = () => {
               alloc.course === selectedCourse &&
               alloc.department === deptData.department &&
               alloc.years.includes(year) &&
-              alloc.subjects.some(s => s.name === subject.name)
+              alloc.subjects.some(s => s.name === subject.name && s.code === subject.code && s.type === subject.type)
             );
             return !isAlreadyAllocated;
           });
@@ -250,6 +266,14 @@ const FacultyAllocation: React.FC = () => {
   };
 
   const selectedFacultyData = faculty.find(f => f.id === selectedFaculty);
+  // Count only unique faculty IDs that exist in the active `faculty` list — prevents orphan/duplicate allocation IDs inflating the number
+  const allocatedFacultyIds = React.useMemo(() => new Set(allocations.map(a => a.facultyId)), [allocations]);
+  const uniqueFacultyCount = React.useMemo(() => {
+    const activeFacultyIds = new Set(faculty.map(f => f.id));
+    return new Set(allocations.filter(a => activeFacultyIds.has(a.facultyId)).map(a => a.facultyId)).size;
+  }, [allocations, faculty]);
+
+  const unallocatedFaculty = React.useMemo(() => faculty.filter(f => !allocatedFacultyIds.has(f.id)), [faculty, allocatedFacultyIds]);
 
   const handleDeleteAllocation = async (allocation: FacultyAllocation) => {
     try {
@@ -447,7 +471,7 @@ const FacultyAllocation: React.FC = () => {
                     <div className="flex flex-wrap gap-1">
                       {Object.entries(getAvailableSubjects(year, deptData.department)).map(([subjectKey, subjectData]) => {
                         const subject = { name: subjectKey.replace(/\s*\((Theory|Practical)\)$/, ''), code: subjectData.code, type: subjectData.type as 'Theory' | 'Practical' };
-                        const isSelected = deptData.subjects.some(s => s.name === subject.name);
+                        const isSelected = deptData.subjects.some(s => s.name === subject.name && s.code === subject.code && s.type === subject.type);
 
                         // Check if this subject is already allocated to the selected faculty
                         const isAlreadyAllocated = allocations.some(alloc =>
@@ -455,7 +479,7 @@ const FacultyAllocation: React.FC = () => {
                           alloc.course === selectedCourse &&
                           alloc.department === deptData.department &&
                           alloc.years.includes(year) &&
-                          alloc.subjects.some(s => s.name === subject.name)
+                          alloc.subjects.some(s => s.name === subject.name && s.code === subject.code && s.type === subject.type)
                         );
 
                         return (
@@ -507,7 +531,16 @@ const FacultyAllocation: React.FC = () => {
               </div>
               <div>
                 <CardTitle>All Faculty Allocations</CardTitle>
-                <CardDescription>View and manage all teaching allocations</CardDescription>
+                <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
+                  <div>Faculty with allocations <span className="font-semibold">{uniqueFacultyCount}</span> of <span className="font-semibold">{faculty.length}</span></div>
+                  <div className="text-muted-foreground">•</div>
+                  <div>{allocations.length} allocation{allocations.length !== 1 ? 's' : ''}</div>
+                  {unallocatedFaculty.length > 0 && (
+                    <Button variant="link" size="sm" className="ml-2 text-xs p-0" onClick={() => setShowUnallocated(true)}>
+                      Show unallocated ({unallocatedFaculty.length})
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           </CardHeader>
@@ -521,20 +554,34 @@ const FacultyAllocation: React.FC = () => {
             ) : (
               <div className="space-y-3">
                 {/* Group allocations by faculty */}
-                {faculty.filter(f => allocations.some(a => a.facultyId === f.id)).map((facultyMember) => {
+                {faculty
+                  .filter(f => allocations.some(a => a.facultyId === f.id))
+                  .sort((a, b) => {
+                    // If selectedFaculty is set, prioritize it
+                    if (selectedFaculty) {
+                      if (a.id === selectedFaculty) return -1;
+                      if (b.id === selectedFaculty) return 1;
+                    }
+                    // Otherwise sort alphabetically by name
+                    return a.name.localeCompare(b.name);
+                  })
+                  .map((facultyMember) => {
                   const facultyAllocations = allocations.filter(a => a.facultyId === facultyMember.id);
                   return (
-                    <Card key={facultyMember.id} className="overflow-hidden">
-                      <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10 border-b py-3">
+                    <Card key={facultyMember.id} className={`overflow-hidden ${facultyMember.id === selectedFaculty ? 'ring-2 ring-primary shadow-lg' : ''}`}>
+                      <CardHeader className={`${facultyMember.id === selectedFaculty ? 'bg-gradient-to-r from-primary/10 to-primary/20' : 'bg-gradient-to-r from-primary/5 to-primary/10'} border-b py-3`}>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-4">
-                            <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                            <div className={`h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 ${facultyMember.id === selectedFaculty ? 'bg-primary/30' : 'bg-primary/20'}`}>
                               <Users className="h-5 w-5 text-primary" />
                             </div>
                             <div className="flex items-center gap-4">
                               <h3 className="font-semibold text-base">{facultyMember.name}</h3>
                               <Badge variant="outline" className="text-xs">{facultyMember.employeeId}</Badge>
                               <Badge variant="secondary" className="text-xs">{facultyMember.designation}</Badge>
+                              {facultyMember.id === selectedFaculty && (
+                                <Badge variant="default" className="text-xs bg-primary">Selected</Badge>
+                              )}
                               <span className="text-sm text-muted-foreground font-medium">
                                 {facultyAllocations.length} allocation{facultyAllocations.length !== 1 ? 's' : ''}
                               </span>
@@ -561,7 +608,7 @@ const FacultyAllocation: React.FC = () => {
                                     </div>
                                     <div className="flex items-center gap-2">
                                       <Calendar className="h-4 w-4 text-primary" />
-                                      <span className="text-sm font-medium">Years:</span>
+                                      <span className="text-sm font-medium">Year:</span>
                                       {allocation.years.map(year => (
                                         <Badge key={year} variant="outline" className="text-xs">{year}</Badge>
                                       ))}
@@ -610,6 +657,33 @@ const FacultyAllocation: React.FC = () => {
         </Card>
       </div>
 
+      <Dialog open={showUnallocated} onOpenChange={setShowUnallocated}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Unallocated faculty</DialogTitle>
+            <DialogDescription>These faculty members currently have no teaching allocations.</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-64 overflow-auto space-y-2 mt-2">
+            {unallocatedFaculty.length === 0 ? (
+              <div className="text-sm text-muted-foreground">All faculty have allocations.</div>
+            ) : (
+              unallocatedFaculty.map(f => (
+                <div key={f.id} className="flex items-center justify-between p-2 border rounded-md">
+                  <div>
+                    <div className="font-medium">{f.name}</div>
+                    <div className="text-xs text-muted-foreground">{f.employeeId} • {f.email}</div>
+                  </div>
+                  <Button size="sm" variant="ghost" onClick={() => setShowUnallocated(false)}>Close</Button>
+                </div>
+              ))
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowUnallocated(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={!!deletingAllocation} onOpenChange={() => setDeletingAllocation(null)}>
         <AlertDialogContent>
@@ -644,7 +718,7 @@ const FacultyAllocation: React.FC = () => {
             <div className="text-sm space-y-1">
               <div><strong>Course:</strong> {deletingSubject?.allocation.course}</div>
               <div><strong>Department:</strong> {deletingSubject?.allocation.department}</div>
-              <div><strong>Years:</strong> {deletingSubject?.allocation.years.join(', ')}</div>
+              <div><strong>Year:</strong> {deletingSubject?.allocation.years.join(', ')}</div>
               <div><strong>Subject:</strong> {deletingSubject?.allocation.subjects[deletingSubject.subjectIndex]?.name} ({deletingSubject?.allocation.subjects[deletingSubject.subjectIndex]?.code || 'N/A'}) - {deletingSubject?.allocation.subjects[deletingSubject.subjectIndex]?.type || 'N/A'}</div>
             </div>
           </div>

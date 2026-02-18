@@ -6,6 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from '@/components/ui/pagination';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Check, ChevronsUpDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   departmentsApi,
@@ -28,6 +32,7 @@ import {
   Download,
   Eye,
   Clock,
+  X,
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
 import { format, isAfter } from 'date-fns';
@@ -45,6 +50,7 @@ const FacultyDetails: React.FC = () => {
   const [submissions, setSubmissions] = useState<FeedbackSubmission[]>([]);
   const [sessions, setSessions] = useState<FeedbackSession[]>([]);
   const [selectedFaculty, setSelectedFaculty] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
   const [sessionPageSelected, setSessionPageSelected] = useState(1);
   const [sessionPageIndividual, setSessionPageIndividual] = useState(1);
   const sessionsPerPage = 5;
@@ -82,7 +88,7 @@ const FacultyDetails: React.FC = () => {
     };
 
     loadData();
-  }, [user?.collegeId, user]);
+  }, [user?.collegeId]);
 
   // Filter submissions based on selected time range
   const filteredSubmissions = currentFacultySubmissions;
@@ -331,69 +337,69 @@ const FacultyDetails: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle>Faculty Performance Overview</CardTitle>
-              <p className="text-sm text-muted-foreground">Click on any faculty member to view detailed analysis</p>
+              <p className="text-sm text-muted-foreground">Select a faculty member to view detailed analysis</p>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-                {faculty.map((member) => {
-                  const memberSubs = submissions.filter(sub => sub.facultyId === member.id);
-                  const avgRating = memberSubs.length > 0
-                    ? memberSubs.reduce((acc, sub) => {
-                        const ratings = sub.responses.filter(r => r.rating).map(r => r.rating || 0);
-                        return acc + (ratings.reduce((sum, r) => sum + r, 0) / ratings.length || 0);
-                      }, 0) / memberSubs.length
-                    : 0;
-
-                  const departmentName = departments.find(d => d.id === member.departmentId)?.name || 'Unknown';
-
-                  return (
-                    <div
-                      key={member.id}
-                      onClick={() => setSelectedFaculty(member.id)}
-                      className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                        selectedFaculty === member.id ? 'ring-2 ring-primary bg-primary/5' : 'hover:bg-secondary/10'
-                      }`}
+              <div className="flex items-center space-x-2">
+                <span className="text-sm font-medium">Select Faculty:</span>
+                <Popover open={open} onOpenChange={setOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={open}
+                      className="w-[300px] justify-between"
                     >
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                          <span className="text-xs font-semibold text-primary">
-                            {member.name.split(' ').map(n => n[0]).join('').toUpperCase()}
-                          </span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-medium truncate">{member.name}</h4>
-                          <p className="text-xs text-muted-foreground">{member.designation}</p>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">Rating</span>
-                          <div className="flex items-center gap-1">
-                            <div className="flex text-yellow-400">
-                              {[1, 2, 3, 4, 5].map((star) => (
-                                <span key={star} className="text-xs">
-                                  {star <= Math.round(avgRating) ? '★' : '☆'}
-                                </span>
-                              ))}
-                            </div>
-                            <span className="text-sm font-medium">{avgRating.toFixed(1)}</span>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">Responses</span>
-                          <span className="text-sm font-medium">{memberSubs.length}</span>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">Department</span>
-                          <span className="text-xs text-muted-foreground truncate max-w-24">{departmentName}</span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                      {selectedFaculty
+                        ? faculty.find((f) => f.id === selectedFaculty)?.name
+                        : "Select faculty..."}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[300px] p-0">
+                    <Command>
+                      <CommandInput placeholder="Search faculty..." />
+                      <CommandList>
+                        <CommandEmpty>No faculty found.</CommandEmpty>
+                        <CommandGroup>
+                          {faculty.map((member) => (
+                            <CommandItem
+                              key={member.id}
+                              value={member.name}
+                              onSelect={() => {
+                                setSelectedFaculty(member.id === selectedFaculty ? null : member.id);
+                                setOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  selectedFaculty === member.id ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {member.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+                {selectedFaculty && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">
+                      Selected: {faculty.find((f) => f.id === selectedFaculty)?.name}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedFaculty(null)}
+                      className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -475,7 +481,7 @@ const FacultyDetails: React.FC = () => {
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-3">
                         <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                          <span className="text-lg font-semibold text-primary">
+                          <span className="text-xs font-semibold text-primary">
                             {selectedFacultyData.name.split(' ').map(n => n[0]).join('').toUpperCase()}
                           </span>
                         </div>

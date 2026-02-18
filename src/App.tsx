@@ -16,10 +16,13 @@ import AdminDashboard from "@/pages/admin/AdminDashboard";
 import FacultyDetails from "@/pages/admin/FacultyDetails";
 import FacultyAllocation from "@/pages/admin/FacultyAllocation";
 import SessionResponses from "@/pages/admin/SessionResponses";
+import AdminHelpSection from "@/pages/admin/HelpSection";
 import { HodDashboard } from "@/pages/hod/HodDashboard";
 import HodProfileSettings from "@/pages/hod/HodProfileSettings";
+import HodHelpSection from "@/pages/hod/HelpSection";
 import { FacultyDashboard } from "@/pages/faculty/FacultyDashboard";
 import FacultyProfileSettings from "@/pages/faculty/FacultyProfileSettings";
+import FacultyHelpSection from "@/pages/faculty/HelpSection";
 import { AnonymousFeedback } from "@/pages/feedback/AnonymousFeedback";
 import NotFound from "@/pages/NotFound";
 import SeedData from "@/pages/SeedData";
@@ -33,7 +36,7 @@ const App = () => {
         <TooltipProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter>
+          <BrowserRouter basename="/">
             <Routes>
             {/* Public Routes */}
             <Route path="/" element={<Landing />} />
@@ -51,6 +54,7 @@ const App = () => {
             <Route path="/super-admin/sessions" element={<SuperAdminDashboard />} />
             <Route path="/super-admin/sessions/:sessionId/responses" element={<SuperAdminDashboard />} />
             <Route path="/super-admin/question-bank" element={<SuperAdminDashboard />} />
+            <Route path="/super-admin/help-portal" element={<SuperAdminDashboard />} />
 
             {/* Admin Routes */}
             <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
@@ -60,9 +64,11 @@ const App = () => {
               <Route path="/admin/sessions/:sessionId/responses" element={<SessionResponses />} />
               <Route path="/admin/departments" element={<AdminDashboard />} />
               <Route path="/admin/faculty" element={<AdminDashboard />} />
+              <Route path="/admin/bulk-email" element={<AdminDashboard />} />
               <Route path="/admin/faculty-allocation" element={<FacultyAllocation />} />
               <Route path="/admin/faculty-details" element={<FacultyDetails />} />
               <Route path="/admin/questions" element={<AdminDashboard />} />
+              <Route path="/admin/help" element={<AdminHelpSection />} />
             </Route>
 
             {/* HOD Routes */}
@@ -70,12 +76,14 @@ const App = () => {
               <Route path="/hod/dashboard" element={<HodDashboard />} />
               <Route path="/hod/performance" element={<HodDashboard />} />
               <Route path="/hod/profile" element={<HodProfileSettings />} />
+              <Route path="/hod/help" element={<HodHelpSection />} />
             </Route>
 
             {/* Faculty Routes */}
             <Route element={<DashboardLayout allowedRoles={['faculty']} />}>
               <Route path="/faculty/dashboard" element={<FacultyDashboard />} />
               <Route path="/faculty/profile" element={<FacultyProfileSettings />} />
+              <Route path="/faculty/help" element={<FacultyHelpSection />} />
             </Route>
 
             {/* Catch-all */}

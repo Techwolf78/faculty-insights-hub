@@ -18,32 +18,24 @@ export const ICEMLogin: React.FC = () => {
 
   // Handle navigation when user data becomes available after login
   useEffect(() => {
-    console.log('useEffect triggered: user =', user, 'isLoading =', isLoading);
     if (user && !isLoading) {
-      console.log('Navigating user with role:', user.role);
-      switch (user.role) {
+      const roleToNavigate = user.activeRole || user.role;
+      switch (roleToNavigate) {
         case 'superAdmin':
-          console.log('Navigating to /super-admin');
           navigate('/super-admin');
           break;
         case 'admin':
-          console.log('Navigating to /admin/dashboard');
           navigate('/admin/dashboard');
           break;
         case 'hod':
-          console.log('Navigating to /hod/dashboard');
           navigate('/hod/dashboard');
           break;
         case 'faculty':
-          console.log('Navigating to /faculty/dashboard');
           navigate('/faculty/dashboard');
           break;
         default:
-          console.log('Navigating to /');
           navigate('/');
       }
-    } else {
-      console.log('Not navigating: user or isLoading condition not met');
     }
   }, [user, isLoading, navigate]);
 
@@ -52,38 +44,21 @@ export const ICEMLogin: React.FC = () => {
     setError('');
     setIsSubmitting(true);
 
-    console.log('Starting login process');
     const result = await login(email, password);
-    console.log('Login result:', result);
 
     if (!result.success) {
       setError(result.error || 'Login failed');
       setIsSubmitting(false);
     } else {
-      console.log('Login successful, setting isSubmitting to false');
       setIsSubmitting(false);
     }
   };
 
-  const demoCredentials = [
-    { role: 'ICEM Admin', email: 'admin@icem.edu', password: 'password123' },
-    { role: 'ICEM HOD (CS)', email: 'hod.cs@icem.edu', password: 'password123' },
-    { role: 'ICEM HOD (EE)', email: 'hod.ee@icem.edu', password: 'password123' },
-    { role: 'ICEM Faculty 1', email: 'faculty1@icem.edu', password: 'password123' },
-    { role: 'ICEM Faculty 2', email: 'faculty2@icem.edu', password: 'password123' },
-  ];
-
-  const fillCredentials = (email: string, password: string) => {
-    setEmail(email);
-    setPassword(password);
-    setError('');
-  };
-
   return (
     <div className="min-h-screen flex">
-      {/* Left Panel - ICEM Branding */}
+
       <div className="hidden lg:flex lg:w-1/2 gradient-hero relative overflow-hidden">
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Cg%20fill%3D%22%23ffffff%22%20fill-opacity%3D%220.05%22%3E%3Cpath%20d%3D%22M36%2034v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6%2034v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6%204V0H4v4H0v2h4v4h2V6h4V4H6z%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E')] opacity-50" />
+        {/* decorative SVG removed to eliminate stray punctuation in top-left */}
 
         <div className="relative z-10 flex flex-col justify-center items-center px-12 xl:px-20 text-center">
           <div className="flex flex-col items-center gap-6 mb-8">
@@ -106,7 +81,6 @@ export const ICEMLogin: React.FC = () => {
         </div>
       </div>
 
-      {/* Right Panel - Login Form */}
       <div className="flex-1 flex items-center justify-center p-6 bg-background">
         <div className="w-full max-w-md">
           {/* Mobile Logo */}
@@ -186,31 +160,6 @@ export const ICEMLogin: React.FC = () => {
               )}
             </Button>
           </form>
-
-          <div className="mt-8">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-border" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">Demo Credentials</span>
-              </div>
-            </div>
-
-            <div className="mt-4 space-y-2">
-              {demoCredentials.map((cred) => (
-                <button
-                  key={cred.role}
-                  type="button"
-                  onClick={() => fillCredentials(cred.email, cred.password)}
-                  className="w-full flex items-center justify-between p-3 rounded-lg border border-border hover:bg-secondary transition-colors text-sm"
-                >
-                  <span className="font-medium text-foreground">{cred.role}</span>
-                  <span className="text-muted-foreground">{cred.email}</span>
-                </button>
-              ))}
-            </div>
-          </div>
 
           <p className="mt-8 text-center text-sm text-muted-foreground">
             <Link to="/" className="hover:text-primary transition-colors">

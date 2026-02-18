@@ -19,6 +19,7 @@ import {
   useSessionsByDepartment,
   useDepartmentByHodId,
   useDepartmentByName,
+  useCollege,
 } from '@/hooks/useCollegeData';
 import { Users, TrendingUp, MessageSquare, BarChart3, Filter, BookOpen, Award } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, LineChart, Line } from 'recharts';
@@ -74,6 +75,9 @@ export const HodDashboard: React.FC = () => {
   const { data: departmentSubmissions = [] } = useSubmissionsByDepartment(department?.id);
 
   const isLoading = deptLoading || facultyLoading || questionsLoading || sessionsLoading || hodProfileLoading;
+
+  // College info (for header logo)
+  const { data: college } = useCollege(user?.collegeId);
 
   // Subject filter state
   const [selectedSubject, setSelectedSubject] = useState<string>('all');
@@ -192,7 +196,7 @@ export const HodDashboard: React.FC = () => {
     .slice(0, 20);
 
     return allComments;
-}, [filteredSubmissions, faculty, sessions, department?.id, hodFacultyProfile?.id]);
+}, [filteredSubmissions, faculty, sessions, department?.id]);
   // HOD's Personal Performance Calculations (similar to Faculty Dashboard)
   const hodUniqueSubjects = useMemo(() => {
     const subjects = new Set<string>();
@@ -333,6 +337,7 @@ export const HodDashboard: React.FC = () => {
             <DashboardHeader
               title="My Performance"
               subtitle="View your personal feedback scores and student comments"
+              college={college}
             />
 
             <div className="p-6 space-y-6">
@@ -633,6 +638,7 @@ export const HodDashboard: React.FC = () => {
             <DashboardHeader
               title="Department Reports"
               subtitle="Generate and download comprehensive reports"
+              college={college}
             />
 
             <div className="p-6 space-y-6">
@@ -679,6 +685,7 @@ export const HodDashboard: React.FC = () => {
             <DashboardHeader
               title={`${department?.name || 'Department'} Dashboard`}
               subtitle="Department performance overview and faculty analytics"
+              college={college}
               rightElement={
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">Subject:</span>
@@ -706,27 +713,6 @@ export const HodDashboard: React.FC = () => {
                 </div>
               }
             />
-
-            {/* Diagnostic Helper - Show if no data */}
-            {(faculty.length === 0 || departmentSubmissions.length === 0) && !isLoading && (
-              <div className="p-6">
-                <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                  <p className="text-sm font-medium text-amber-900 mb-2">📊 Data Loading Information</p>
-                  <ul className="text-xs text-amber-800 space-y-1 font-mono">
-                    <li>✓ User: {user?.name} ({user?.email})</li>
-                    <li>✓ HOD Department from allocations: {hodDepartmentName || "❌ Not loaded"}</li>
-                    <li>✓ Department: {department?.name || "❌ Not loaded"}</li>
-                    <li>✓ College ID: {user?.collegeId || "❌ Not set"}</li>
-                    <li>✓ Faculty loaded: {faculty.length}</li>
-                    <li>✓ Submissions loaded: {departmentSubmissions.length}</li>
-                    <li>✓ Sessions loaded: {sessions.length}</li>
-                  </ul>
-                  {(!department || !user?.collegeId) && (
-                    <p className="mt-2 text-xs text-amber-700 font-semibold">⚠️ Please ensure your profile has collegeId set and you are assigned as HOD of a department.</p>
-                  )}
-                </div>
-              </div>
-            )}
 
             <div className="p-6 space-y-6">
               {/* Stats Grid */}

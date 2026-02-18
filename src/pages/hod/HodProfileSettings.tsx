@@ -5,13 +5,14 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { useFacultyByUserId } from '@/hooks/useCollegeData';
+import { useFacultyByUserId, useDepartmentByName } from '@/hooks/useCollegeData';
 import { User, Mail, Phone, GraduationCap, Building, Lock, Eye, EyeOff } from 'lucide-react';
 import { reauthenticateWithCredential, EmailAuthProvider, updatePassword } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
+import { facultyAllocationsApi, feedbackSessionsApi, FacultyAllocation, FeedbackSession } from '@/lib/storage';
 
 const HodProfileSettings: React.FC = () => {
   const { user } = useAuth();
@@ -23,6 +24,26 @@ const HodProfileSettings: React.FC = () => {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [hodAllocations, setHodAllocations] = useState<FacultyAllocation[]>([]);
+  const [hodSessions, setHodSessions] = useState<FeedbackSession[]>([]);
+  const [hodDepartmentName, setHodDepartmentName] = useState<string | null>(null);
+
+  // Get department information
+  const { data: department } = useDepartmentByName(hodDepartmentName, user?.collegeId);
+
+  useEffect(() => {
+    if (hodProfile?.id) {
+      facultyAllocationsApi.getByFaculty(hodProfile.id).then(allocations => {
+        setHodAllocations(allocations);
+        // Set department name from allocations
+        if (allocations.length > 0) {
+          const deptName = allocations[0].department;
+          setHodDepartmentName(deptName);
+        }
+      });
+      feedbackSessionsApi.getByFaculty(hodProfile.id).then(setHodSessions);
+    }
+  }, [hodProfile?.id]);
 
   const handleChangePassword = async () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
@@ -150,7 +171,7 @@ const HodProfileSettings: React.FC = () => {
                 Profile Information
               </CardTitle>
               <CardDescription>
-                Your basic profile information. Contact your college admin to update your details.
+                Your basic profile information. Contact your college admin to update your details. For support, email feedback.support@indiraicem.ac.in
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -188,18 +209,18 @@ const HodProfileSettings: React.FC = () => {
                     <Building className="h-4 w-4" />
                     Department
                   </Label>
-                  <p className="text-sm text-muted-foreground mt-1">{hodProfile.departmentId}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{department?.name || 'Not assigned'}</p>
                 </div>
                 <div>
                   <Label className="text-sm font-medium flex items-center gap-2">
                     <GraduationCap className="h-4 w-4" />
                     Course
                   </Label>
-                  <p className="text-sm text-muted-foreground mt-1">{hodProfile.course}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{hodAllocations[0]?.course || 'Not assigned'}</p>
                 </div>
                 <div>
                   <Label className="text-sm font-medium">Academic Year</Label>
-                  <p className="text-sm text-muted-foreground mt-1">{hodProfile.academicYear}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{hodSessions[0]?.academicYear || 'Not assigned'}</p>
                 </div>
               </div>
             </CardContent>

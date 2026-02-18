@@ -26,13 +26,13 @@ const devFirebaseConfig = {
 
 // Production Firebase config (same as dev for now - update with actual prod values when available)
 const prodFirebaseConfig = {
-  apiKey: "AIzaSyBmf_qgSR_f7aY69IzSXHxuWLEo69KzClE",
-  authDomain: "feedback-builder-fe792.firebaseapp.com",
-  projectId: "feedback-builder-fe792",
-  storageBucket: "feedback-builder-fe792.firebasestorage.app",
-  messagingSenderId: "898918068260",
-  appId: "1:898918068260:web:3bb691f233e937c62ae8b1",
-  measurementId: "G-79BFWGPJE5"
+  apiKey: "AIzaSyDph_LOtSSDyUm2-hyyRVkXdGjk5l_n37U",
+  authDomain: "faculty-feedback-c51ae.firebaseapp.com",
+  projectId: "faculty-feedback-c51ae",
+  storageBucket: "faculty-feedback-c51ae.firebasestorage.app",
+  messagingSenderId: "54575983908",
+  appId: "1:54575983908:web:ce9a45ea88294b23ca57b1",
+  measurementId: "G-GDJYKJ41ZY"
 };
 
 // Validate required environment variables
@@ -47,11 +47,17 @@ const requiredEnvVars = [
 
 const missingVars = requiredEnvVars.filter(varName => !import.meta.env[varName]);
 
-// Use production config if all required env vars are present, otherwise use prod config, then dev as final fallback
-const configToUse = missingVars.length === 0 ? productionConfig : prodFirebaseConfig;
-
-if (missingVars.length > 0) {
-  console.warn(`Missing Firebase environment variables: ${missingVars.join(', ')}. Using production configuration.`);
+// Use dev config for localhost, prod config for production domain, otherwise fallback to env/prod config
+let configToUse: typeof productionConfig;
+if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+  configToUse = devFirebaseConfig;
+} else if (typeof window !== 'undefined' && window.location.hostname === 'faculty.gryphonacademy.co.in') {
+  configToUse = prodFirebaseConfig;
+} else {
+  configToUse = missingVars.length === 0 ? productionConfig : prodFirebaseConfig;
+  if (missingVars.length > 0) {
+    console.warn(`Missing Firebase environment variables: ${missingVars.join(', ')}. Using production configuration.`);
+  }
 }
 
 export const firebaseConfig = configToUse;

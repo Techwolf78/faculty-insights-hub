@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useFacultyByUserId } from '@/hooks/useCollegeData';
 import { User, Mail, Phone, GraduationCap, Building, Lock, Eye, EyeOff } from 'lucide-react';
 import { reauthenticateWithCredential, EmailAuthProvider, updatePassword } from 'firebase/auth';
+import { FirebaseError } from 'firebase/app';
 import { auth } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -58,11 +59,11 @@ const FacultyProfileSettings: React.FC = () => {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Password change error:', error);
-      if (error.code === 'auth/wrong-password') {
+      if (error instanceof Error && 'code' in error && error.code === 'auth/wrong-password') {
         toast.error('Current password is incorrect');
-      } else if (error.code === 'auth/weak-password') {
+      } else if (error instanceof Error && 'code' in error && error.code === 'auth/weak-password') {
         toast.error('New password is too weak');
       } else {
         toast.error('Failed to change password');
@@ -117,7 +118,7 @@ const FacultyProfileSettings: React.FC = () => {
                 Profile Information
               </CardTitle>
               <CardDescription>
-                Your basic profile information. Contact your college admin to update your password or other details.
+                Your basic profile information. Contact your college admin to update your password or other details. For support, email feedback.support@indiraicem.ac.in
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -153,20 +154,20 @@ const FacultyProfileSettings: React.FC = () => {
                 <div>
                   <Label className="text-sm font-medium flex items-center gap-2">
                     <Building className="h-4 w-4" />
-                    Department
+                    Role
                   </Label>
-                  <p className="text-sm text-muted-foreground mt-1">{facultyProfile.departmentId}</p>
+                  <p className="text-sm text-muted-foreground mt-1 capitalize">{facultyProfile.role}</p>
                 </div>
                 <div>
                   <Label className="text-sm font-medium flex items-center gap-2">
                     <GraduationCap className="h-4 w-4" />
-                    Course
+                    Designation
                   </Label>
-                  <p className="text-sm text-muted-foreground mt-1">{facultyProfile.course}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{facultyProfile.designation}</p>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">Academic Year</Label>
-                  <p className="text-sm text-muted-foreground mt-1">{facultyProfile.academicYear}</p>
+                  <Label className="text-sm font-medium">Experience</Label>
+                  <p className="text-sm text-muted-foreground mt-1">{facultyProfile.experience} years</p>
                 </div>
               </div>
             </CardContent>

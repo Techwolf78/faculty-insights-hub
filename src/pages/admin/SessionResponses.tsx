@@ -36,7 +36,9 @@ const SessionResponses: React.FC = () => {
 
         setSession(sessionData);
         setSubmissions(submissionsData);
-        setQuestions(questionsData.filter(q => q.collegeId === sessionData?.collegeId));
+        // Only filter questions that belong to this session's college
+        const sessionQuestions = questionsData.filter(q => q.collegeId === sessionData?.collegeId);
+        setQuestions(sessionQuestions);
       } catch (error) {
         console.error('Error loading session responses:', error);
         toast.error('Failed to load session responses');

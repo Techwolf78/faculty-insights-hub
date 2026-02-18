@@ -13,10 +13,13 @@ import {
   where,
   orderBy,
   limit,
+  startAfter,
   Timestamp,
   writeBatch,
   increment,
   runTransaction,
+  DocumentSnapshot,
+  DocumentData,
 } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { db } from './firebase';
@@ -57,6 +60,9 @@ export interface User {
   phone?: string;
   avatar?: string;
   role: 'superAdmin' | 'admin' | 'hod' | 'faculty';
+  // Multi-role support: for users with multiple roles
+  roles?: ('admin' | 'hod' | 'faculty')[];
+  activeRole?: 'admin' | 'hod' | 'faculty';
   collegeId?: string;
   departmentId?: string;
   isActive: boolean;
@@ -131,7 +137,7 @@ export interface FeedbackSession {
   academicYear: string;
   subject: string;
   subjectCode: string;
-  subjectType: 'Theory' | 'Practical';
+  subjectType: 'Theory' | 'Practical' | 'Tutorial';
   batch: string;
   semester?: string;
   accessMode: 'anonymous' | 'authenticated' | 'mixed';
@@ -258,6 +264,26 @@ export interface AccessCode {
   usedAt?: Timestamp;
   expiresAt: Timestamp;
   createdAt: Timestamp;
+}
+
+// Help Ticket Support System
+export interface HelpTicket {
+  id: string;
+  title: string;
+  description: string;
+  category: 'bug' | 'feature' | 'help' | 'general';
+  priority: 'low' | 'medium' | 'high';
+  status: 'open' | 'in-progress' | 'on-hold' | 'pending-info' | 'resolved' | 'rejected' | 'closed';
+  createdBy: string; // userId
+  collegeId: string;
+  departmentId?: string; // for HOD/Admin scoping
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  remarks: Array<{
+    text: string;
+    adminId: string;
+    timestamp: Timestamp;
+  }>;
 }
 
 // Legacy types for backward compatibility
@@ -564,6 +590,49 @@ export const facultyApi = {
     return facultyWithRoles;
   },
 
+  getByCollegePaginated: async (collegeId: string, pageSize: number = 20, startAfterId?: string): Promise<{ data: Faculty[], hasMore: boolean, lastDoc?: DocumentSnapshot<DocumentData> }> => {
+    let q = query(collection(db, 'faculty'), where('collegeId', '==', collegeId), limit(pageSize + 1)); // Temporarily remove orderBy to test
+
+    if (startAfterId) {
+      const startDoc = await getDoc(doc(db, 'faculty', startAfterId));
+      if (startDoc.exists()) {
+        q = query(collection(db, 'faculty'), where('collegeId', '==', collegeId), startAfter(startDoc), limit(pageSize + 1));
+      }
+    }
+
+    const querySnapshot = await getDocs(q);
+    const docs = querySnapshot.docs;
+    const hasMore = docs.length > pageSize;
+    const dataDocs = hasMore ? docs.slice(0, pageSize) : docs;
+
+    const facultyData = dataDocs.map(doc => ({ id: doc.id, ...doc.data() } as Omit<Faculty, 'role'>));
+
+    const isAuthenticated = getAuth().currentUser !== null;
+
+    // Fetch roles from user documents only if authenticated
+    const facultyWithRoles = await Promise.all(
+      facultyData.map(async (faculty) => {
+        if (!isAuthenticated) {
+          return { ...faculty, role: 'faculty' as const };
+        }
+        try {
+          const userDoc = await getDoc(doc(db, 'users', faculty.userId));
+          const role = userDoc.exists() ? (userDoc.data() as User).role : 'faculty';
+          return { ...faculty, role: role as 'faculty' | 'hod' };
+        } catch (error) {
+          console.error(`Error fetching role for faculty ${faculty.id}:`, error);
+          return { ...faculty, role: 'faculty' as const };
+        }
+      })
+    );
+
+    return {
+      data: facultyWithRoles,
+      hasMore,
+      lastDoc: dataDocs.length > 0 ? dataDocs[dataDocs.length - 1] : undefined
+    };
+  },
+
   getByDepartment: async (departmentIdOrName: string): Promise<Faculty[]> => {
     try {
       // First, try to get department by ID to get its name
@@ -692,7 +761,6 @@ export const facultyApi = {
   bulkCreate: async (facultyData: Array<{
     name: string;
     email: string;
-    password: string;
     role: 'faculty' | 'hod';
     designation?: string;
     specialization?: string;
@@ -704,7 +772,6 @@ export const facultyApi = {
     errors: Array<{ index: number; data: {
       name: string;
       email: string;
-      password: string;
       role: 'faculty' | 'hod';
       designation?: string;
       specialization?: string;
@@ -718,7 +785,6 @@ export const facultyApi = {
       errors: [] as Array<{ index: number; data: {
         name: string;
         email: string;
-        password: string;
         role: 'faculty' | 'hod';
         designation?: string;
         specialization?: string;
@@ -742,10 +808,6 @@ export const facultyApi = {
           results.errors.push({ index: i, data: member, error: 'Email is required' });
           continue;
         }
-        if (!member.password?.trim()) {
-          results.errors.push({ index: i, data: member, error: 'Password is required' });
-          continue;
-        }
         if (!member.role || !['faculty', 'hod'].includes(member.role)) {
           results.errors.push({ index: i, data: member, error: 'Role must be either "faculty" or "hod"' });
           continue;
@@ -762,11 +824,14 @@ export const facultyApi = {
         // Generate next faculty ID
         const employeeId = await facultyApi.generateNextFacultyId(collegeId);
 
+        // Generate password based on employeeId
+        const password = employeeId.replace('FAC', 'Fac') + '@';
+
         // Create user account first
         const { createUserWithEmailAndPassword } = await import('firebase/auth');
         const auth = getAuth();
         
-        const userCredential = await createUserWithEmailAndPassword(auth, member.email, member.password);
+        const userCredential = await createUserWithEmailAndPassword(auth, member.email, password);
         const userId = userCredential.user.uid;
 
         // Set user role
@@ -900,7 +965,7 @@ export const facultyAllocationsApi = {
     for (const subject of subjects) {
       for (const alloc of relevantAllocations) {
         const hasSubject = alloc.subjects.some(
-          (s) => s.name === subject.name && s.code === subject.code
+          (s) => s.name === subject.name && s.code === subject.code && s.type === subject.type
         );
         if (hasSubject) {
           // Fetch faculty name
@@ -963,7 +1028,7 @@ export const facultyAllocationsApi = {
 
         if (existing) {
           // Check if subject already exists in this batch
-          const subjectExists = existing.subjects.some(s => s.name === item.subjectName && s.code === item.subjectCode);
+          const subjectExists = existing.subjects.some(s => s.name === item.subjectName && s.code === item.subjectCode && s.type === item.subjectType);
           if (!subjectExists) {
             existing.subjects.push({
               name: item.subjectName,
@@ -1958,6 +2023,134 @@ export const accessCodesApi = {
     } catch {
       return false;
     }
+  },
+};
+
+// ============================================================================
+// HELP TICKETS API
+// ============================================================================
+
+export const helpTicketsApi = {
+  create: async (ticket: Omit<HelpTicket, 'id' | 'createdAt' | 'updatedAt' | 'remarks'>): Promise<HelpTicket> => {
+    const now = Timestamp.now();
+    const docRef = await addDoc(collection(db, 'helpTickets'), {
+      ...ticket,
+      remarks: [],
+      createdAt: now,
+      updatedAt: now,
+    });
+    return { id: docRef.id, ...ticket, remarks: [], createdAt: now, updatedAt: now };
+  },
+
+  getById: async (id: string): Promise<HelpTicket | null> => {
+    const docSnap = await getDoc(doc(db, 'helpTickets', id));
+    if (docSnap.exists()) {
+      return { id: docSnap.id, ...docSnap.data() } as HelpTicket;
+    }
+    return null;
+  },
+
+  getByUserId: async (userId: string): Promise<HelpTicket[]> => {
+    const q = query(collection(db, 'helpTickets'), where('createdBy', '==', userId), orderBy('createdAt', 'desc'));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as HelpTicket));
+  },
+
+  getByCollege: async (collegeId: string): Promise<HelpTicket[]> => {
+    const q = query(collection(db, 'helpTickets'), where('collegeId', '==', collegeId), orderBy('createdAt', 'desc'));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as HelpTicket));
+  },
+
+  getByCollegePaginated: async (collegeId: string, pageSize: number = 20, startAfterId?: string): Promise<{ data: HelpTicket[]; hasMore: boolean }> => {
+    let q = query(collection(db, 'helpTickets'), where('collegeId', '==', collegeId), orderBy('createdAt', 'desc'), limit(pageSize + 1));
+
+    if (startAfterId) {
+      const startDoc = await getDoc(doc(db, 'helpTickets', startAfterId));
+      if (startDoc.exists()) {
+        q = query(collection(db, 'helpTickets'), where('collegeId', '==', collegeId), orderBy('createdAt', 'desc'), startAfter(startDoc), limit(pageSize + 1));
+      }
+    }
+
+    const querySnapshot = await getDocs(q);
+    const docs = querySnapshot.docs;
+    const hasMore = docs.length > pageSize;
+    const dataDocs = hasMore ? docs.slice(0, pageSize) : docs;
+
+    return {
+      data: dataDocs.map(doc => ({ id: doc.id, ...doc.data() } as HelpTicket)),
+      hasMore,
+    };
+  },
+
+  getByDepartment: async (departmentId: string): Promise<HelpTicket[]> => {
+    const q = query(collection(db, 'helpTickets'), where('departmentId', '==', departmentId), orderBy('createdAt', 'desc'));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as HelpTicket));
+  },
+
+  getByStatus: async (collegeId: string, status: HelpTicket['status']): Promise<HelpTicket[]> => {
+    const q = query(
+      collection(db, 'helpTickets'),
+      where('collegeId', '==', collegeId),
+      where('status', '==', status),
+      orderBy('createdAt', 'desc')
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as HelpTicket));
+  },
+
+  getAll: async (): Promise<HelpTicket[]> => {
+    const q = query(collection(db, 'helpTickets'), orderBy('createdAt', 'desc'));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as HelpTicket));
+  },
+
+  update: async (id: string, updates: Partial<Omit<HelpTicket, 'id' | 'createdAt' | 'createdBy'>>): Promise<HelpTicket | null> => {
+    const docRef = doc(db, 'helpTickets', id);
+    await updateDoc(docRef, { ...updates, updatedAt: Timestamp.now() });
+    const updatedDoc = await getDoc(docRef);
+    if (updatedDoc.exists()) {
+      return { id: updatedDoc.id, ...updatedDoc.data() } as HelpTicket;
+    }
+    return null;
+  },
+
+  updateStatus: async (id: string, status: HelpTicket['status']): Promise<HelpTicket | null> => {
+    const docRef = doc(db, 'helpTickets', id);
+    await updateDoc(docRef, { status, updatedAt: Timestamp.now() });
+    const updatedDoc = await getDoc(docRef);
+    if (updatedDoc.exists()) {
+      return { id: updatedDoc.id, ...updatedDoc.data() } as HelpTicket;
+    }
+    return null;
+  },
+
+  addRemark: async (id: string, remark: { text: string; adminId: string }): Promise<HelpTicket | null> => {
+    const docRef = doc(db, 'helpTickets', id);
+    const ticketDoc = await getDoc(docRef);
+    if (!ticketDoc.exists()) return null;
+
+    const ticket = ticketDoc.data() as HelpTicket;
+    const updatedRemarks = [
+      ...ticket.remarks,
+      {
+        text: remark.text,
+        adminId: remark.adminId,
+        timestamp: Timestamp.now(),
+      },
+    ];
+
+    await updateDoc(docRef, { remarks: updatedRemarks, updatedAt: Timestamp.now() });
+    const updatedDoc = await getDoc(docRef);
+    if (updatedDoc.exists()) {
+      return { id: updatedDoc.id, ...updatedDoc.data() } as HelpTicket;
+    }
+    return null;
+  },
+
+  delete: async (id: string): Promise<void> => {
+    await deleteDoc(doc(db, 'helpTickets', id));
   },
 };
 

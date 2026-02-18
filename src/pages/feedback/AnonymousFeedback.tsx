@@ -115,7 +115,7 @@ export const AnonymousFeedback: React.FC = () => {
       const timeoutId = setTimeout(() => {
         if (isValidatingRef.current) {
           console.error('Session validation timed out for sessionId:', sessionId);
-          setSessionError('Session validation is taking longer than expected. Please check your internet connection and try again. If the problem persists, contact your administrator.');
+          setSessionError('Session validation is taking longer than expected. Please check your internet connection and try again. If the problem persists, contact feedback.support@indiraicem.ac.in');
           setIsValidating(false);
           isValidatingRef.current = false;
         }
@@ -188,7 +188,7 @@ export const AnonymousFeedback: React.FC = () => {
 
         if (sortedQuestions.length === 0) {
           console.error('No questions found for college:', session.collegeId);
-          setSessionError('No questions found for this feedback session. Please contact your administrator.');
+          setSessionError('No questions found for this feedback session. Please contact feedback.support@indiraicem.ac.in');
           setIsValidating(false);
           isValidatingRef.current = false;
           clearTimeout(timeoutId);
@@ -344,7 +344,7 @@ export const AnonymousFeedback: React.FC = () => {
             <div className="flex h-auto w-auto items-center justify-center">
               <img
                 src="https://res.cloudinary.com/dcjmaapvi/image/upload/v1749719287/juqqmxevqyys5fbavatm.png"
-                alt="Gryphon Academy Logo"
+                alt="Gryphon Academy INSYT Logo"
                 className="h-auto w-36"
               />
             </div>

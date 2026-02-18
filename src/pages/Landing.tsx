@@ -63,7 +63,7 @@ export const Landing: React.FC = () => {
             <div className="flex items-center gap-3">
               <img
                 src="https://res.cloudinary.com/dcjmaapvi/image/upload/v1740489025/ga-hori_ylcnm3.png"
-                alt="Gryphon Academy Logo"
+                alt="Gryphon Academy INSYT Logo"
                 className="h-auto w-36"
               />
             </div>
@@ -219,7 +219,7 @@ export const Landing: React.FC = () => {
             <div className="flex items-center">
               <img
                 src="https://res.cloudinary.com/dcjmaapvi/image/upload/v1740489025/ga-hori_ylcnm3.png"
-                alt="Gryphon Academy Logo"
+                alt="Gryphon Academy INSYT Logo"
                 className="h-auto w-36"
               />
             </div>

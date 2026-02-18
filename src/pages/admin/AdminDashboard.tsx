@@ -83,6 +83,11 @@ import {
   Radar,
 } from 'recharts';
 import { Skeleton } from '@/components/ui/skeleton';
+import { DashboardOverview } from '@/components/admin/DashboardOverview';
+import { FacultyManagement } from '@/components/admin/FacultyManagement';
+import { BulkEmail } from '@/components/admin/BulkEmail';
+import { SessionManagement } from '@/components/admin/SessionManagement';
+import { DepartmentManagement } from '@/components/admin/DepartmentManagement';
 
 const CHART_COLORS = ['hsl(213, 96%, 16%)', 'hsl(213, 80%, 25%)', 'hsl(213, 60%, 35%)', 'hsl(160, 84%, 39%)'];
 
@@ -223,7 +228,7 @@ const AdminDashboard = () => {
   const [editingFaculty, setEditingFaculty] = useState<Faculty | null>(null);
   const [deletingFaculty, setDeletingFaculty] = useState<Faculty | null>(null);
   const [bulkCreateOpen, setBulkCreateOpen] = useState(false);
-  const [facultyRoleFilter, setFacultyRoleFilter] = useState<'all' | 'faculty' | 'hod'>('all');
+  const [facultyRoleFilter, setFacultyRoleFilter] = useState<'all' | 'faculty' | 'hod' | 'admin'>('all');
   const handleEditFaculty = (faculty: Faculty) => {
     setEditingFaculty(faculty);
     setFacultyFormOpen(true);
@@ -673,7 +678,7 @@ const AdminDashboard = () => {
         if (!sub.submittedAt) return false;
         const submissionDate = sub.submittedAt.toDate();
         const fromDate = dateRange.from ? new Date(dateRange.from) : null;
-        const toDate = dateRange.to ? new Date(dateRange.to) : null;
+        const toDate = dateRange.to ? new Date(dateRange.to + 'T23:59:59.999') : null;
 
         if (fromDate && toDate) {
           return submissionDate >= fromDate && submissionDate <= toDate;
@@ -850,973 +855,82 @@ const AdminDashboard = () => {
     switch (currentSection) {
       case 'dashboard':
         return (
-          <div className="min-h-screen">
-            <DashboardHeader
-              title="Dashboard"
-              subtitle={`Welcome back, ${user?.name}. Here's what's happening.`}
-              college={college}
-            />
-
-            {/* Hierarchical Filtering */}
-            <div className="p-6 border-b bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5 backdrop-blur-sm">
-              <div className="max-w-full mx-auto">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <BarChart3 className="h-4 w-4 text-primary" />
-                    </div>
-                    <div>
-                      <h3 className="font-display text-lg font-semibold text-foreground">Academic Structure Filters</h3>
-                      <p className="text-sm text-muted-foreground">Navigate through courses, departments, and more</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    {/* Active Filters Display */}
-                    {(selectedCourse !== 'all' || selectedYear !== 'all' || selectedDepartment !== 'all' || selectedSubject !== 'all' || selectedBatch !== 'all' || dateRange.from || dateRange.to) && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Active Filters:</span>
-                        <div className="flex flex-wrap gap-1">
-                          {selectedCourse !== 'all' && (
-                            <Badge variant="secondary" className="text-xs">
-                              Course: {selectedCourse}
-                              <button
-                                onClick={() => setSelectedCourse('all')}
-                                className="ml-1 hover:bg-secondary-foreground/20 rounded-full p-0.5"
-                              >
-                                ×
-                              </button>
-                            </Badge>
-                          )}
-                          {selectedYear !== 'all' && (
-                            <Badge variant="secondary" className="text-xs">
-                              Year: {selectedYear}
-                              <button
-                                onClick={() => setSelectedYear('all')}
-                                className="ml-1 hover:bg-secondary-foreground/20 rounded-full p-0.5"
-                              >
-                                ×
-                              </button>
-                            </Badge>
-                          )}
-                          {selectedDepartment !== 'all' && (
-                            <Badge variant="secondary" className="text-xs">
-                              Dept: {selectedDepartment}
-                              <button
-                                onClick={() => setSelectedDepartment('all')}
-                                className="ml-1 hover:bg-secondary-foreground/20 rounded-full p-0.5"
-                              >
-                                ×
-                              </button>
-                            </Badge>
-                          )}
-                          {selectedSubject !== 'all' && (
-                            <Badge variant="secondary" className="text-xs">
-                              Subject: {selectedSubject}
-                              <button
-                                onClick={() => setSelectedSubject('all')}
-                                className="ml-1 hover:bg-secondary-foreground/20 rounded-full p-0.5"
-                              >
-                                ×
-                              </button>
-                            </Badge>
-                          )}
-                          {selectedBatch !== 'all' && (
-                            <Badge variant="secondary" className="text-xs">
-                              Batch: {selectedBatch}
-                              <button
-                                onClick={() => setSelectedBatch('all')}
-                                className="ml-1 hover:bg-secondary-foreground/20 rounded-full p-0.5"
-                              >
-                                ×
-                              </button>
-                            </Badge>
-                          )}
-                          {(dateRange.from || dateRange.to) && (
-                            <Badge variant="secondary" className="text-xs">
-                              Date: {dateRange.from || 'Start'} - {dateRange.to || 'End'}
-                              <button
-                                onClick={() => setDateRange({ from: '', to: '' })}
-                                className="ml-1 hover:bg-secondary-foreground/20 rounded-full p-0.5"
-                              >
-                                ×
-                              </button>
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedCourse('all');
-                        setSelectedYear('all');
-                        setSelectedDepartment('all');
-                        setSelectedSubject('all');
-                        setSelectedBatch('all');
-                        setDateRange({ from: '', to: '' });
-                      }}
-                      className="text-xs"
-                    >
-                      <RefreshCw className="h-3 w-3 mr-1" />
-                      Reset Filters
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Building2 className="h-4 w-4 text-primary" />
-                      <Label htmlFor="course-select" className="text-sm font-medium">Course/Program</Label>
-                    </div>
-                    <Select value={selectedCourse} onValueChange={setSelectedCourse}>
-                      <SelectTrigger id="course-select" className="bg-background/80 backdrop-blur-sm border-primary/20 focus:border-primary">
-                        <SelectValue placeholder="Select Course" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Courses</SelectItem>
-                        {Object.keys(courseData).map(course => (
-                          <SelectItem key={course} value={course}>{course}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-primary" />
-                      <Label htmlFor="year-select" className="text-sm font-medium">Academic Year</Label>
-                    </div>
-                    <Select
-                      value={selectedYear}
-                      onValueChange={setSelectedYear}
-                      disabled={selectedCourse === 'all'}
-                    >
-                      <SelectTrigger id="year-select" className={`bg-background/80 backdrop-blur-sm ${selectedCourse === 'all' ? 'opacity-50' : 'border-primary/20 focus:border-primary'}`}>
-                        <SelectValue placeholder="Select Year" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Years</SelectItem>
-                        {selectedCourse !== 'all' && courseData[selectedCourse as keyof typeof courseData]?.years.map(year => (
-                          <SelectItem key={year} value={year}>{year}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4 text-primary" />
-                      <Label htmlFor="department-select" className="text-sm font-medium">Department</Label>
-                    </div>
-                    <Select
-                      value={selectedDepartment}
-                      onValueChange={setSelectedDepartment}
-                      disabled={selectedCourse === 'all' || selectedYear === 'all'}
-                    >
-                      <SelectTrigger id="department-select" className={`bg-background/80 backdrop-blur-sm ${selectedCourse === 'all' || selectedYear === 'all' ? 'opacity-50' : 'border-primary/20 focus:border-primary'}`}>
-                        <SelectValue placeholder="Select Department" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Departments</SelectItem>
-                        {selectedCourse !== 'all' && selectedYear !== 'all' && courseData[selectedCourse as keyof typeof courseData]?.yearDepartments?.[selectedYear]?.map(dept => (
-                          <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-primary" />
-                      <Label htmlFor="subject-select" className="text-sm font-medium">Subject</Label>
-                    </div>
-                    <Select
-                      value={selectedSubject}
-                      onValueChange={setSelectedSubject}
-                      disabled={selectedCourse === 'all' || selectedYear === 'all' || selectedDepartment === 'all'}
-                    >
-                      <SelectTrigger id="subject-select" className={`bg-background/80 backdrop-blur-sm ${selectedCourse === 'all' || selectedYear === 'all' || selectedDepartment === 'all' ? 'opacity-50' : 'border-primary/20 focus:border-primary'}`}>
-                        <SelectValue placeholder="Select Subject" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Subjects</SelectItem>
-                        {availableSubjects.map(subject => (
-                          <SelectItem key={subject} value={subject}>{subject}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <User className="h-4 w-4 text-primary" />
-                      <Label htmlFor="batch-select" className="text-sm font-medium">Batch</Label>
-                    </div>
-                    <Select 
-                      value={selectedBatch} 
-                      onValueChange={setSelectedBatch}
-                      disabled={selectedCourse === 'all' || selectedYear === 'all' || selectedDepartment === 'all' || selectedSubject === 'all'}
-                    >
-                      <SelectTrigger id="batch-select" className={`bg-background/80 backdrop-blur-sm ${selectedCourse === 'all' || selectedYear === 'all' || selectedDepartment === 'all' || selectedSubject === 'all' ? 'opacity-50' : 'border-primary/20 focus:border-primary'}`}>
-                        <SelectValue placeholder="Select Batch" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Batches</SelectItem>
-                        {availableBatches.map(batch => (
-                          <SelectItem key={batch} value={batch}>{batch}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-primary" />
-                      <Label className="text-sm font-medium">Date Range</Label>
-                    </div>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className={`w-full justify-start text-left font-normal bg-background/80 backdrop-blur-sm border-primary/20 focus:border-primary ${
-                            !dateRange.from && !dateRange.to ? 'text-muted-foreground' : ''
-                          }`}
-                        >
-                          <Calendar className="mr-2 h-4 w-4" />
-                          {dateRange.from || dateRange.to ? (
-                            <>
-                              {dateRange.from ? format(new Date(dateRange.from), 'd MMM') : 'Start date'} - {' '}
-                              {dateRange.to ? format(new Date(dateRange.to), 'd MMM') : 'End date'}
-                            </>
-                          ) : (
-                            <span>Pick a date range</span>
-                          )}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <div className="p-3 space-y-3">
-                          <div className="space-y-2">
-                            <Label htmlFor="date-from" className="text-sm font-medium">Start Date</Label>
-                            <input
-                              id="date-from"
-                              type="date"
-                              value={dateRange.from}
-                              onChange={(e) => setDateRange(prev => ({ ...prev, from: e.target.value }))}
-                              className="w-full px-3 py-2 text-sm bg-background border border-border rounded-md focus:border-primary focus:outline-none"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="date-to" className="text-sm font-medium">End Date</Label>
-                            <input
-                              id="date-to"
-                              type="date"
-                              value={dateRange.to}
-                              onChange={(e) => setDateRange(prev => ({ ...prev, to: e.target.value }))}
-                              className="w-full px-3 py-2 text-sm bg-background border border-border rounded-md focus:border-primary focus:outline-none"
-                            />
-                          </div>
-                          {(dateRange.from || dateRange.to) && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setDateRange({ from: '', to: '' })}
-                              className="w-full"
-                            >
-                              Clear Dates
-                            </Button>
-                          )}
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-6 space-y-6">
-              {/* Stats Grid */}
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-                <StatsCard
-                  title="Total Responses"
-                  value={filteredStats.totalResponses}
-                  subtitle={`${todaySubmissions.length} today, ${weekSubmissions.length} this week`}
-                  icon={ClipboardCheck}
-                />
-                <StatsCard
-                  title="Average Rating"
-                  value={filteredStats.avgRating.toFixed(1)}
-                  subtitle="Out of 5.0"
-                  icon={TrendingUp}
-                />
-                <StatsCard
-                  title="Departments"
-                  value={filteredData.departments.length}
-                  subtitle="Academic departments"
-                  icon={Building2}
-                />
-                <StatsCard
-                  title="Faculty Members"
-                  value={filteredData.faculty.length}
-                  subtitle={`Across ${filteredData.departments.length} departments`}
-                  icon={Users}
-                />
-              </div>
-
-              {/* Main Analytics Grid */}
-              <div className="grid gap-6 lg:grid-cols-3">
-                {/* Department Performance */}
-                <div className="glass-card rounded-xl p-6">
-                  <div className="flex items-center justify-between mb-6">
-                    <div>
-                      <h3 className="font-display text-lg font-semibold text-foreground">Department Performance</h3>
-                      <p className="text-sm text-muted-foreground">Average scores by department</p>
-                    </div>
-                    <Building2 className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <div className="h-64">
-                    {deptPerformance.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={deptPerformance} layout="vertical">
-                          <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="hsl(var(--border))" />
-                          <XAxis type="number" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontFamily: "Inter" }} />
-                          <YAxis dataKey="department" type="category" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontFamily: "Inter" }} width={80} />
-                          <Tooltip
-                            contentStyle={{
-                              backgroundColor: 'hsl(var(--card))',
-                              border: '1px solid hsl(var(--border))',
-                              borderRadius: '8px',
-                            }}
-                          />
-                          <Bar dataKey="average" fill="hsl(213, 96%, 16%)" radius={[0, 4, 4, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <div className="flex items-center justify-center h-full">
-                        <div className="text-center">
-                          <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
-                          <p className="text-sm text-muted-foreground">No department data available</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Response Trend */}
-                <div className="glass-card rounded-xl p-6">
-                  <div className="flex items-center justify-between mb-6">
-                    <div>
-                      <h3 className="font-display text-lg font-semibold text-foreground">Response Trend</h3>
-                      <p className="text-sm text-muted-foreground">Last 7 days</p>
-                    </div>
-                    <Calendar className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={trendData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis dataKey="date" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontFamily: "Inter" }} />
-                        <YAxis 
-                          domain={responseTrendYAxisDomain}
-                          tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontFamily: "Inter" }} 
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: 'hsl(var(--card))',
-                            border: '1px solid hsl(var(--border))',
-                            borderRadius: '8px',
-                          }}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="responses"
-                          stroke="hsl(213, 96%, 16%)"
-                          strokeWidth={2}
-                          dot={{ fill: 'hsl(213, 96%, 16%)', strokeWidth: 2 }}
-                          activeDot={{ r: 6 }}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-
-                {/* Performance Trend */}
-                <div className="glass-card rounded-xl p-6">
-                  <div className="flex items-center justify-between mb-6">
-                    <div>
-                      <h3 className="font-display text-lg font-semibold text-foreground">Feedback Trend</h3>
-                      <p className="text-sm text-muted-foreground">Monthly submission overview</p>
-                    </div>
-                    <TrendingUp className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={performanceTrendData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis dataKey="month" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontFamily: "Inter" }} />
-                        <YAxis 
-                          domain={feedbackTrendYAxisDomain}
-                          tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontFamily: "Inter" }} 
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: 'hsl(var(--card))',
-                            border: '1px solid hsl(var(--border))',
-                            borderRadius: '8px',
-                          }}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="responses"
-                          stroke="hsl(142, 76%, 36%)"
-                          strokeWidth={3}
-                          dot={{ fill: 'hsl(142, 76%, 36%)', strokeWidth: 2, r: 4 }}
-                          activeDot={{ r: 6 }}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              </div>
-
-              {/* Bottom Analytics Grid */}
-              <div className="grid gap-6 lg:grid-cols-2">
-                {/* Category Breakdown */}
-                <div className="glass-card rounded-xl p-6">
-                  <div className="flex items-center justify-between mb-6">
-                    <div>
-                      <h3 className="font-display text-lg font-semibold text-foreground">Category Breakdown</h3>
-                      <p className="text-sm text-muted-foreground">Performance by category</p>
-                    </div>
-                    <BarChart3 className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <div className="h-80">
-                    {categoryBreakdownData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <RadarChart data={categoryBreakdownData}>
-                          <PolarGrid stroke="hsl(var(--border))" />
-                          <PolarAngleAxis
-                            dataKey="category"
-                            tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10, fontFamily: "Inter" }}
-                            className="text-xs"
-                          />
-                          <PolarRadiusAxis
-                            domain={[0, 5]}
-                            tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 9, fontFamily: "Inter" }}
-                            tickCount={6}
-                          />
-                          <Radar
-                            name="Average Score"
-                            dataKey="score"
-                            stroke="hsl(221, 83%, 53%)"
-                            fill="hsl(221, 83%, 53%)"
-                            fillOpacity={0.2}
-                            strokeWidth={2}
-                            dot={{ fill: 'hsl(221, 83%, 53%)', strokeWidth: 2, r: 3 }}
-                          />
-                          <Tooltip
-                            contentStyle={{
-                              backgroundColor: 'hsl(var(--card))',
-                              border: '1px solid hsl(var(--border))',
-                              borderRadius: '8px',
-                            }}
-                            formatter={(value) => [value, 'Average Score']}
-                          />
-                        </RadarChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <div className="flex items-center justify-center h-full">
-                        <div className="text-center">
-                          <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
-                          <p className="text-sm text-muted-foreground">No category data available</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Faculty Performance - Full Width */}
-                <div className="glass-card rounded-xl p-6">
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="font-display text-lg font-semibold text-foreground mb-6">Faculty Feedback & Comments</h3>
-                    <Button
-                      variant="outline"
-                      onClick={() => navigate('/admin/faculty-details')}
-                      className="text-sm"
-                    >
-                      <BarChart3 className="h-4 w-4 mr-2" />
-                      View All
-                    </Button>
-                  </div>
-                  <div className="space-y-6 max-h-96 overflow-y-auto">
-                    {filteredData.faculty.slice(0, 8).map((member, index) => {
-                      // Calculate faculty stats directly from filtered submissions
-                      const memberSubmissions = filteredData.submissions.filter(s => s.facultyId === member.id);
-                      const memberWeekSubmissions = memberSubmissions.filter(s =>
-                        s.submittedAt && isAfter(s.submittedAt.toDate(), subDays(new Date(), 7))
-                      );
-
-                      // Calculate average rating from submissions
-                      const avgRating = memberSubmissions.length > 0
-                        ? memberSubmissions.reduce((sum, s) => sum + (s.metrics?.overallRating || 0), 0) / memberSubmissions.length
-                        : 0;
-
-                      // Get all comments from submissions
-                      const allComments = memberSubmissions
-                        .filter(s => s.responses && s.responses.length > 0)
-                        .flatMap(s => s.responses
-                          .filter(r => r.comment && r.comment.trim())
-                          .map(r => ({
-                            text: r.comment!,
-                            rating: s.metrics?.overallRating || 0, // Use submission's overall rating from metrics
-                            submittedAt: s.submittedAt!
-                          }))
-                        )
-                        .sort((a, b) => b.submittedAt.toDate().getTime() - a.submittedAt.toDate().getTime())
-                        .slice(0, 10); // Get recent 10 comments
-
-                      // Sort comments by rating to get highest and lowest
-                      const sortedByRating = [...allComments].sort((a, b) => b.rating - a.rating);
-
-                      // Check if we have varied ratings (some low ratings to show as red)
-                      const hasLowRatings = sortedByRating.length > 0 && sortedByRating[sortedByRating.length - 1].rating < 4.0;
-                      const hasVariedRatings = sortedByRating.length > 2 && (sortedByRating[0].rating - sortedByRating[sortedByRating.length - 1].rating) >= 1.0;
-
-                      let topComments = [];
-                      let bottomComments = [];
-
-                      if (hasVariedRatings) {
-                        // Show top 2 and bottom 2 if there are significantly different ratings
-                        topComments = sortedByRating.slice(0, 2);
-                        bottomComments = sortedByRating.slice(-2);
-                      } else if (hasLowRatings) {
-                        // All ratings are low with no variety, show only bottom 2 in red
-                        topComments = [];
-                        bottomComments = sortedByRating.slice(-2);
-                      } else {
-                        // All ratings are high, just show top 2 in green
-                        topComments = sortedByRating.slice(0, 2);
-                        bottomComments = [];
-                      }
-
-                      const displayComments = [...topComments, ...bottomComments];
-
-                      return (
-                        <div
-                          key={member.id}
-                          className="border border-border rounded-lg p-6 hover:bg-secondary/10 transition-colors animate-fade-up"
-                          style={{ animationDelay: `${index * 0.05}s` }}
-                        >
-                          {/* Faculty Header */}
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center gap-4">
-                              <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                                <User className="h-6 w-6 text-primary" />
-                              </div>
-                              <div>
-                                <h4 className="text-lg font-semibold text-foreground">{member.name}</h4>
-                                <p className="text-sm text-muted-foreground">{member.designation}</p>
-                              </div>
-                            </div>
-
-                            {/* Rating Summary */}
-                            <div className="text-right">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-2xl font-bold text-foreground">{avgRating.toFixed(1)}</span>
-                                <span className="text-sm text-muted-foreground">/ 5.0</span>
-                              </div>
-                              <div className="flex text-yellow-400">
-                                {[1, 2, 3, 4, 5].map((star) => (
-                                  <span key={star} className="text-sm">
-                                    {star <= Math.round(avgRating) ? '★' : '☆'}
-                                  </span>
-                                ))}
-                              </div>
-                              <p className="text-xs text-muted-foreground mt-1">{memberSubmissions.length} responses</p>
-                            </div>
-                          </div>
-
-                          {/* Comments Section */}
-                          <div className="space-y-3">
-                            <h5 className="text-sm font-medium text-foreground flex items-center gap-2">
-                              <MessageSquare className="h-4 w-4" />
-                              Recent Comments
-                            </h5>
-
-                            {displayComments.length > 0 ? (
-                              <div className="grid gap-2 md:grid-cols-2">
-                                {displayComments.map((item, commentIndex) => {
-                                  const isTopComment = commentIndex < topComments.length;
-                                  return (
-                                    <div
-                                      key={`comment-${commentIndex}`}
-                                      className={`border rounded-lg p-3 ${
-                                        isTopComment
-                                          ? 'bg-green-50 border-green-200'
-                                          : 'bg-red-50 border-red-200'
-                                      }`}
-                                    >
-                                      <div className="flex items-start justify-between mb-2">
-                                        <span className={`text-xs ${
-                                          isTopComment ? 'text-green-600' : 'text-red-600'
-                                        }`}>
-                                          {format(item.submittedAt.toDate(), 'MMM d, yyyy')}
-                                        </span>
-                                        {item.rating && (
-                                          <span className={`text-xs font-medium px-2 py-1 rounded ${
-                                            isTopComment
-                                              ? 'text-green-700 bg-green-100'
-                                              : 'text-red-700 bg-red-100'
-                                          }`}>
-                                            {item.rating % 1 === 0 ? item.rating.toString() : item.rating.toFixed(1)}/5
-                                          </span>
-                                        )}
-                                      </div>
-                                      <p className={`text-sm leading-relaxed ${
-                                        isTopComment ? 'text-green-800' : 'text-red-800'
-                                      }`}>
-                                        "{item.text}"
-                                      </p>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            ) : (
-                              <div className="text-center py-6">
-                                <MessageSquare className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                                <p className="text-sm text-muted-foreground">No comments yet</p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                    {faculty.length === 0 && (
-                      <div className="text-center py-12">
-                        <User className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                        <p className="text-muted-foreground">No faculty members yet</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <DashboardOverview
+            college={college}
+            selectedCourse={selectedCourse}
+            setSelectedCourse={setSelectedCourse}
+            selectedYear={selectedYear}
+            setSelectedYear={setSelectedYear}
+            selectedDepartment={selectedDepartment}
+            setSelectedDepartment={setSelectedDepartment}
+            selectedSubject={selectedSubject}
+            setSelectedSubject={setSelectedSubject}
+            selectedBatch={selectedBatch}
+            setSelectedBatch={setSelectedBatch}
+            dateRange={dateRange}
+            setDateRange={setDateRange}
+            courseData={courseData}
+            availableSubjects={availableSubjects}
+            availableBatches={availableBatches}
+            filteredStats={filteredStats}
+            todaySubmissions={todaySubmissions}
+            weekSubmissions={weekSubmissions}
+            filteredData={filteredData}
+            deptPerformance={deptPerformance}
+            trendData={trendData}
+            responseTrendYAxisDomain={responseTrendYAxisDomain}
+            performanceTrendData={performanceTrendData}
+            feedbackTrendYAxisDomain={feedbackTrendYAxisDomain}
+            categoryBreakdownData={categoryBreakdownData}
+          />
         );
       case 'faculty':
         return (
-          <div className="min-h-screen">
-            <DashboardHeader
-              title="Faculty Management"
-              subtitle="Manage faculty members and their departments"
-              college={college}
-            />
-
-            <div className="p-6">
-              <div className="glass-card rounded-xl p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="font-display text-lg font-semibold text-foreground">Faculty Members</h3>
-                  <div className="flex gap-2">
-                    <Select value={facultyRoleFilter} onValueChange={(value: 'all' | 'faculty' | 'hod') => setFacultyRoleFilter(value)}>
-                      <SelectTrigger className="w-32">
-                        <SelectValue placeholder="Filter by role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All</SelectItem>
-                        <SelectItem value="faculty">faculty</SelectItem>
-                        <SelectItem value="hod">HOD</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {/* <Button variant="outline" onClick={handleDownloadICEMTemplate}>
-                      <Download className="h-4 w-4 mr-2" />
-                      Download ICEM Template
-                    </Button>
-                    <Button variant="outline" onClick={handleDownloadIGSBTemplate}>
-                      <Download className="h-4 w-4 mr-2" />
-                      Download IGSB Template
-                    </Button> */}
-                    <Button variant="outline" onClick={handleExportFaculty}>
-                      <Download className="h-4 w-4 mr-2" />
-                      Export to Excel
-                    </Button>
-                    <Button className="bg-primary hover:bg-primary/90" onClick={() => setFacultyFormOpen(true)}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Faculty
-                    </Button>
-                    <Button variant="outline" className="border-primary text-primary hover:bg-primary hover:text-primary-foreground" onClick={() => setBulkCreateOpen(true)}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Bulk Create Faculty
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  {faculty
-                    .filter(member => facultyRoleFilter === 'all' || member.role === facultyRoleFilter)
-                    .sort((a, b) => a.employeeId.localeCompare(b.employeeId))
-                    .map((member) => (
-                    <div key={member.id} className="grid grid-cols-12 gap-4 items-center p-4 border border-border rounded-lg">
-                      <div className="col-span-6 flex items-center gap-4">
-                        <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                          <User className="h-6 w-6 text-primary" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <h4 className="font-medium text-foreground truncate">{member.name}</h4>
-                          <p className="text-sm text-muted-foreground truncate">{member.employeeId}</p>
-                          <p className="text-sm text-muted-foreground truncate">{member.email}</p>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {(() => {
-                              const memberAllocations = allocations.filter(a => a.facultyId === member.id);
-                              const uniqueDepartments = [...new Set(memberAllocations.map(a => a.department))];
-                              return uniqueDepartments.length > 0
-                                ? uniqueDepartments.slice(0, 2).join(', ') + (uniqueDepartments.length > 2 ? '...' : '')
-                                : 'No Allocations';
-                            })()}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="col-span-2 flex justify-center">
-                        <Badge variant={member.role === 'hod' ? 'default' : 'secondary'} className="text-center">
-                          {member.role === 'hod' ? 'Head of Department' : 'Faculty Member'}
-                        </Badge>
-                      </div>
-                      <div className="col-span-2 flex justify-center">
-                        <Badge variant="secondary">Active</Badge>
-                      </div>
-                      <div className="col-span-2 flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => handleEditFaculty(member)}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Delete Faculty Member</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Are you sure you want to delete {member.name}? This action cannot be undone and will remove all associated feedback data.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handleDeleteFaculty(member)}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              >
-                                Delete
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
+          <FacultyManagement
+            college={college}
+            facultyRoleFilter={facultyRoleFilter}
+            setFacultyRoleFilter={setFacultyRoleFilter}
+            allocations={allocations}
+            handleExportFaculty={handleExportFaculty}
+            setFacultyFormOpen={setFacultyFormOpen}
+            setBulkCreateOpen={setBulkCreateOpen}
+            handleEditFaculty={handleEditFaculty}
+            handleDeleteFaculty={handleDeleteFaculty}
+          />
+        );
+      case 'bulk-email':
+        return (
+          <BulkEmail
+            college={college}
+          />
         );
       case 'sessions':
         return (
-          <div className="min-h-screen">
-            <DashboardHeader
-              title="Feedback Sessions"
-              subtitle="Manage feedback collection sessions"
-              college={college}
-            />
-
-            <div className="p-6">
-              <div className="grid grid-cols-3 items-center mb-6">
-                <div>
-                  <h3 className="font-display text-lg font-semibold text-foreground">Session Overview</h3>
-                  <p className="text-sm text-muted-foreground">Monitor and organize feedback sessions</p>
-                </div>
-                <div className="flex items-center justify-center gap-2">
-                  <div className="flex items-center gap-1">
-                    <Filter className="h-3 w-3 text-muted-foreground" />
-                    <Select value={sessionDepartmentFilter} onValueChange={setSessionDepartmentFilter}>
-                      <SelectTrigger className="w-36 h-8 text-xs bg-background/80 backdrop-blur-sm border-primary/20 focus:border-primary">
-                        <SelectValue placeholder="All Departments" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">
-                          All Departments ({getTotalSessionCount()})
-                        </SelectItem>
-                        {departments
-                          .map((dept) => ({
-                            dept,
-                            count: getDepartmentSessionCount(dept.id)
-                          }))
-                          .filter(({ count }) => count > 0)
-                          .map(({ dept, count }) => (
-                            <SelectItem key={dept.id} value={dept.id}>
-                              {dept.name} ({count})
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                    {sessionDepartmentFilter !== 'all' && (
-                      <Button variant="ghost" size="sm" className="h-5 w-5 p-0.5" onClick={() => setSessionDepartmentFilter('all')}>
-                        <X className="h-2.5 w-2.5" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-                <div className="flex justify-end">
-                  <Button className="bg-primary hover:bg-primary/90" onClick={() => setSessionFormOpen(true)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Session
-                  </Button>
-                </div>
-              </div>
-
-              <Tabs value={currentSessionTab} onValueChange={setCurrentSessionTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="all">All Sessions ({sessions.filter(s => sessionDepartmentFilter === 'all' || s.departmentId === sessionDepartmentFilter).length})</TabsTrigger>
-                  <TabsTrigger value="active">Active Sessions ({sessions.filter(s => s.isActive && (sessionDepartmentFilter === 'all' || s.departmentId === sessionDepartmentFilter)).length})</TabsTrigger>
-                  <TabsTrigger value="inactive">Inactive Sessions ({sessions.filter(s => !s.isActive && (sessionDepartmentFilter === 'all' || s.departmentId === sessionDepartmentFilter)).length})</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="all" className="mt-6">
-                  <SessionTable
-                    sessions={sessions.filter(s => sessionDepartmentFilter === 'all' || s.departmentId === sessionDepartmentFilter)}
-                    faculty={faculty}
-                    departments={departments}
-                    onRefresh={refreshSessions}
-                    onOptimisticUpdate={handleOptimisticSessionUpdate}
-                  />
-                </TabsContent>
-
-                <TabsContent value="active" className="mt-6">
-                  <SessionTable
-                    sessions={sessions.filter(s => s.isActive && (sessionDepartmentFilter === 'all' || s.departmentId === sessionDepartmentFilter))}
-                    faculty={faculty}
-                    departments={departments}
-                    onRefresh={refreshSessions}
-                    onOptimisticUpdate={handleOptimisticSessionUpdate}
-                  />
-                </TabsContent>
-
-                <TabsContent value="inactive" className="mt-6">
-                  <SessionTable
-                    sessions={sessions.filter(s => !s.isActive && (sessionDepartmentFilter === 'all' || s.departmentId === sessionDepartmentFilter))}
-                    faculty={faculty}
-                    departments={departments}
-                    onRefresh={refreshSessions}
-                    onOptimisticUpdate={handleOptimisticSessionUpdate}
-                  />
-                </TabsContent>
-              </Tabs>
-            </div>
-          </div>
+          <SessionManagement
+            college={college}
+            sessions={sessions}
+            sessionDepartmentFilter={sessionDepartmentFilter}
+            setSessionDepartmentFilter={setSessionDepartmentFilter}
+            currentSessionTab={currentSessionTab}
+            setCurrentSessionTab={setCurrentSessionTab}
+            departments={departments}
+            faculty={faculty}
+            getTotalSessionCount={getTotalSessionCount}
+            getDepartmentSessionCount={getDepartmentSessionCount}
+            setSessionFormOpen={setSessionFormOpen}
+            refreshSessions={refreshSessions}
+            handleOptimisticSessionUpdate={handleOptimisticSessionUpdate}
+          />
         );
       case 'departments':
         return (
-          <div className="min-h-screen">
-            <DashboardHeader
-              title="Academic Config"
-              subtitle="Configure academic structure and manage departments"
-              college={college}
-            />
-
-            <div className="p-6">
-              <div className="glass-card rounded-xl p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="font-display text-lg font-semibold text-foreground">Academic Structure Configuration</h3>
-                  <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => setLoadTemplateOpen(true)}>
-                      <Download className="h-4 w-4 mr-2" />
-                      Load Template
-                    </Button>
-                    <Button className="bg-primary hover:bg-primary/90" onClick={() => setAcademicConfigOpen(true)}>
-                      <Edit className="h-4 w-4 mr-2" />
-                      Configure Structure
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Conditional Display: Placeholder or Current Structure */}
-                {Object.keys(courseData).length === 0 ? (
-                  <div className="text-center py-12">
-                    <GraduationCap className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                    <h4 className="text-lg font-medium text-foreground mb-2">Academic Structure Management</h4>
-                    <p className="text-muted-foreground mb-4">
-                      Configure courses, years, departments, subjects, and batches for your institution.
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      Click "Load Template" to start with a pre-configured structure, or "Configure Structure" to build from scratch.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="mt-8">
-                    <h4 className="text-lg font-medium text-foreground mb-4">Current Academic Structure</h4>
-                    <div className="space-y-4">
-                      {Object.entries(courseData).map(([courseName, courseInfo]) => (
-                        <div key={courseName} className="border border-border rounded-lg p-4">
-                          <div className="flex items-center gap-2 mb-3">
-                            <GraduationCap className="h-5 w-5 text-primary" />
-                            <h5 className="font-medium text-foreground">{courseName}</h5>
-                          </div>
-                          <div className="ml-7 space-y-3">
-                            {courseInfo.years.map((yearName) => (
-                              <div key={yearName} className="border-l-2 border-primary/20 pl-4">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <Calendar className="h-4 w-4 text-green-600" />
-                                  <span className="font-medium text-green-700">{yearName}</span>
-                                </div>
-                                <div className="ml-6 space-y-2">
-                                  {(courseInfo.yearDepartments?.[yearName] || []).map((deptName) => (
-                                    <div key={deptName} className="border-l-2 border-green-200 pl-4">
-                                      <div className="flex items-center gap-2 mb-1">
-                                        <Building2 className="h-4 w-4 text-blue-600" />
-                                        <span className="font-medium text-blue-700">{deptName}</span>
-                                      </div>
-                                      <div className="ml-6 space-y-1">
-                                        {/* Subjects */}
-                                        {subjectsData[courseName]?.[yearName]?.[deptName] && Object.keys(subjectsData[courseName][yearName][deptName]).length > 0 && (
-                                          <div>
-                                            <span className="text-xs font-medium text-muted-foreground mr-2">Subjects:</span>
-                                            <div className="flex flex-wrap gap-1 mt-1">
-                                              {Object.entries(subjectsData[courseName][yearName][deptName]).map(([subject, subjectData]) => (
-                                                <div key={subject} className="flex flex-col gap-1">
-                                                  <Badge variant="outline" className="text-xs">
-                                                    <FileText className="h-3 w-3 mr-1" />
-                                                    {subject}
-                                                  </Badge>
-                                                  {subjectData.batches && subjectData.batches.length > 0 && (
-                                                    <div className="flex flex-wrap gap-1 ml-2">
-                                                      {subjectData.batches.map((batch) => (
-                                                        <Badge key={batch} variant="secondary" className="text-xs">
-                                                          <Users className="h-3 w-3 mr-1" />
-                                                          {batch}
-                                                        </Badge>
-                                                      ))}
-                                                    </div>
-                                                  )}
-                                                </div>
-                                              ))}
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+          <DepartmentManagement
+            college={college}
+            courseData={courseData}
+            subjectsData={subjectsData}
+            setLoadTemplateOpen={setLoadTemplateOpen}
+            setAcademicConfigOpen={setAcademicConfigOpen}
+          />
         );
       case 'questions':
         return (

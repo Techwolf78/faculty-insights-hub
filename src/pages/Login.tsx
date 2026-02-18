@@ -16,24 +16,25 @@ export const Login: React.FC = () => {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Registration state
-  const [isRegistrationMode, setIsRegistrationMode] = useState(false);
-  const [registerName, setRegisterName] = useState('');
-  const [registerEmail, setRegisterEmail] = useState('');
-  const [registerPassword, setRegisterPassword] = useState('');
-  const [registerConfirmPassword, setRegisterConfirmPassword] = useState('');
-  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
+  // Registration state - COMMENTED OUT FOR SECURITY
+  // const [isRegistrationMode, setIsRegistrationMode] = useState(false);
+  // const [registerName, setRegisterName] = useState('');
+  // const [registerEmail, setRegisterEmail] = useState('');
+  // const [registerPassword, setRegisterPassword] = useState('');
+  // const [registerConfirmPassword, setRegisterConfirmPassword] = useState('');
+  // const [showRegisterPassword, setShowRegisterPassword] = useState(false);
+
+  // Always keep login mode for security
+  const isRegistrationMode = false;
 
   const { login, user, isLoading } = useAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
-  }, []);
-
   // Handle navigation when user data becomes available after login
   useEffect(() => {
     if (user && !isLoading) {
-      switch (user.role) {
+      const roleToNavigate = user.activeRole || user.role;
+      switch (roleToNavigate) {
         case 'superAdmin':
           navigate('/super-admin');
           break;
@@ -66,6 +67,8 @@ export const Login: React.FC = () => {
     // On success, navigation will be handled by the useEffect above
   };
 
+  // FORGOT PASSWORD FUNCTION COMMENTED OUT FOR SECURITY
+  /*
   const handleForgotPassword = async () => {
     if (!email.trim()) {
       setError('Please enter your email address first');
@@ -89,7 +92,10 @@ export const Login: React.FC = () => {
       setIsSubmitting(false);
     }
   };
+  */
 
+  // REGISTRATION FUNCTION COMMENTED OUT FOR SECURITY
+  /*
   const handleRegistration = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -153,17 +159,7 @@ export const Login: React.FC = () => {
       setIsSubmitting(false);
     }
   };
-
-  const demoCredentials = [
-    // System Admin
-    { role: 'Super Admin', email: 'ajaypawargryphon@gmail.com', password: 'password123' },
-  ];
-
-  const fillCredentials = (email: string, password: string) => {
-    setEmail(email);
-    setPassword(password);
-    setError('');
-  };
+  */
 
   return (
     <div className="min-h-screen flex">
@@ -175,7 +171,7 @@ export const Login: React.FC = () => {
           <div className="flex items-center gap-4 mb-8">
             <img
               src="https://res.cloudinary.com/dcjmaapvi/image/upload/v1740489025/ga-hori_ylcnm3.png"
-              alt="Gryphon Academy Logo"
+              alt="Gryphon Academy INSYT Logo"
               className="h-auto w-36"
             />
           </div>
@@ -196,116 +192,24 @@ export const Login: React.FC = () => {
           <div className="lg:hidden flex items-center justify-center mb-8 px-4">
             <img
               src="https://res.cloudinary.com/dcjmaapvi/image/upload/v1741244343/fohrywgrqu2ph2iec2bb.png"
-              alt="Gryphon Academy Logo"
+              alt="Gryphon Academy INSYT Logo"
               className="h-auto w-36"
             />
           </div>
 
           <div className="text-center mb-8">
             <h2 className="font-display text-2xl font-bold text-foreground mb-2">
-              {isRegistrationMode ? 'Create Super Admin Account' : 'Welcome Back'}
+              Welcome Back
             </h2>
             <p className="text-muted-foreground">
-              {isRegistrationMode ? 'Register a new super administrator account' : 'Sign in to access your dashboard'}
+              Sign in to access your dashboard
             </p>
           </div>
 
+          {/* REGISTRATION FORM COMMENTED OUT FOR SECURITY */}
+          {/*
           {isRegistrationMode ? (
-            <form onSubmit={handleRegistration} className="space-y-5">
-              {error && (
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm animate-scale-in">
-                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                  {error}
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <Label htmlFor="registerName">Full Name</Label>
-                <div className="relative">
-                  <UserPlus className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                  <Input
-                    id="registerName"
-                    type="text"
-                    placeholder="Super Admin Name"
-                    value={registerName}
-                    onChange={(e) => setRegisterName(e.target.value)}
-                    className="pl-10 h-12"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="registerEmail">Email Address</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                  <Input
-                    id="registerEmail"
-                    type="email"
-                    placeholder="admin@institution.edu"
-                    value={registerEmail}
-                    onChange={(e) => setRegisterEmail(e.target.value)}
-                    className="pl-10 h-12"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="registerPassword">Password</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                  <Input
-                    id="registerPassword"
-                    type={showRegisterPassword ? 'text' : 'password'}
-                    placeholder="••••••••"
-                    value={registerPassword}
-                    onChange={(e) => setRegisterPassword(e.target.value)}
-                    className="pl-10 pr-10 h-12"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowRegisterPassword(!showRegisterPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {showRegisterPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="registerConfirmPassword">Confirm Password</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                  <Input
-                    id="registerConfirmPassword"
-                    type={showRegisterPassword ? 'text' : 'password'}
-                    placeholder="••••••••"
-                    value={registerConfirmPassword}
-                    onChange={(e) => setRegisterConfirmPassword(e.target.value)}
-                    className="pl-10 h-12"
-                    required
-                  />
-                </div>
-              </div>
-
-              <Button
-                type="submit"
-                className="w-full h-12 gradient-hero text-primary-foreground hover:opacity-90"
-                disabled={isSubmitting || isLoading}
-              >
-                {isSubmitting || isLoading ? (
-                  <div className="flex items-center gap-2">
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
-                    Creating Account...
-                  </div>
-                ) : (
-                  'Create Super Admin Account'
-                )}
-              </Button>
-            </form>
-          ) : (
+          */}
             <form onSubmit={handleSubmit} className="space-y-5">
               {error && (
                 <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm animate-scale-in">
@@ -368,8 +272,9 @@ export const Login: React.FC = () => {
                 )}
               </Button>
             </form>
-          )}
 
+          {/* FORGOT PASSWORD SECTION COMMENTED OUT FOR SECURITY */}
+          {/*
           {!isRegistrationMode && (
             <div className="mt-4 text-center">
               <button
@@ -382,7 +287,10 @@ export const Login: React.FC = () => {
               </button>
             </div>
           )}
+          */}
 
+          {/* REGISTRATION TOGGLE COMMENTED OUT FOR SECURITY */}
+          {/*
           <div className="mt-6 text-center">
             <button
               type="button"
@@ -395,33 +303,7 @@ export const Login: React.FC = () => {
               {isRegistrationMode ? '← Back to Sign In' : 'Create Super Admin Account'}
             </button>
           </div>
-
-          {!isRegistrationMode && (
-            <div className="mt-8">
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-border" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground">Demo Credentials</span>
-                </div>
-              </div>
-
-              <div className="mt-4 space-y-2">
-                {demoCredentials.map((cred) => (
-                  <button
-                    key={cred.role}
-                    type="button"
-                    onClick={() => fillCredentials(cred.email, cred.password)}
-                    className="w-full flex items-center justify-between p-3 rounded-lg border border-border hover:bg-secondary transition-colors text-sm"
-                  >
-                    <span className="font-medium text-foreground">{cred.role}</span>
-                    <span className="text-muted-foreground">{cred.email}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          */}
 
           <p className="mt-8 text-center text-sm text-muted-foreground">
             <Link to="/" className="hover:text-primary transition-colors">

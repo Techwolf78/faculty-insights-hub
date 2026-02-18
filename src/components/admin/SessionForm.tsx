@@ -46,7 +46,7 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
   const [selectedFaculty, setSelectedFaculty] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
   const [subjectCode, setSubjectCode] = useState('');
-  const [subjectType, setSubjectType] = useState<'Theory' | 'Practical'>('Theory');
+  const [subjectType, setSubjectType] = useState<'Theory' | 'Practical' | 'Tutorial'>('Theory');
 
   const loadData = useCallback(async () => {
     setIsLoading(true);

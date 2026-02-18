@@ -18,6 +18,8 @@ import {
   ChevronRight,
   User,
   TrendingUp,
+  Mail,
+  HelpCircle,
 } from 'lucide-react';
 
 interface SidebarLink {
@@ -31,24 +33,29 @@ const adminLinks: SidebarLink[] = [
   { to: '/admin/sessions', icon: RefreshCw, label: 'Feedback Sessions' },
   { to: '/admin/departments', icon: GraduationCap, label: 'Academic Config' },
   { to: '/admin/faculty', icon: Users, label: 'Faculty' },
+  { to: '/admin/bulk-email', icon: Mail, label: 'Bulk Email' },
   { to: '/admin/faculty-allocation', icon: UserCheck, label: 'Faculty Allocation' },
+  { to: '/admin/help', icon: HelpCircle, label: 'Help' },
 ];
 
 const superAdminLinks: SidebarLink[] = [
   { to: '/super-admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/super-admin/questions', icon: FileQuestion, label: 'Question Bank' },
   { to: '/super-admin/colleges', icon: Building2, label: 'Colleges' },
+  { to: '/super-admin/help-portal', icon: HelpCircle, label: 'Help Portal' },
 ];
 
 const hodLinks: SidebarLink[] = [
   { to: '/hod/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/hod/performance', icon: TrendingUp, label: 'My Performance' },
   { to: '/hod/profile', icon: User, label: 'Profile Settings' },
+  { to: '/hod/help', icon: HelpCircle, label: 'Help' },
 ];
 
 const facultyLinks: SidebarLink[] = [
   { to: '/faculty/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/faculty/profile', icon: User, label: 'Profile Settings' },
+  { to: '/faculty/help', icon: HelpCircle, label: 'Help' },
 ];
 
 interface DashboardSidebarProps {
@@ -74,7 +81,8 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
   };
 
   const getLinks = (): SidebarLink[] => {
-    switch (user?.role) {
+    const activeRole = user?.activeRole || user?.role;
+    switch (activeRole) {
       case 'superAdmin':
         return superAdminLinks;
       case 'admin':
@@ -89,7 +97,8 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
   };
 
   const getRoleIcon = () => {
-    switch (user?.role) {
+    const activeRole = user?.activeRole || user?.role;
+    switch (activeRole) {
       case 'superAdmin':
         return Building2;
       case 'admin':
@@ -104,7 +113,8 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
   };
 
   const getRoleLabel = () => {
-    switch (user?.role) {
+    const activeRole = user?.activeRole || user?.role;
+    switch (activeRole) {
       case 'superAdmin':
         return 'Super Admin';
       case 'admin':
@@ -147,7 +157,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
               <div className="flex h-auto w-auto items-center justify-center rounded-lg  ">
                 <img
                   src="https://res.cloudinary.com/dcjmaapvi/image/upload/v1740489025/ga-hori_ylcnm3.png"
-                  alt="Gryphon Academy Logo"
+                  alt="Gryphon Academy INSYT Logo"
                   className="h-auto w-36"
                 />
               </div>

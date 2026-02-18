@@ -23,6 +23,13 @@ service cloud.firestore {
       allow write: if request.auth != null;
     }
 
+    // Help tickets - Support system
+    match /helpTickets/{ticketId} {
+      allow create: if request.auth != null;  // Any authenticated user can create a ticket
+      allow read: if request.auth != null;  // All authenticated users can read tickets for support
+      allow update, delete: if request.auth.token.role == 'superAdmin';  // Only superAdmin can update/delete
+    }
+
     // Require authentication for all other operations
     match /{document=**} {
       allow read, write: if request.auth != null;

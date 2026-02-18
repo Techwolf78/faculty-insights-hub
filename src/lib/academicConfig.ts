@@ -1,4 +1,4 @@
-// Academic Configuration utilities for Faculty Insights Hub
+// Academic Configuration utilities for INSYT
 
 import { academicConfigApi, departmentsApi, collegesApi, AcademicConfig, College } from './storage';
 
@@ -53,17 +53,8 @@ const igsbDefaultCourseData: AcademicConfig['courseData'] = {
   'MBA': {
     years: ['1', '2'],
     yearDepartments: {
-      '1': ['Business Administration', 'Finance & Accounting', 'Marketing & Sales', 'Human Resources', 'Operations Management'],
-      '2': ['Business Administration', 'Finance & Accounting', 'Marketing & Sales', 'Human Resources', 'Operations Management'],
-    },
-    semesters: ['Odd', 'Even'],
-  },
-  'BBA': {
-    years: ['1', '2', '3'],
-    yearDepartments: {
-      '1': ['Business Administration', 'Finance & Accounting', 'Marketing & Sales', 'Human Resources'],
-      '2': ['Business Administration', 'Finance & Accounting', 'Marketing & Sales', 'Human Resources'],
-      '3': ['Business Administration', 'Finance & Accounting', 'Marketing & Sales', 'Human Resources'],
+      '1': ['MBA'],
+      '2': ['MBA'],
     },
     semesters: ['Odd', 'Even'],
   },
@@ -281,160 +272,46 @@ const icemDefaultSubjectsData: AcademicConfig['subjectsData'] = {
 const igsbDefaultSubjectsData: AcademicConfig['subjectsData'] = {
   'MBA': {
     '1': {
-      'Business Administration': {
-        'Management Principles': { code: 'MBA101', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Business Ethics': { code: 'MBA102', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Organizational Behavior': { code: 'MBA103', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Business Communication': { code: 'MBA104', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Business Statistics': { code: 'MBA105', type: 'Theory', batches: ['A', 'B', 'C', 'D'] }
+      'MBA': {
+        'Desk Research': { code: 'RM-02', type: 'Theory', batches: [] },
+        'Legal Aspect of Business': { code: 'GC-205', type: 'Theory', batches: [] },
+        'Financial Management': { code: 'GC 202', type: 'Theory', batches: [] },
+        'Sustainable Development Goals': { code: '562 MJ', type: 'Theory', batches: [] },
+        'Business Research Methods': { code: 'RM 01-206', type: 'Theory', batches: [] },
+        'Technology Tools in Business Management -II': { code: '210 GE-09', type: 'Theory', batches: [] },
+        'Technical Analysis of Financial Markets': { code: '407 FIN SE-11', type: 'Theory', batches: [] },
+        'Human Resource Management': { code: 'GC 11 203', type: 'Theory', batches: [] },
+        'Operations and Supply Chain Management': { code: 'GC-12 204', type: 'Theory', batches: [] },
+        'Field project': { code: '', type: 'Theory', batches: [] },
+        'Marketing Management': { code: '201 - GC 09', type: 'Theory', batches: [] },
       },
-      'Finance & Accounting': {
-        'Financial Accounting': { code: 'MBA201', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Cost Accounting': { code: 'MBA202', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Business Finance': { code: 'MBA203', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Managerial Economics': { code: 'MBA204', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Financial Management': { code: 'MBA205', type: 'Theory', batches: ['A', 'B', 'C', 'D'] }
-      },
-      'Marketing & Sales': {
-        'Marketing Management': { code: 'MBA301', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Consumer Behavior': { code: 'MBA302', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Sales Management': { code: 'MBA303', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Market Research': { code: 'MBA304', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Advertising': { code: 'MBA305', type: 'Theory', batches: ['A', 'B', 'C', 'D'] }
-      },
-      'Human Resources': {
-        'Human Resource Management': { code: 'MBA401', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Industrial Relations': { code: 'MBA402', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Training & Development': { code: 'MBA403', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Organizational Development': { code: 'MBA404', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Talent Management': { code: 'MBA405', type: 'Theory', batches: ['A', 'B', 'C', 'D'] }
-      },
-      'Operations Management': {
-        'Operations Management': { code: 'MBA501', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Supply Chain Management': { code: 'MBA502', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Quality Management': { code: 'MBA503', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Project Management': { code: 'MBA504', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Business Analytics': { code: 'MBA505', type: 'Theory', batches: ['A', 'B', 'C', 'D'] }
-      }
     },
     '2': {
-      'Business Administration': {
-        'Strategic Management': { code: 'MBA601', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'International Business': { code: 'MBA602', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Entrepreneurship': { code: 'MBA603', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Business Law': { code: 'MBA604', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Corporate Governance': { code: 'MBA605', type: 'Theory', batches: ['A', 'B', 'C', 'D'] }
+      'MBA': {
+        'Retail Marketing': { code: 'MKT-409', type: 'Theory', batches: [] },
+        'Risk Management': { code: 'RM658ME', type: 'Theory', batches: [] },
+        'Global HR Practices': { code: 'HRM SE-HRM-14', type: 'Theory', batches: [] },
+        'Performance Management System': { code: 'HRM SE-HRM-12', type: 'Theory', batches: [] },
+        'Research Project': { code: 'RM 404', type: 'Theory', batches: [] },
+        'Employee Relations and Labour Legislations': { code: 'HR SC 403', type: 'Theory', batches: [] },
+        'Business Valuation': { code: 'SE FIN-10', type: 'Theory', batches: [] },
+        'Corporate Financial Restructuring': { code: 'SE FIN-15', type: 'Theory', batches: [] },
+        'Enterprise Performance Management': { code: 'GC 402', type: 'Theory', batches: [] },
+        'Financial Markets & Banking Operations': { code: 'SC 403', type: 'Theory', batches: [] },
+        'Industry 4.0': { code: 'SC 403', type: 'Theory', batches: [] },
+        'Six Sigma': { code: 'SC 404', type: 'Theory', batches: [] },
+        'Change Management and New technologies in HRM': { code: '409 HRM SE-HRM-13', type: 'Theory', batches: [] },
+        'World Class Manufacturing': { code: 'SE 408', type: 'Theory', batches: [] },
+        'Sustainable Supply Chain': { code: 'SE 412', type: 'Theory', batches: [] },
+        'Entrepreneurship, Innovation and Design Thinking': { code: 'GC 401', type: 'Theory', batches: [] },
+        'Compensation & Reward Management': { code: 'GE 405', type: 'Theory', batches: [] },
+        'Recent trends in Marketing': { code: '403 - SC MKT - 02', type: 'Theory', batches: [] },
+        'Marketing Strategy': { code: '411 - SE MKT - 15', type: 'Theory', batches: [] },
+        'Marketing of Financial Services': { code: '410 - SE MKT 14', type: 'Theory', batches: [] },
+        'Digital Marketing II': { code: '408 - SE MKT 12', type: 'Theory', batches: [] },
       },
-      'Finance & Accounting': {
-        'Investment Analysis': { code: 'MBA701', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Financial Markets': { code: 'MBA702', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Corporate Finance': { code: 'MBA703', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Taxation': { code: 'MBA704', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Risk Management': { code: 'MBA705', type: 'Theory', batches: ['A', 'B', 'C', 'D'] }
-      },
-      'Marketing & Sales': {
-        'Brand Management': { code: 'MBA801', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Digital Marketing': { code: 'MBA802', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Services Marketing': { code: 'MBA803', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Retail Management': { code: 'MBA804', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'International Marketing': { code: 'MBA805', type: 'Theory', batches: ['A', 'B', 'C', 'D'] }
-      },
-      'Human Resources': {
-        'Performance Management': { code: 'MBA901', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Compensation Management': { code: 'MBA902', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Labor Laws': { code: 'MBA903', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Strategic HRM': { code: 'MBA904', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Change Management': { code: 'MBA905', type: 'Theory', batches: ['A', 'B', 'C', 'D'] }
-      },
-      'Operations Management': {
-        'Advanced Operations': { code: 'MBA1001', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Logistics Management': { code: 'MBA1002', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Six Sigma': { code: 'MBA1003', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Technology Management': { code: 'MBA1004', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Innovation Management': { code: 'MBA1005', type: 'Theory', batches: ['A', 'B', 'C', 'D'] }
-      }
-    }
+    },
   },
-  'BBA': {
-    '1': {
-      'Business Administration': {
-        'Principles of Management': { code: 'BBA101', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Business Mathematics': { code: 'BBA102', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Business Communication': { code: 'BBA103', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Micro Economics': { code: 'BBA104', type: 'Theory', batches: ['A', 'B', 'C', 'D'] }
-      },
-      'Finance & Accounting': {
-        'Financial Accounting': { code: 'BBA201', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Business Mathematics': { code: 'BBA202', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Principles of Finance': { code: 'BBA203', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Business Statistics': { code: 'BBA204', type: 'Theory', batches: ['A', 'B', 'C', 'D'] }
-      },
-      'Marketing & Sales': {
-        'Principles of Marketing': { code: 'BBA301', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Business Communication': { code: 'BBA302', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Consumer Behavior': { code: 'BBA303', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Business Mathematics': { code: 'BBA304', type: 'Theory', batches: ['A', 'B', 'C', 'D'] }
-      },
-      'Human Resources': {
-        'Principles of Management': { code: 'BBA401', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Organizational Behavior': { code: 'BBA402', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Business Communication': { code: 'BBA403', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Business Ethics': { code: 'BBA404', type: 'Theory', batches: ['A', 'B', 'C', 'D'] }
-      }
-    },
-    '2': {
-      'Business Administration': {
-        'Macro Economics': { code: 'BBA501', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Business Law': { code: 'BBA502', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Business Statistics': { code: 'BBA503', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Entrepreneurship': { code: 'BBA504', type: 'Theory', batches: ['A', 'B', 'C', 'D'] }
-      },
-      'Finance & Accounting': {
-        'Cost Accounting': { code: 'BBA601', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Corporate Finance': { code: 'BBA602', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Business Law': { code: 'BBA603', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Financial Markets': { code: 'BBA604', type: 'Theory', batches: ['A', 'B', 'C', 'D'] }
-      },
-      'Marketing & Sales': {
-        'Marketing Research': { code: 'BBA701', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Sales Management': { code: 'BBA702', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Digital Marketing': { code: 'BBA703', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Brand Management': { code: 'BBA704', type: 'Theory', batches: ['A', 'B', 'C', 'D'] }
-      },
-      'Human Resources': {
-        'Human Resource Management': { code: 'BBA801', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Industrial Relations': { code: 'BBA802', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Training & Development': { code: 'BBA803', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Labor Laws': { code: 'BBA804', type: 'Theory', batches: ['A', 'B', 'C', 'D'] }
-      }
-    },
-    '3': {
-      'Business Administration': {
-        'Strategic Management': { code: 'BBA901', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'International Business': { code: 'BBA902', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Operations Management': { code: 'BBA903', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Project Management': { code: 'BBA904', type: 'Theory', batches: ['A', 'B', 'C', 'D'] }
-      },
-      'Finance & Accounting': {
-        'Investment Analysis': { code: 'BBA1001', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Taxation': { code: 'BBA1002', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Financial Risk Management': { code: 'BBA1003', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Auditing': { code: 'BBA1004', type: 'Theory', batches: ['A', 'B', 'C', 'D'] }
-      },
-      'Marketing & Sales': {
-        'Services Marketing': { code: 'BBA1101', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Retail Management': { code: 'BBA1102', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Advertising': { code: 'BBA1103', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'E-commerce': { code: 'BBA1104', type: 'Theory', batches: ['A', 'B', 'C', 'D'] }
-      },
-      'Human Resources': {
-        'Performance Management': { code: 'BBA1201', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Compensation Management': { code: 'BBA1202', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Organizational Development': { code: 'BBA1203', type: 'Theory', batches: ['A', 'B', 'C', 'D'] },
-        'Change Management': { code: 'BBA1204', type: 'Theory', batches: ['A', 'B', 'C', 'D'] }
-      }
-    }
-  }
 };
 
 // Function to get default config based on college code

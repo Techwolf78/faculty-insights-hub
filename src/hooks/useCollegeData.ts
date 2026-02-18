@@ -1,6 +1,7 @@
 // React Query hooks for optimized data fetching with caching
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { DocumentSnapshot, DocumentData } from 'firebase/firestore';
 import {
     collegesApi,
     usersApi,
@@ -13,6 +14,7 @@ import {
     feedbackStatsApi,
     academicConfigApi,
     accessCodesApi,
+    helpTicketsApi,
     College,
     User,
     Department,
@@ -23,7 +25,18 @@ import {
     FeedbackStats,
     AcademicConfig,
     AccessCode,
+    HelpTicket,
 } from '@/lib/storage';
+
+// ============================================================================
+// TYPES
+// ============================================================================
+
+type FacultyPaginatedResult = {
+  data: Faculty[];
+  hasMore: boolean;
+  lastDoc?: DocumentSnapshot<DocumentData>;
+};
 
 // ============================================================================
 // CACHE TIME CONSTANTS
@@ -100,6 +113,15 @@ export const queryKeys = {
     // Access Codes
     accessCodes: ['accessCodes'] as const,
     accessCodesBySession: (sessionId: string) => ['accessCodes', 'session', sessionId] as const,
+
+    // Help Tickets
+    helpTickets: ['helpTickets'] as const,
+    helpTicket: (id: string) => ['helpTickets', id] as const,
+    helpTicketsByUser: (userId: string) => ['helpTickets', 'user', userId] as const,
+    helpTicketsByCollege: (collegeId: string) => ['helpTickets', 'college', collegeId] as const,
+    helpTicketsByDepartment: (departmentId: string) => ['helpTickets', 'department', departmentId] as const,
+    helpTicketsByStatus: (collegeId: string, status: HelpTicket['status']) => ['helpTickets', 'college', collegeId, 'status', status] as const,
+    allHelpTickets: ['helpTickets', 'all'] as const,
 };
 
 // ============================================================================
@@ -239,6 +261,15 @@ export function useFacultyByUserId(userId: string | undefined) {
         queryKey: queryKeys.facultyByUserId(userId || ''),
         queryFn: () => facultyApi.getByUserId(userId!),
         enabled: !!userId,
+        staleTime: STALE_TIME.SEMI_STATIC,
+    });
+}
+
+export function useFacultyPaginated(collegeId: string | undefined, pageSize: number = 20, lastDocId?: string) {
+    return useQuery<FacultyPaginatedResult>({
+        queryKey: [...queryKeys.facultyByCollege(collegeId || ''), 'paginated', pageSize, lastDocId || ''],
+        queryFn: () => facultyApi.getByCollegePaginated(collegeId!, pageSize, lastDocId),
+        enabled: !!collegeId,
         staleTime: STALE_TIME.SEMI_STATIC,
     });
 }
@@ -539,8 +570,6 @@ export function useCreateFaculty() {
             facultyApi.create(faculty),
         onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: queryKeys.facultyByCollege(data.collegeId) });
-            queryClient.invalidateQueries({ queryKey: queryKeys.facultyByDepartment(data.departmentId) });
-            queryClient.invalidateQueries({ queryKey: queryKeys.department(data.departmentId) });
         },
     });
 }
@@ -553,6 +582,105 @@ export function useCreateQuestion() {
             questionsApi.create(question),
         onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: queryKeys.questionsByCollege(data.collegeId) });
+        },
+    });
+}
+
+// ============================================================================
+// HELP TICKETS HOOKS
+// ============================================================================
+
+export function useHelpTicketsByUser(userId: string | undefined) {
+    return useQuery({
+        queryKey: queryKeys.helpTicketsByUser(userId || ''),
+        queryFn: () => helpTicketsApi.getByUserId(userId!),
+        enabled: !!userId,
+        staleTime: STALE_TIME.DYNAMIC,
+    });
+}
+
+export function useHelpTicketsByCollege(collegeId: string | undefined) {
+    return useQuery({
+        queryKey: queryKeys.helpTicketsByCollege(collegeId || ''),
+        queryFn: () => helpTicketsApi.getByCollege(collegeId!),
+        enabled: !!collegeId,
+        staleTime: STALE_TIME.DYNAMIC,
+    });
+}
+
+export function useHelpTicketsByDepartment(departmentId: string | undefined) {
+    return useQuery({
+        queryKey: queryKeys.helpTicketsByDepartment(departmentId || ''),
+        queryFn: () => helpTicketsApi.getByDepartment(departmentId!),
+        enabled: !!departmentId,
+        staleTime: STALE_TIME.DYNAMIC,
+    });
+}
+
+export function useHelpTicketsByStatus(collegeId: string | undefined, status: HelpTicket['status'] | undefined) {
+    return useQuery({
+        queryKey: queryKeys.helpTicketsByStatus(collegeId || '', status || 'open'),
+        queryFn: () => helpTicketsApi.getByStatus(collegeId!, status!),
+        enabled: !!collegeId && !!status,
+        staleTime: STALE_TIME.DYNAMIC,
+    });
+}
+
+export function useAllHelpTickets() {
+    return useQuery({
+        queryKey: queryKeys.allHelpTickets,
+        queryFn: () => helpTicketsApi.getAll(),
+        staleTime: STALE_TIME.DYNAMIC,
+    });
+}
+
+export function useCreateHelpTicket() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (ticket: Omit<HelpTicket, 'id' | 'createdAt' | 'updatedAt' | 'remarks'>) =>
+            helpTicketsApi.create(ticket),
+        onSuccess: (data) => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.helpTicketsByUser(data.createdBy) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.helpTicketsByCollege(data.collegeId) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.allHelpTickets });
+            if (data.departmentId) {
+                queryClient.invalidateQueries({ queryKey: queryKeys.helpTicketsByDepartment(data.departmentId) });
+            }
+        },
+    });
+}
+
+export function useUpdateHelpTicketStatus() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ id, status }: { id: string; status: HelpTicket['status'] }) =>
+            helpTicketsApi.updateStatus(id, status),
+        onSuccess: (data) => {
+            if (data) {
+                queryClient.invalidateQueries({ queryKey: queryKeys.helpTicket(data.id) });
+                queryClient.invalidateQueries({ queryKey: queryKeys.helpTicketsByCollege(data.collegeId) });
+                queryClient.invalidateQueries({ queryKey: queryKeys.helpTicketsByStatus(data.collegeId, data.status) });
+                queryClient.invalidateQueries({ queryKey: queryKeys.allHelpTickets });
+            }
+        },
+    });
+}
+
+export function useAddHelpTicketRemark() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ id, remark }: { id: string; remark: { text: string; adminId: string } }) =>
+            helpTicketsApi.addRemark(id, remark),
+        onSuccess: (data) => {
+            if (data) {
+                queryClient.invalidateQueries({ queryKey: queryKeys.helpTicket(data.id) });
+                queryClient.invalidateQueries({ queryKey: queryKeys.helpTicketsByCollege(data.collegeId) });
+                queryClient.invalidateQueries({ queryKey: queryKeys.helpTicketsByUser(data.createdBy) });
+                queryClient.invalidateQueries({ queryKey: queryKeys.allHelpTickets });
+            }
         },
     });
 }
@@ -657,3 +785,5 @@ export function useFeedbackFormData(sessionUrl: string | undefined): FeedbackFor
         error,
     };
 }
+
+

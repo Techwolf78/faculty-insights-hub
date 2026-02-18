@@ -26,9 +26,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ allowedRoles }
     return <Navigate to="/login" replace />;
   }
 
-  if (!allowedRoles.includes(user.role)) {
-    // Redirect to appropriate dashboard based on role
-    switch (user.role) {
+  if (!allowedRoles.includes(user.activeRole || user.role)) {
+    // Redirect to appropriate dashboard based on active role
+    const roleToCheck = user.activeRole || user.role;
+    switch (roleToCheck) {
       case 'superAdmin':
         return <Navigate to="/super-admin" replace />;
       case 'admin':

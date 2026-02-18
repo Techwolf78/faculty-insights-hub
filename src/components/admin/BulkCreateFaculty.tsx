@@ -10,7 +10,6 @@ import { facultyApi } from '@/lib/storage';
 interface BulkCreateFacultyData {
   name: string;
   email: string;
-  password: string;
   role: 'faculty' | 'hod';
   designation?: string;
   specialization?: string;
@@ -40,7 +39,6 @@ const BulkCreateFaculty: React.FC<BulkCreateFacultyProps> = ({
       {
         "name": "Dr. John Smith",
         "email": "john.smith@college.edu",
-        "password": "John@123",
         "role": "faculty",
         "designation": "Assistant Professor",
         "specialization": "Machine Learning",
@@ -51,7 +49,6 @@ const BulkCreateFaculty: React.FC<BulkCreateFacultyProps> = ({
       {
         "name": "Dr. Sarah Johnson",
         "email": "sarah.johnson@college.edu",
-        "password": "Sarah@123",
         "role": "hod",
         "designation": "Professor",
         "specialization": "Data Structures",
@@ -62,7 +59,6 @@ const BulkCreateFaculty: React.FC<BulkCreateFacultyProps> = ({
       {
         "name": "Prof. Michael Chen",
         "email": "michael.chen@college.edu",
-        "password": "Michael@123",
         "role": "faculty",
         "designation": "Associate Professor",
         "specialization": "Artificial Intelligence",
@@ -73,7 +69,6 @@ const BulkCreateFaculty: React.FC<BulkCreateFacultyProps> = ({
       {
         "name": "Dr. Emily Davis",
         "email": "emily.davis@college.edu",
-        "password": "Emily@123",
         "role": "faculty",
         "designation": "Assistant Professor",
         "specialization": "Database Systems",
@@ -84,7 +79,6 @@ const BulkCreateFaculty: React.FC<BulkCreateFacultyProps> = ({
       {
         "name": "Dr. Robert Wilson",
         "email": "robert.wilson@college.edu",
-        "password": "Robert@123",
         "role": "hod",
         "designation": "Professor",
         "specialization": "Computer Networks",
@@ -95,7 +89,6 @@ const BulkCreateFaculty: React.FC<BulkCreateFacultyProps> = ({
       {
         "name": "Ms. Lisa Anderson",
         "email": "lisa.anderson@college.edu",
-        "password": "Lisa@123",
         "role": "faculty",
         "designation": "Lecturer",
         "specialization": "Web Development",
@@ -106,7 +99,6 @@ const BulkCreateFaculty: React.FC<BulkCreateFacultyProps> = ({
       {
         "name": "Dr. David Brown",
         "email": "david.brown@college.edu",
-        "password": "David@123",
         "role": "faculty",
         "designation": "Assistant Professor",
         "specialization": "Cybersecurity",
@@ -117,7 +109,6 @@ const BulkCreateFaculty: React.FC<BulkCreateFacultyProps> = ({
       {
         "name": "Prof. Jennifer Lee",
         "email": "jennifer.lee@college.edu",
-        "password": "Jennifer@123",
         "role": "faculty",
         "designation": "Associate Professor",
         "specialization": "Software Engineering",
@@ -170,9 +161,6 @@ const BulkCreateFaculty: React.FC<BulkCreateFacultyProps> = ({
           } else {
             emails.add(email);
           }
-        }
-        if (!faculty.password || typeof faculty.password !== 'string' || !faculty.password.trim()) {
-          errors.push(`Faculty ${i + 1}: Password is required`);
         }
         if (!faculty.role || !['faculty', 'hod'].includes(faculty.role)) {
           errors.push(`Faculty ${i + 1}: Role must be "faculty" or "hod"`);
@@ -270,7 +258,6 @@ const BulkCreateFaculty: React.FC<BulkCreateFacultyProps> = ({
   {
     "name": "Dr. John Smith",
     "email": "john.smith@college.edu",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "Machine Learning",
@@ -281,7 +268,6 @@ const BulkCreateFaculty: React.FC<BulkCreateFacultyProps> = ({
   {
     "name": "Dr. Sarah Johnson",
     "email": "sarah.johnson@college.edu",
-    "password": "Sarah@123",
     "role": "hod",
     "designation": "Professor",
     "specialization": "Data Structures",
@@ -307,9 +293,9 @@ const BulkCreateFaculty: React.FC<BulkCreateFacultyProps> = ({
           )}
 
           <div className="text-sm text-muted-foreground">
-            <p><strong>Required fields:</strong> name, email, password, role</p>
+            <p><strong>Required fields:</strong> name, email, role</p>
             <p><strong>Role options:</strong> "faculty" or "hod"</p>
-            <p><strong>Auto-generated:</strong> Faculty ID (FAC001, FAC002, etc.)</p>
+            <p><strong>Auto-generated:</strong> Faculty ID (FAC001, FAC002, etc.), Password (Fac001@, Fac002@, etc.)</p>
             <p><strong>Important:</strong> All faculty data must be valid. If any faculty member has errors, none will be created.</p>
           </div>
         </div>
