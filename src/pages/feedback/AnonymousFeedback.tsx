@@ -16,6 +16,8 @@ import {
   Faculty,
   Question,
   FeedbackResponse,
+  isSessionActive,
+  isSessionExpired,
 } from '@/lib/storage';
 
 type Step = 'feedback' | 'success';
@@ -146,18 +148,15 @@ export const AnonymousFeedback: React.FC = () => {
           return;
         }
 
-        if (!session.isActive) {
+        if (!isSessionActive(session)) {
           console.log('Session is not active');
-          setSessionError('This feedback session is no longer active.');
-          setIsValidating(false);
-          isValidatingRef.current = false;
-          clearTimeout(timeoutId);
-          return;
-        }
-
-        if (session.expiresAt.toDate() < new Date()) {
-          console.log('Session has expired');
-          setSessionError('This feedback session has expired.');
+          
+          if (isSessionExpired(session)) {
+            setSessionError('This feedback session has expired.');
+          } else {
+            setSessionError('This feedback session is no longer active.');
+          }
+          
           setIsValidating(false);
           isValidatingRef.current = false;
           clearTimeout(timeoutId);

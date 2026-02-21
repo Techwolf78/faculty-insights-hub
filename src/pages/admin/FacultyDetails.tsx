@@ -197,7 +197,7 @@ const FacultyDetails: React.FC = () => {
             batch: session?.batch || 'Unknown'
           };
         })
-    ).filter(item => item.comment.length > 10) // Only substantial comments
+    ).filter(item => item.comment.length >= 2) // Show all meaningful comments
     .sort((a, b) => b.rating - a.rating)
     .slice(0, 20);
 
@@ -220,7 +220,7 @@ const FacultyDetails: React.FC = () => {
             batch: session?.batch || 'Unknown'
           };
         })
-    ).filter(item => item.comment.length > 10) // Only substantial comments
+    ).filter(item => item.comment.length >= 2) // Show all meaningful comments
     .sort((a, b) => b.rating - a.rating)
     .slice(0, 20);
 

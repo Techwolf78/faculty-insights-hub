@@ -43,10 +43,10 @@ type FacultyPaginatedResult = {
 // ============================================================================
 
 const STALE_TIME = {
-    STATIC: 10 * 60 * 1000,      // 10 minutes for rarely changing data (colleges, academic config)
-    SEMI_STATIC: 5 * 60 * 1000,  // 5 minutes for departments, faculty, questions
-    DYNAMIC: 1 * 60 * 1000,      // 1 minute for sessions, submissions
-    STATS: 2 * 60 * 1000,        // 2 minutes for aggregated stats
+    STATIC: 30 * 60 * 1000,      // 30 minutes for rarely changing data (colleges, academic config)
+    SEMI_STATIC: 15 * 60 * 1000, // 15 minutes for departments, faculty, questions
+    DYNAMIC: 5 * 60 * 1000,      // 5 minutes for sessions, submissions
+    STATS: 10 * 60 * 1000,       // 10 minutes for aggregated stats
 };
 
 // ============================================================================

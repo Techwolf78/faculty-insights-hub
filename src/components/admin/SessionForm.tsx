@@ -4,8 +4,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { GraduationCap, Loader2 } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { GraduationCap, Loader2, Check, ChevronsUpDown } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { cn } from '@/lib/utils';
 import { departmentsApi, facultyApi, feedbackSessionsApi, Department, Faculty, questionGroupsApi, QuestionGroup, facultyAllocationsApi, FacultyAllocation } from '@/lib/storage';
 import { getAcademicConfig } from '@/lib/academicConfig';
 import { toast } from 'sonner';
@@ -34,7 +37,6 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
   const subjectSelectRef = React.useRef<HTMLButtonElement>(null);
   const batchSelectRef = React.useRef<HTMLButtonElement>(null);
   const questionGroupSelectRef = React.useRef<HTMLButtonElement>(null);
-  const facultySelectRef = React.useRef<HTMLButtonElement>(null);
 
   // Form state
   const [course, setCourse] = useState('');
@@ -44,6 +46,7 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
   const [batch, setBatch] = useState('');
   const [questionGroup, setQuestionGroup] = useState('');
   const [selectedFaculty, setSelectedFaculty] = useState('');
+  const [facultyOpen, setFacultyOpen] = useState(false);
   const [expiresAt, setExpiresAt] = useState('');
   const [subjectCode, setSubjectCode] = useState('');
   const [subjectType, setSubjectType] = useState<'Theory' | 'Practical' | 'Tutorial'>('Theory');
@@ -273,30 +276,55 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="faculty">Faculty Member</Label>
-            <Select value={selectedFaculty} onValueChange={(value) => {
-              setSelectedFaculty(value);
-              setCourse(''); // Reset all dependent fields
-              setAcademicYear('');
-              setDepartment('');
-              setSubject('');
-              setBatch('');
-              setQuestionGroup('');
-              // Close the dropdown after selection
-              setTimeout(() => {
-                facultySelectRef.current?.click();
-              }, 100);
-            }}>
-              <SelectTrigger ref={facultySelectRef}>
-                <SelectValue placeholder="Select faculty member" />
-              </SelectTrigger>
-              <SelectContent>
-                {faculty.map((f) => (
-                  <SelectItem key={f.id} value={f.id}>
-                    {f.name}{f.designation ? ` - ${f.designation}` : ''}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover open={facultyOpen} onOpenChange={setFacultyOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={facultyOpen}
+                  className="w-full justify-between font-normal"
+                >
+                  {selectedFaculty
+                    ? faculty.find((f) => f.id === selectedFaculty)?.name
+                    : "Select faculty member"}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
+                <Command>
+                  <CommandInput placeholder="Search faculty member..." />
+                  <CommandList>
+                    <CommandEmpty>No faculty found.</CommandEmpty>
+                    <CommandGroup>
+                      {faculty.map((f) => (
+                        <CommandItem
+                          key={f.id}
+                          value={`${f.name} ${f.designation || ''}`}
+                          onSelect={() => {
+                            setSelectedFaculty(f.id);
+                            setCourse(''); // Reset all dependent fields
+                            setAcademicYear('');
+                            setDepartment('');
+                            setSubject('');
+                            setBatch('');
+                            setQuestionGroup('');
+                            setFacultyOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              selectedFaculty === f.id ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          {f.name}{f.designation ? ` - ${f.designation}` : ''}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

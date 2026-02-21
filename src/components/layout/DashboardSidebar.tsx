@@ -35,6 +35,7 @@ const adminLinks: SidebarLink[] = [
   { to: '/admin/faculty', icon: Users, label: 'Faculty' },
   { to: '/admin/bulk-email', icon: Mail, label: 'Bulk Email' },
   { to: '/admin/faculty-allocation', icon: UserCheck, label: 'Faculty Allocation' },
+  { to: '/admin/profile', icon: User, label: 'Profile Settings' },
   { to: '/admin/help', icon: HelpCircle, label: 'Help' },
 ];
 

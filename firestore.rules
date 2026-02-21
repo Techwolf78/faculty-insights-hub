@@ -23,6 +23,13 @@ service cloud.firestore {
       allow write: if request.auth != null;
     }
 
+    // Allow anonymous update for stats to enable live ranking
+    // NOTE: This is a trade-off for real-time updates without a backend
+    match /feedbackStats/{statsId} {
+      allow read: if true;
+      allow create, update: if true; 
+    }
+
     // Help tickets - Support system
     match /helpTickets/{ticketId} {
       allow create: if request.auth != null;  // Any authenticated user can create a ticket

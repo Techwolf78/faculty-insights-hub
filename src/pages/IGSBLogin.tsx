@@ -68,7 +68,7 @@ export const IGSBLogin: React.FC = () => {
               className="h-28 w-auto object-contain rounded-lg"
             />
             <div>
-              <h1 className="font-display text-4xl font-bold text-primary-foreground">Faculty Feedback System</h1>
+              <h1 className="font-display text-4xl font-black text-primary-foreground mb-2">INSYT - FACULTY FEEDBACK</h1>
             </div>
           </div>
 

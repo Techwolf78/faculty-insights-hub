@@ -157,6 +157,32 @@ export interface FeedbackSession {
   updatedAt: Timestamp;
 }
 
+/**
+ * Checks if a feedback session is currently active and not expired.
+ * A session is active if session.isActive is true AND the current time is before session.expiresAt.
+ */
+export const isSessionActive = (session: FeedbackSession): boolean => {
+  if (!session.isActive) return false;
+  
+  if (session.expiresAt) {
+    const now = new Date();
+    return session.expiresAt.toDate() > now;
+  }
+  
+  return true;
+};
+
+/**
+ * Checks if a feedback session has expired.
+ * A session is expired if it was active but its expiration date has passed.
+ */
+export const isSessionExpired = (session: FeedbackSession): boolean => {
+  if (!session.expiresAt) return false;
+  
+  const now = new Date();
+  return session.expiresAt.toDate() <= now;
+};
+
 export interface QuestionGroup {
   id: string;
   collegeId: string;
@@ -1507,8 +1533,44 @@ export const submissionsApi = {
       
       return { id: docRef.id, ...submissionData };
     } else {
-      // For anonymous users, just create the submission without updating stats
+      // For anonymous users, create the submission AND try to update stats
       const docRef = await addDoc(collection(db, 'feedbackSubmissions'), submissionData);
+      
+      try {
+        // Update feedbackStats collection (non-transactional)
+        // This will succeed if firestore.rules allow anonymous write to feedbackStats
+        await updateFeedbackStats(
+          submission.collegeId, 
+          submission.departmentId, 
+          submission.facultyId, 
+          submission.sessionId, 
+          overallRating, 
+          categoryRatings, 
+          comments, 
+          now
+        );
+        
+        // Also try to update basic counts in session and faculty docs
+        const sessionRef = doc(db, 'feedbackSessions', submission.sessionId);
+        const facultyRef = doc(db, 'faculty', submission.facultyId);
+        
+        // Individual updates (may fail depending on rules, but we catch)
+        updateDoc(sessionRef, {
+          'stats.submissionCount': increment(1),
+          'stats.lastSubmissionAt': now,
+          updatedAt: now,
+        }).catch(() => {});
+        
+        updateDoc(facultyRef, {
+          'stats.totalSubmissions': increment(1),
+          'stats.lastFeedbackAt': now,
+          updatedAt: now,
+        }).catch(() => {});
+
+      } catch (err) {
+        console.warn("Failed to update stats anonymously:", err);
+      }
+      
       return { id: docRef.id, ...submissionData };
     }
   },

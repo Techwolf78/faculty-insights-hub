@@ -29,6 +29,8 @@ import {
   useAllFacultyStats,
   useAllSubmissions,
 } from '@/hooks/useCollegeData';
+import { useCacheRefresh } from '@/hooks/useCacheRefresh';
+import { CacheRefreshButton } from '@/components/ui/CacheRefreshButton';
 import {
   departmentsApi,
   facultyApi,
@@ -47,6 +49,7 @@ import {
   collegesApi,
   facultyAllocationsApi,
   FacultyAllocation,
+  isSessionActive,
 } from '@/lib/storage';
 import { SessionForm } from '@/components/admin/SessionForm';
 import DepartmentForm from '@/components/admin/DepartmentForm';
@@ -136,6 +139,16 @@ const AdminDashboard = () => {
 
   const isLoading = departmentsLoading || facultyLoading || questionGroupsLoading || questionsLoading || sessionsLoading || submissionsLoading || collegeLoading || academicConfigLoading || collegeStatsLoading || departmentStatsLoading || facultyStatsLoading || allocationsLoading;
 
+  // Cache refresh setup
+  const {
+    isRefreshing,
+    refresh: performCacheRefresh,
+    hasStaleData,
+    stats: cacheStats,
+    lastRefreshTime,
+    clearAll: clearAllCache,
+  } = useCacheRefresh(['departments', 'faculty', 'sessions', 'submissions', 'stats']);
+
   // Get current user's department name
   const userDepartmentName = useMemo(() => {
     if (!user?.departmentId || !departments.length) return 'Department';
@@ -153,6 +166,13 @@ const AdminDashboard = () => {
     queryClient.invalidateQueries({ queryKey: ['submissions'] });
     queryClient.invalidateQueries({ queryKey: ['stats'] });
   }, [queryClient]);
+
+  // Enhanced refresh with cache clearing
+  const handleRefresh = useCallback(async () => {
+    await performCacheRefresh();
+    refreshData();
+    return true;
+  }, [performCacheRefresh, refreshData]);
 
   // Optimized refresh for session operations only
   const refreshSessions = useCallback(() => {
@@ -186,6 +206,34 @@ const AdminDashboard = () => {
     );
   }, [queryClient, user?.collegeId]);
 
+  // Auto-expiry cleanup for sessions
+  useEffect(() => {
+    const cleanupExpiredSessions = async () => {
+      if (!sessions || sessions.length === 0) return;
+      
+      const expiredActiveSessions = sessions.filter(
+        s => s.isActive && s.expiresAt && s.expiresAt.toDate() < new Date()
+      );
+      
+      if (expiredActiveSessions.length > 0) {
+        console.log(`Cleaning up ${expiredActiveSessions.length} expired sessions...`);
+        try {
+          await Promise.all(
+            expiredActiveSessions.map(s => 
+              feedbackSessionsApi.update(s.id, { isActive: false })
+            )
+          );
+          // Refresh sessions to update UI
+          refreshSessions();
+        } catch (error) {
+          console.error('Error cleaning up expired sessions:', error);
+        }
+      }
+    };
+    
+    cleanupExpiredSessions();
+  }, [sessions, refreshSessions]);
+
   // Session form state
   const [sessionFormOpen, setSessionFormOpen] = useState(false);
 
@@ -201,9 +249,9 @@ const AdminDashboard = () => {
     
     // Filter by tab first
     if (currentSessionTab === 'active') {
-      filteredSessions = sessions.filter(s => s.isActive);
+      filteredSessions = sessions.filter(s => isSessionActive(s));
     } else if (currentSessionTab === 'inactive') {
-      filteredSessions = sessions.filter(s => !s.isActive);
+      filteredSessions = sessions.filter(s => !isSessionActive(s));
     }
     // For 'all' tab, use all sessions
     
@@ -213,9 +261,9 @@ const AdminDashboard = () => {
   // Function to get total count for current tab
   const getTotalSessionCount = () => {
     if (currentSessionTab === 'active') {
-      return sessions.filter(s => s.isActive).length;
+      return sessions.filter(s => isSessionActive(s)).length;
     } else if (currentSessionTab === 'inactive') {
-      return sessions.filter(s => !s.isActive).length;
+      return sessions.filter(s => !isSessionActive(s)).length;
     }
     return sessions.length;
   };
@@ -703,7 +751,7 @@ const AdminDashboard = () => {
   }, [allSubmissions, faculty, departments, selectedCourse, selectedYear, selectedDepartment, selectedSubject, selectedBatch, dateRange, sessions]);
 
   // Calculate metrics
-  const activeSessions = sessions.filter(s => s.isActive);
+  const activeSessionsCount = sessions.filter(s => isSessionActive(s)).length;
 
   // Calculate filtered stats
   const filteredStats = useMemo(() => {
@@ -779,8 +827,8 @@ const AdminDashboard = () => {
 
   // Status distribution
   const statusData = [
-    { name: 'Active', value: sessions.filter(s => s.isActive).length },
-    { name: 'Inactive', value: sessions.filter(s => !s.isActive).length },
+    { name: 'Active', value: sessions.filter(s => isSessionActive(s)).length },
+    { name: 'Inactive', value: sessions.filter(s => !isSessionActive(s)).length },
   ].filter(d => d.value > 0);
 
   // Feedback Trend data (last 6 months) - calculated from filtered submissions
@@ -882,6 +930,9 @@ const AdminDashboard = () => {
             performanceTrendData={performanceTrendData}
             feedbackTrendYAxisDomain={feedbackTrendYAxisDomain}
             categoryBreakdownData={categoryBreakdownData}
+            onRefresh={handleRefresh}
+            hasStaleData={hasStaleData}
+            isRefreshing={isRefreshing}
           />
         );
       case 'faculty':
@@ -920,6 +971,9 @@ const AdminDashboard = () => {
             setSessionFormOpen={setSessionFormOpen}
             refreshSessions={refreshSessions}
             handleOptimisticSessionUpdate={handleOptimisticSessionUpdate}
+            onRefresh={handleRefresh}
+            hasStaleData={hasStaleData}
+            isRefreshing={isRefreshing}
           />
         );
       case 'departments':

@@ -33,15 +33,30 @@ const HodProfileSettings: React.FC = () => {
 
   useEffect(() => {
     if (hodProfile?.id) {
-      facultyAllocationsApi.getByFaculty(hodProfile.id).then(allocations => {
-        setHodAllocations(allocations);
-        // Set department name from allocations
-        if (allocations.length > 0) {
-          const deptName = allocations[0].department;
-          setHodDepartmentName(deptName);
-        }
-      });
-      feedbackSessionsApi.getByFaculty(hodProfile.id).then(setHodSessions);
+      console.log("Fetching allocations for facultyId:", hodProfile.id);
+      facultyAllocationsApi.getByFaculty(hodProfile.id)
+        .then(allocations => {
+          console.log("Allocations fetched:", allocations);
+          setHodAllocations(allocations);
+          if (allocations.length > 0) {
+            const deptName = allocations[0].department;
+            setHodDepartmentName(deptName);
+          }
+        })
+        .catch(error => {
+          console.error("Error fetching allocations:", error);
+          toast.error("Failed to fetch faculty allocations.");
+        });
+
+      feedbackSessionsApi.getByFaculty(hodProfile.id)
+        .then(sessions => {
+          console.log("Feedback sessions fetched:", sessions);
+          setHodSessions(sessions);
+        })
+        .catch(error => {
+          console.error("Error fetching feedback sessions:", error);
+          toast.error("Failed to fetch feedback sessions.");
+        });
     }
   }, [hodProfile?.id]);
 
@@ -90,7 +105,6 @@ const HodProfileSettings: React.FC = () => {
       } else {
         toast.error('Failed to change password');
       }
-// ...existing code...
     } finally {
       setIsChangingPassword(false);
     }
@@ -101,54 +115,33 @@ const HodProfileSettings: React.FC = () => {
   // Loading progress effect
   useEffect(() => {
     if (!hodProfile) {
-      const interval = setInterval(() => {
-        setLoadingProgress(prev => {
-          if (prev >= 90) return prev; // Stop at 90% until actual loading completes
-          const increment = Math.random() * 15 + 5; // Random increment between 5-20%
-          const newProgress = prev + increment;
-          return Math.min(newProgress, 90); // Ensure it never goes over 90%
-        });
-      }, 300 + Math.random() * 400); // Random interval between 300-700ms
+      const timeout = setTimeout(() => {
+        setLoadingProgress(100); // Force completion after a certain time
+        toast.error("Failed to load profile. Please try again later.");
+      }, 15000); // 15 seconds timeout
 
-      return () => clearInterval(interval);
-    } else {
-      setLoadingProgress(100); // Complete when loading finishes
-      // Reset progress after a short delay
-      setTimeout(() => setLoadingProgress(0), 500);
+      facultyAllocationsApi.getByFaculty(user?.id).catch((error) => {
+        if (error.response?.status === 404) {
+          toast.error("Profile not found.");
+        } else if (error.response?.status === 500) {
+          toast.error("Server error. Please try again later.");
+        } else if (error.message.includes("Network Error")) {
+          toast.error("Network error. Check your connection.");
+        } else {
+          toast.error("An unexpected error occurred.");
+        }
+      });
+
+      return () => {
+        clearTimeout(timeout);
+      };
     }
-  }, [hodProfile]);
+  }, [hodProfile, user?.id]);
 
   if (!hodProfile) {
     return (
-      <div className="min-h-screen bg-background relative">
-        {/* Skeleton Main Content Only */}
-        <div className="flex-1 flex flex-col p-6 space-y-6">
-          <Skeleton className="h-10 w-1/2" />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Skeleton className="h-64" />
-            <Skeleton className="h-64" />
-          </div>
-          <Skeleton className="h-32 w-full" />
-        </div>
-        {/* Loading Overlay */}
-        <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-6 max-w-sm mx-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-            <div className="w-full space-y-3">
-              <div className="flex justify-between items-center">
-                <p className="text-muted-foreground text-sm">Loading profile...</p>
-                <span className="text-primary font-medium text-sm">{Math.round(loadingProgress)}%</span>
-              </div>
-              <Progress value={loadingProgress} className="w-full h-2" />
-            </div>
-            <p className="text-muted-foreground text-sm text-center">
-              {loadingProgress < 30 ? "Initializing..." :
-               loadingProgress < 60 ? "Loading data..." :
-               loadingProgress < 90 ? "Processing analytics..." :
-               "Almost ready..."}
-            </p>
-          </div>
-        </div>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-muted-foreground text-sm">Failed to load profile. Please try again later.</p>
       </div>
     );
   }
@@ -220,7 +213,11 @@ const HodProfileSettings: React.FC = () => {
                 </div>
                 <div>
                   <Label className="text-sm font-medium">Academic Year</Label>
-                  <p className="text-sm text-muted-foreground mt-1">{hodSessions[0]?.academicYear || 'Not assigned'}</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {hodSessions[0]?.academicYear || 
+                     (hodAllocations.length > 0 && hodAllocations[0].years && hodAllocations[0].years[0]) || 
+                     'Not assigned'}
+                  </p>
                 </div>
               </div>
             </CardContent>

@@ -9,8 +9,9 @@ import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { CacheRefreshButton } from '@/components/ui/CacheRefreshButton';
 import {
-  BarChart3, RefreshCw, Building2, Calendar, Users, FileText, User, TrendingUp, MessageSquare, ClipboardCheck
+  BarChart3, RefreshCw, RotateCcw, Building2, Calendar, Users, FileText, User, TrendingUp, MessageSquare, ClipboardCheck
 } from 'lucide-react';
 import { format, subDays, isAfter } from 'date-fns';
 import { College, FeedbackStats, FeedbackSubmission, Faculty, Department } from '@/lib/storage';
@@ -59,6 +60,10 @@ interface DashboardOverviewProps {
   performanceTrendData: Array<{ [key: string]: string | number }>;
   feedbackTrendYAxisDomain: number[];
   categoryBreakdownData: Array<{ category: string; score: number }>;
+  // Cache refresh props
+  onRefresh?: () => Promise<boolean>;
+  hasStaleData?: boolean;
+  isRefreshing?: boolean;
 }
 
 export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
@@ -88,6 +93,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
   performanceTrendData,
   feedbackTrendYAxisDomain,
   categoryBreakdownData,
+  onRefresh,
+  hasStaleData = false,
+  isRefreshing = false,
 }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -101,7 +109,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
       />
 
       {/* Hierarchical Filtering */}
-      <div className="p-6 border-b bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5 backdrop-blur-sm">
+      <div className="p-3 border-b bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5 backdrop-blur-sm">
         <div className="max-w-full mx-auto">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
@@ -188,22 +196,33 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
                   </div>
                 </div>
               )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setSelectedCourse('all');
-                  setSelectedYear('all');
-                  setSelectedDepartment('all');
-                  setSelectedSubject('all');
-                  setSelectedBatch('all');
-                  setDateRange({ from: '', to: '' });
-                }}
-                className="text-xs"
-              >
-                <RefreshCw className="h-3 w-3 mr-1" />
-                Reset Filters
-              </Button>
+              <div className="flex items-center gap-2">
+                {onRefresh && (
+                  <CacheRefreshButton
+                    onRefresh={onRefresh}
+                    hasStaleData={hasStaleData}
+                    isRefreshing={isRefreshing}
+                    compact={true}
+                    label="Refresh"
+                  />
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedCourse('all');
+                    setSelectedYear('all');
+                    setSelectedDepartment('all');
+                    setSelectedSubject('all');
+                    setSelectedBatch('all');
+                    setDateRange({ from: '', to: '' });
+                  }}
+                  className="text-xs"
+                >
+                  <RotateCcw className="h-3 w-3 mr-1" />
+                  Reset Filters
+                </Button>
+              </div>
             </div>
           </div>
 

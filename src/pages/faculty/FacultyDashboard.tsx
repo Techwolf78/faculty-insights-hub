@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { DashboardHeader } from '@/components/layout/DashboardHeader';
 import { StatsCard } from '@/components/ui/StatsCard';
@@ -6,6 +6,8 @@ import { RatingStars } from '@/components/ui/RatingStars';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
+import { useCacheRefresh } from '@/hooks/useCacheRefresh';
+import { CacheRefreshButton } from '@/components/ui/CacheRefreshButton';
 import {
   useFacultyByUserId,
   useSubmissionsByFaculty,
@@ -28,6 +30,24 @@ export const FacultyDashboard: React.FC = () => {
   const { user } = useAuth();
   const location = useLocation();
   const queryClient = useQueryClient();
+
+  // Cache refresh setup
+  const {
+    isRefreshing,
+    refresh: performCacheRefresh,
+    hasStaleData,
+  } = useCacheRefresh(['faculty', 'submissions', 'questions', 'stats']);
+
+  // Enhanced refresh with cache clearing
+  const handleRefresh = useCallback(async () => {
+    await performCacheRefresh();
+    // Invalidate faculty-specific queries
+    queryClient.invalidateQueries({ queryKey: ['faculty'] });
+    queryClient.invalidateQueries({ queryKey: ['submissions'] });
+    queryClient.invalidateQueries({ queryKey: ['questions'] });
+    queryClient.invalidateQueries({ queryKey: ['stats'] });
+    return true;
+  }, [performCacheRefresh, queryClient]);
 
   // Get current section from URL
   const currentSection = location.pathname.split('/').pop() || 'dashboard';
@@ -165,15 +185,38 @@ export const FacultyDashboard: React.FC = () => {
   const currentScore = filteredStats.currentScore;
 
   // Calculate peer ranking from pre-computed stats
-  const allFacultyScores = allFacultyStats
-    .map(stats => ({
-      id: stats.facultyId,
-      score: stats.averageRating
-    }))
-    .filter(item => item.score > 0)
-    .sort((a, b) => b.score - a.score); // Sort descending (highest first)
+  const allFacultyScores = useMemo(() => {
+    // Current user's stats from filtered submissions
+    const liveScore = filteredStats.currentScore;
+    const statsId = facultyProfile?.id;
 
-  const currentUserRanking = allFacultyScores.findIndex(item => item.id === facultyProfile?.id) + 1;
+    // Build the list of all faculty scores
+    let scores = allFacultyStats
+      .filter(stats => stats.facultyId !== statsId) // Remove current user if already in stats
+      .map(stats => ({
+        id: stats.facultyId,
+        score: stats.averageRating
+      }))
+      .filter(item => item.score > 0);
+
+    // Add current user's live score if they have any submissions
+    if (statsId && liveScore > 0) {
+      scores.push({
+        id: statsId,
+        score: liveScore
+      });
+    }
+
+    // Sort descending (highest first)
+    return scores.sort((a, b) => b.score - a.score);
+  }, [allFacultyStats, facultyProfile?.id, filteredStats.currentScore]);
+
+  const currentUserRanking = useMemo(() => {
+    if (!facultyProfile?.id || allFacultyScores.length === 0) return 0;
+    const index = allFacultyScores.findIndex(item => item.id === facultyProfile.id);
+    return index !== -1 ? index + 1 : 0;
+  }, [allFacultyScores, facultyProfile?.id]);
+
   const totalFaculty = allFacultyScores.length;
 
   // Convert ranking to ordinal (1st, 2nd, 3rd, etc.)
@@ -404,6 +447,13 @@ export const FacultyDashboard: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    <CacheRefreshButton
+                      onRefresh={handleRefresh}
+                      hasStaleData={hasStaleData}
+                      isRefreshing={isRefreshing}
+                      compact={true}
+                      label="Refresh"
+                    />
                     <span className="text-sm text-muted-foreground">Subject:</span>
                     <Select value={selectedSubject} onValueChange={setSelectedSubject}>
                       <SelectTrigger className="w-[180px]">

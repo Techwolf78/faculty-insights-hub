@@ -1,12 +1,15 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { DashboardHeader } from '@/components/layout/DashboardHeader';
 import { StatsCard } from '@/components/ui/StatsCard';
 import { RatingStars } from '@/components/ui/RatingStars';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
+import { useCacheRefresh } from '@/hooks/useCacheRefresh';
+import { CacheRefreshButton } from '@/components/ui/CacheRefreshButton';
 import {
   useDepartment,
+  useFaculty,
   useFacultyByDepartment,
   useDepartmentStats,
   useAllFacultyStats,
@@ -21,7 +24,7 @@ import {
   useDepartmentByName,
   useCollege,
 } from '@/hooks/useCollegeData';
-import { Users, TrendingUp, MessageSquare, BarChart3, Filter, BookOpen, Award } from 'lucide-react';
+import { Users, TrendingUp, MessageSquare, BarChart3, Filter, BookOpen, Award, ChevronLeft, ChevronRight } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, LineChart, Line } from 'recharts';
 import { DepartmentExcelReport } from '@/components/reports/DepartmentExcelReport';
 import { Button } from '@/components/ui/button';
@@ -29,13 +32,32 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ProgressBar } from '@/components/ui/ProgressBar';
-import { facultyAllocationsApi, FacultyAllocation, feedbackSessionsApi, FeedbackSession } from '@/lib/storage';
+import { facultyAllocationsApi, FacultyAllocation, feedbackSessionsApi, FeedbackSession, isSessionActive } from '@/lib/storage';
 import { format } from 'date-fns';
 
 export const HodDashboard: React.FC = () => {
   const { user } = useAuth();
   const location = useLocation();
   const queryClient = useQueryClient();
+
+  // Cache refresh setup
+  const {
+    isRefreshing,
+    refresh: performCacheRefresh,
+    hasStaleData,
+  } = useCacheRefresh(['departments', 'faculty', 'sessions', 'submissions', 'stats']);
+
+  // Enhanced refresh with cache clearing
+  const handleRefresh = useCallback(async () => {
+    await performCacheRefresh();
+    // Invalidate HOD-specific queries
+    queryClient.invalidateQueries({ queryKey: ['departments'] });
+    queryClient.invalidateQueries({ queryKey: ['faculty'] });
+    queryClient.invalidateQueries({ queryKey: ['sessions'] });
+    queryClient.invalidateQueries({ queryKey: ['submissions'] });
+    queryClient.invalidateQueries({ queryKey: ['stats'] });
+    return true;
+  }, [performCacheRefresh, queryClient]);
 
   // Get current section from URL
   const currentSection = location.pathname.split('/').pop() || 'dashboard';
@@ -45,6 +67,8 @@ export const HodDashboard: React.FC = () => {
   const [hodSessions, setHodSessions] = useState<FeedbackSession[]>([]);
   const [hodSelectedSubject, setHodSelectedSubject] = useState<string>('all');
   const [hodDepartmentName, setHodDepartmentName] = useState<string | null>(null);
+  const [facultyCurrentPage, setFacultyCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 5;
 
   // HOD's personal performance data
   const { data: hodFacultyProfile, isLoading: hodProfileLoading } = useFacultyByUserId(user?.id);
@@ -68,19 +92,58 @@ export const HodDashboard: React.FC = () => {
   // React Query hooks for optimized data fetching
   const { data: department, isLoading: deptLoading } = useDepartmentByName(hodDepartmentName, user?.collegeId);
   const { data: faculty = [], isLoading: facultyLoading } = useFacultyByDepartment(department?.name);
+  const { data: collegeFaculty = [], isLoading: collegeFacultyLoading } = useFaculty(user?.collegeId);
+  const { data: collegeSessions = [], isLoading: collegeSessionsLoading } = useSessions(user?.collegeId);
   const { data: departmentStats } = useDepartmentStats(department?.id);
   const { data: allFacultyStats = [] } = useAllFacultyStats(user?.collegeId);
   const { data: questions = [], isLoading: questionsLoading } = useQuestions(user?.collegeId);
   const { data: sessions = [], isLoading: sessionsLoading } = useSessionsByDepartment(department?.id);
   const { data: departmentSubmissions = [] } = useSubmissionsByDepartment(department?.id);
 
-  const isLoading = deptLoading || facultyLoading || questionsLoading || sessionsLoading || hodProfileLoading;
+  const isLoading = deptLoading || facultyLoading || questionsLoading || sessionsLoading || hodProfileLoading || collegeFacultyLoading || collegeSessionsLoading;
+
+  // Auto-expiry cleanup for sessions
+  useEffect(() => {
+    const cleanupExpiredSessions = async () => {
+      // HOD might have both their own sessions and department sessions
+      const allSessionsToClean = [...(hodSessions || []), ...(collegeSessions || []), ...(sessions || [])];
+      if (allSessionsToClean.length === 0) return;
+      
+      const expiredActiveSessions = allSessionsToClean.filter(
+        s => s.isActive && s.expiresAt && s.expiresAt.toDate() < new Date()
+      );
+      
+      if (expiredActiveSessions.length > 0) {
+        console.log(`HOD: Cleaning up ${expiredActiveSessions.length} expired sessions...`);
+        try {
+          // Use a Map to ensure unique session IDs if there are overlaps
+          const uniqueSessionIds = [...new Set(expiredActiveSessions.map(s => s.id))];
+          await Promise.all(
+            uniqueSessionIds.map(id => 
+              feedbackSessionsApi.update(id, { isActive: false })
+            )
+          );
+          // Refresh queries to update UI
+          queryClient.invalidateQueries({ queryKey: ['sessions'] });
+        } catch (error) {
+          console.error('Error cleaning up expired sessions:', error);
+        }
+      }
+    };
+    
+    cleanupExpiredSessions();
+  }, [hodSessions, collegeSessions, sessions, queryClient]);
 
   // College info (for header logo)
   const { data: college } = useCollege(user?.collegeId);
 
   // Subject filter state
   const [selectedSubject, setSelectedSubject] = useState<string>('all');
+
+  // Reset pagination when filter changes
+  useEffect(() => {
+    setFacultyCurrentPage(1);
+  }, [selectedSubject]);
 
   // Extract unique subjects from department sessions (excluding HOD's subjects)
   const departmentSubjects = useMemo(() => {
@@ -154,6 +217,12 @@ export const HodDashboard: React.FC = () => {
       .sort((a, b) => b.score - a.score);
   }, [faculty, filteredSubmissions, user?.id]);
 
+  const totalFacultyPages = Math.ceil(facultyPerformance.length / ITEMS_PER_PAGE);
+  const paginatedFaculty = useMemo(() => {
+    const startIndex = (facultyCurrentPage - 1) * ITEMS_PER_PAGE;
+    return facultyPerformance.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [facultyPerformance, facultyCurrentPage, ITEMS_PER_PAGE]);
+
   // Category breakdown - calculated dynamically from filtered submissions
   const categoryData = useMemo(() => {
     const categoryMap = new Map<string, { total: number; count: number }>();
@@ -179,8 +248,13 @@ export const HodDashboard: React.FC = () => {
   // Recent comments from filtered submissions
   const recentComments = useMemo(() => {
     const allComments = filteredSubmissions.flatMap(sub => {
-      const facultyInfo = faculty.find(f => f.id === sub.facultyId);
-      const sessionInfo = sessions.find(s => s.id === sub.sessionId && s.departmentId === department?.id);
+      // Use both departmental and college-wide lookup to find names
+      const facultyInfo = faculty.find(f => f.id === sub.facultyId) || 
+                          collegeFaculty.find(f => f.id === sub.facultyId);
+      
+      const sessionInfo = sessions.find(s => s.id === sub.sessionId) || 
+                          collegeSessions.find(s => s.id === sub.sessionId);
+      
       return sub.responses
         .filter(r => r.comment && r.comment.trim() !== '')
         .map(r => ({
@@ -191,12 +265,12 @@ export const HodDashboard: React.FC = () => {
           subject: sessionInfo?.subject || 'Unknown Subject',
           sessionTitle: sessionInfo ? `${sessionInfo.course} - ${sessionInfo.batch}` : 'Unknown Session',
         }));
-    }).filter(item => item.text.length > 10) // Only substantial comments
+    }).filter(item => item.text.length >= 2) // Reduced filter to show shorter comments like "Good"
     .sort((a, b) => b.submittedAt.toDate().getTime() - a.submittedAt.toDate().getTime())
-    .slice(0, 20);
+    .slice(0, 30);
 
     return allComments;
-}, [filteredSubmissions, faculty, sessions, department?.id]);
+}, [filteredSubmissions, faculty, collegeFaculty, sessions, collegeSessions]);
   // HOD's Personal Performance Calculations (similar to Faculty Dashboard)
   const hodUniqueSubjects = useMemo(() => {
     const subjects = new Set<string>();
@@ -345,8 +419,8 @@ export const HodDashboard: React.FC = () => {
               <div className="glass-card rounded-xl p-6">
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
-                    <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
-                      <span className="text-xl font-semibold text-primary">
+                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
+                      <span className="text-xs font-medium text-primary text-center leading-tight">
                         {user?.name?.split(' ').map(n => n[0]).join('')}
                       </span>
                     </div>
@@ -688,6 +762,13 @@ export const HodDashboard: React.FC = () => {
               college={college}
               rightElement={
                 <div className="flex items-center gap-2">
+                  <CacheRefreshButton
+                    onRefresh={handleRefresh}
+                    hasStaleData={hasStaleData}
+                    isRefreshing={isRefreshing}
+                    compact={true}
+                    label="Refresh"
+                  />
                   <span className="text-sm text-muted-foreground">Subject:</span>
                   <Select value={selectedSubject} onValueChange={setSelectedSubject}>
                     <SelectTrigger className="w-[180px]">
@@ -759,7 +840,7 @@ export const HodDashboard: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {facultyPerformance.map((f, index) => (
+                        {paginatedFaculty.map((f, index) => (
                           <tr
                             key={f.id}
                             className="border-b border-border last:border-0 hover:bg-secondary/50 transition-colors animate-fade-up"
@@ -767,8 +848,8 @@ export const HodDashboard: React.FC = () => {
                           >
                             <td className="py-4 px-4">
                               <div className="flex items-center gap-3">
-                                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                                  <span className="text-sm font-medium text-primary">
+                                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
+                                  <span className="text-xs font-medium text-primary text-center leading-tight">
                                     {f.name.split(' ').map(n => n[0]).join('')}
                                   </span>
                                 </div>
@@ -797,7 +878,7 @@ export const HodDashboard: React.FC = () => {
                             </td>
                           </tr>
                         ))}
-                        {facultyPerformance.length === 0 && (
+                        {paginatedFaculty.length === 0 && (
                           <tr>
                             <td colSpan={4} className="py-8 text-center text-muted-foreground">
                               No faculty members in your department
@@ -807,6 +888,36 @@ export const HodDashboard: React.FC = () => {
                       </tbody>
                     </table>
                   </div>
+
+                  {totalFacultyPages > 1 && (
+                    <div className="flex justify-between items-center gap-2 mt-6">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setFacultyCurrentPage(prev => Math.max(1, prev - 1))}
+                        disabled={facultyCurrentPage === 1}
+                        className="flex items-center gap-1"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        Previous
+                      </Button>
+                      
+                      <div className="text-sm text-muted-foreground">
+                        Page <span className="font-medium text-foreground">{facultyCurrentPage}</span> of {totalFacultyPages}
+                      </div>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setFacultyCurrentPage(prev => Math.min(totalFacultyPages, prev + 1))}
+                        disabled={facultyCurrentPage === totalFacultyPages}
+                        className="flex items-center gap-1"
+                      >
+                        Next
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Category Breakdown */}
