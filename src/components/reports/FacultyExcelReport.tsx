@@ -7,6 +7,8 @@ import { FeedbackStats } from '@/lib/storage';
 interface FacultyExcelReportProps {
   facultyId: string;
   facultyName: string;
+  academicYear?: string;
+  semester?: string;
   stats: FeedbackStats | undefined;
   comments: Array<{
     text: string;
@@ -19,6 +21,8 @@ interface FacultyExcelReportProps {
 export const FacultyExcelReport: React.FC<FacultyExcelReportProps> = ({
   facultyId,
   facultyName,
+  academicYear,
+  semester,
   stats,
   comments,
   loading = false
@@ -26,20 +30,29 @@ export const FacultyExcelReport: React.FC<FacultyExcelReportProps> = ({
   const generateReport = () => {
     if (!stats) return;
 
+    const overviewData = [
+      { Metric: 'Faculty Name', Value: facultyName },
+      { Metric: 'Faculty ID', Value: facultyId },
+    ];
+
+    if (semester) {
+      overviewData.push({ Metric: 'Semester', Value: semester });
+    }
+
+    overviewData.push(
+      { Metric: 'Report Generated', Value: formatDate(new Date()) },
+      { Metric: '', Value: '' },
+      { Metric: 'Average Rating', Value: formatRating(stats.averageRating) },
+      { Metric: 'Total Submissions', Value: stats.totalSubmissions.toString() },
+      { Metric: 'Rating Trend (Last 7 days)', Value: stats.trend.last7Days.toString() },
+      { Metric: 'Rating Trend (Last 30 days)', Value: stats.trend.last30Days.toString() },
+      { Metric: 'Rating Trend (Last 90 days)', Value: stats.trend.last90Days.toString() },
+    );
+
     const sheets = [
       {
         name: 'Overview',
-        data: [
-          { Metric: 'Faculty Name', Value: facultyName },
-          { Metric: 'Faculty ID', Value: facultyId },
-          { Metric: 'Report Generated', Value: formatDate(new Date()) },
-          { Metric: '', Value: '' },
-          { Metric: 'Average Rating', Value: formatRating(stats.averageRating) },
-          { Metric: 'Total Submissions', Value: stats.totalSubmissions },
-          { Metric: 'Rating Trend (Last 7 days)', Value: stats.trend.last7Days },
-          { Metric: 'Rating Trend (Last 30 days)', Value: stats.trend.last30Days },
-          { Metric: 'Rating Trend (Last 90 days)', Value: stats.trend.last90Days },
-        ],
+        data: overviewData,
         headers: ['Metric', 'Value']
       },
       {
@@ -81,7 +94,7 @@ export const FacultyExcelReport: React.FC<FacultyExcelReportProps> = ({
     ];
 
     exportToExcel({
-      filename: `Faculty_Report_${facultyName.replace(/\s+/g, '_')}`,
+      filename: `Faculty_Report_${facultyName.replace(/\s+/g, '_')}${semester ? '_' + semester.replace(/\s+/g, '_') : ''}`,
       sheets
     });
   };

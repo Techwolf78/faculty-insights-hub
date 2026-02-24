@@ -8,7 +8,7 @@ import { College } from '@/lib/storage';
 interface DepartmentManagementProps {
   college: College | null;
   courseData: Record<string, { years: string[]; yearDepartments?: Record<string, string[]> }>;
-  subjectsData: Record<string, Record<string, Record<string, Record<string, { batches: string[] }>>>>;
+  subjectsData: Record<string, Record<string, Record<string, Record<string, Record<string, { code: string; type: string; batches: string[] }>>>>>;
   setLoadTemplateOpen: (open: boolean) => void;
   setAcademicConfigOpen: (open: boolean) => void;
 }
@@ -70,48 +70,56 @@ export const DepartmentManagement: React.FC<DepartmentManagementProps> = React.m
                       </div>
                       <div className="ml-7 space-y-3">
                         {course.years.map((yearName: string) => (
-                          <div key={yearName} className="border-l-2 border-primary/20 pl-4">
-                            <div className="flex items-center gap-2 mb-2">
+                          <div key={yearName} className="border-l-2 border-primary/20 pl-4 mb-4">
+                            <div className="flex items-center gap-2 mb-3">
                               <Calendar className="h-4 w-4 text-green-600" />
                               <span className="font-medium text-green-700">{yearName}</span>
                             </div>
-                            <div className="ml-6 space-y-2">
-                              {(course.yearDepartments?.[yearName] || []).map((deptName: string) => (
-                                <div key={deptName} className="border-l-2 border-green-200 pl-4">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <Building2 className="h-4 w-4 text-blue-600" />
-                                    <span className="font-medium text-blue-700">{deptName}</span>
+                            <div className="ml-6 space-y-4">
+                              {/* Semesters Loop */}
+                              {subjectsData[courseName]?.[yearName] && Object.entries(subjectsData[courseName][yearName]).sort().map(([semesterName, departments]) => (
+                                <div key={semesterName} className="border-l-2 border-orange-200 pl-4">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <div className="h-2 w-2 rounded-full bg-orange-400" />
+                                    <span className="text-sm font-semibold text-orange-700 uppercase tracking-wider">{semesterName} SEMESTER</span>
                                   </div>
-                                  <div className="ml-6 space-y-1">
-                                    {/* Subjects */}
-                                    {subjectsData[courseName]?.[yearName]?.[deptName] && Object.keys(subjectsData[courseName][yearName][deptName]).length > 0 && (
-                                      <div>
-                                        <span className="text-xs font-medium text-muted-foreground mr-2">Subjects:</span>
-                                        <div className="flex flex-wrap gap-1 mt-1">
-                                          {Object.entries(subjectsData[courseName][yearName][deptName]).map(([subject, subjectData]) => {
-                                            const subject_data = subjectData as { batches: string[] };
-                                            return (
-                                              <div key={subject} className="flex flex-col gap-1">
-                                                <Badge variant="outline" className="text-xs">
-                                                  <FileText className="h-3 w-3 mr-1" />
-                                                  {subject}
-                                                </Badge>
-                                                {subject_data.batches && subject_data.batches.length > 0 && (
-                                                  <div className="flex flex-wrap gap-1 ml-2">
-                                                    {subject_data.batches.map((batch: string) => (
-                                                      <Badge key={batch} variant="secondary" className="text-xs">
-                                                        <Users className="h-3 w-3 mr-1" />
-                                                        {batch}
-                                                      </Badge>
-                                                    ))}
+                                  <div className="ml-4 space-y-3">
+                                    {Object.entries(departments).map(([deptName, subjects]) => (
+                                      <div key={deptName} className="border-l-2 border-blue-200 pl-4">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <Building2 className="h-4 w-4 text-blue-600" />
+                                          <span className="font-medium text-blue-700">{deptName}</span>
+                                        </div>
+                                        <div className="ml-6 space-y-1">
+                                          {/* Subjects Loop */}
+                                          {subjects && Object.keys(subjects).length > 0 && (
+                                            <div>
+                                              <span className="text-xs font-medium text-muted-foreground mr-2">Subjects:</span>
+                                              <div className="flex flex-wrap gap-2 mt-1">
+                                                {Object.entries(subjects).map(([subject, subjectInfo]) => (
+                                                  <div key={subject} className="flex flex-wrap items-center gap-1">
+                                                    <Badge variant="outline" className="text-xs py-0.5 px-2 bg-blue-50/50 border-blue-200">
+                                                      <FileText className="h-3 w-3 mr-1 text-blue-600" />
+                                                      {subject}
+                                                      {subjectInfo.code && <span className="ml-1 opacity-60">({subjectInfo.code})</span>}
+                                                    </Badge>
+                                                    {subjectInfo.batches && subjectInfo.batches.length > 0 && (
+                                                      <div className="flex gap-1 ml-1">
+                                                        {subjectInfo.batches.map(batch => (
+                                                          <Badge key={batch} variant="secondary" className="text-[10px] h-4 px-1">
+                                                            {batch}
+                                                          </Badge>
+                                                        ))}
+                                                      </div>
+                                                    )}
                                                   </div>
-                                                )}
+                                                ))}
                                               </div>
-                                            );
-                                          })}
+                                            </div>
+                                          )}
                                         </div>
                                       </div>
-                                    )}
+                                    ))}
                                   </div>
                                 </div>
                               ))}

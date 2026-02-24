@@ -1,22 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { DashboardHeader } from '@/components/layout/DashboardHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { useFacultyByUserId, useDepartmentByName } from '@/hooks/useCollegeData';
-import { User, Mail, Phone, GraduationCap, Building, Lock, Eye, EyeOff } from 'lucide-react';
+import { useUser, useCollege } from '@/hooks/useCollegeData';
+import { User as UserIcon, Mail, Building, Lock, Eye, EyeOff, Shield } from 'lucide-react';
 import { reauthenticateWithCredential, EmailAuthProvider, updatePassword } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Progress } from '@/components/ui/progress';
-import { facultyAllocationsApi, feedbackSessionsApi, FacultyAllocation, FeedbackSession } from '@/lib/storage';
 
-const HodProfileSettings: React.FC = () => {
+const AdminProfileSettings: React.FC = () => {
   const { user } = useAuth();
-  const { data: hodProfile } = useFacultyByUserId(user?.uid || user?.id);
+  const { data: adminUser, isLoading: userLoading } = useUser(user?.id);
+  const { data: college, isLoading: collegeLoading } = useCollege(user?.collegeId);
+  
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -24,38 +24,6 @@ const HodProfileSettings: React.FC = () => {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
-  const [hodAllocations, setHodAllocations] = useState<FacultyAllocation[]>([]);
-  const [hodSessions, setHodSessions] = useState<FeedbackSession[]>([]);
-  const [hodDepartmentNames, setHodDepartmentNames] = useState<string[]>([]);
-
-  useEffect(() => {
-    if (hodProfile?.id) {
-      console.log("Fetching allocations for facultyId:", hodProfile.id);
-      facultyAllocationsApi.getByFaculty(hodProfile.id)
-        .then(allocations => {
-          console.log("Allocations fetched:", allocations);
-          setHodAllocations(allocations);
-          if (allocations.length > 0) {
-            const uniqueDepts = [...new Set(allocations.map(a => a.department))].filter(Boolean) as string[];
-            setHodDepartmentNames(uniqueDepts);
-          }
-        })
-        .catch(error => {
-          console.error("Error fetching allocations:", error);
-          toast.error("Failed to fetch faculty allocations.");
-        });
-
-      feedbackSessionsApi.getByFaculty(hodProfile.id)
-        .then(sessions => {
-          console.log("Feedback sessions fetched:", sessions);
-          setHodSessions(sessions);
-        })
-        .catch(error => {
-          console.error("Error fetching feedback sessions:", error);
-          toast.error("Failed to fetch feedback sessions.");
-        });
-    }
-  }, [hodProfile?.id]);
 
   const handleChangePassword = async () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
@@ -100,45 +68,33 @@ const HodProfileSettings: React.FC = () => {
       } else if (firebaseError.code === 'auth/weak-password') {
         toast.error('New password is too weak');
       } else {
-        toast.error('Failed to change password');
+        toast.error('Failed to change password. Please try again.');
       }
     } finally {
       setIsChangingPassword(false);
     }
   };
 
-  const [loadingProgress, setLoadingProgress] = useState(0);
-
-  // Loading progress effect
-  useEffect(() => {
-    if (!hodProfile) {
-      const timeout = setTimeout(() => {
-        setLoadingProgress(100); // Force completion after a certain time
-        toast.error("Failed to load profile. Please try again later.");
-      }, 15000); // 15 seconds timeout
-
-      facultyAllocationsApi.getByFaculty(user?.id).catch((error) => {
-        if (error.response?.status === 404) {
-          toast.error("Profile not found.");
-        } else if (error.response?.status === 500) {
-          toast.error("Server error. Please try again later.");
-        } else if (error.message.includes("Network Error")) {
-          toast.error("Network error. Check your connection.");
-        } else {
-          toast.error("An unexpected error occurred.");
-        }
-      });
-
-      return () => {
-        clearTimeout(timeout);
-      };
-    }
-  }, [hodProfile, user?.id]);
-
-  if (!hodProfile) {
+  if (userLoading || collegeLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-muted-foreground text-sm">Failed to load profile. Please try again later.</p>
+      <div className="min-h-screen bg-background relative">
+        <div className="flex-1 flex flex-col">
+          <div className="h-16 border-b border-border p-4">
+            <Skeleton className="h-6 w-48" />
+          </div>
+          <div className="flex-1 p-6 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Skeleton className="h-64" />
+              <Skeleton className="h-64" />
+            </div>
+          </div>
+        </div>
+        <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+            <p className="text-muted-foreground">Loading profile...</p>
+          </div>
+        </div>
       </div>
     );
   }
@@ -146,9 +102,9 @@ const HodProfileSettings: React.FC = () => {
   return (
     <div className="min-h-screen">
       <DashboardHeader
-        title="Profile Information"
-        subtitle="View your account details"
-        college={null}
+        title="Admin Profile"
+        subtitle="Manage your account settings"
+        college={college || null}
       />
 
       <div className="p-6 max-w-4xl mx-auto">
@@ -157,70 +113,39 @@ const HodProfileSettings: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <User className="h-5 w-5" />
+                <UserIcon className="h-5 w-5" />
                 Profile Information
               </CardTitle>
               <CardDescription>
-                Your basic profile information. Contact your college admin to update your details. For support, email feedback.support@indiraicem.ac.in
+                Your account details. Contact super admin to change your name or college assignment.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label className="text-sm font-medium">Full Name</Label>
-                  <p className="text-sm text-muted-foreground mt-1">{hodProfile.name}</p>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium">Faculty ID</Label>
-                  <p className="text-sm text-muted-foreground mt-1">{hodProfile.employeeId}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{adminUser?.name || user?.name}</p>
                 </div>
                 <div>
                   <Label className="text-sm font-medium flex items-center gap-2">
                     <Mail className="h-4 w-4" />
                     Email
                   </Label>
-                  <p className="text-sm text-muted-foreground mt-1">{hodProfile.email}</p>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium flex items-center gap-2">
-                    <Phone className="h-4 w-4" />
-                    Phone
-                  </Label>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {hodProfile.phone || 'Not provided'}
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium">Designation</Label>
-                  <p className="text-sm text-muted-foreground mt-1">{hodProfile.designation}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{adminUser?.email || user?.email}</p>
                 </div>
                 <div>
                   <Label className="text-sm font-medium flex items-center gap-2">
                     <Building className="h-4 w-4" />
-                    Department
+                    College
                   </Label>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {hodDepartmentNames.length > 1 
-                      ? hodDepartmentNames.join(' & ') 
-                      : (hodDepartmentNames[0] || 'Not assigned')}
-                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">{college?.name || 'Loading...'}</p>
                 </div>
                 <div>
                   <Label className="text-sm font-medium flex items-center gap-2">
-                    <GraduationCap className="h-4 w-4" />
-                    Course
+                    <Shield className="h-4 w-4" />
+                    Role
                   </Label>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {[...new Set(hodAllocations.map(a => a.course))].join(', ') || 'Not assigned'}
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium">Academic Year</Label>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {hodSessions[0]?.academicYear || 
-                     (hodAllocations.length > 0 && hodAllocations[0].years && hodAllocations[0].years[0]) || 
-                     'Not assigned'}
-                  </p>
+                  <p className="text-sm text-muted-foreground mt-1 capitalize">{adminUser?.role || user?.role}</p>
                 </div>
               </div>
             </CardContent>
@@ -316,7 +241,7 @@ const HodProfileSettings: React.FC = () => {
               <Button
                 onClick={handleChangePassword}
                 disabled={isChangingPassword}
-                className="w-full"
+                className="w-full bg-primary hover:bg-primary/90"
               >
                 {isChangingPassword ? 'Changing Password...' : 'Change Password'}
               </Button>
@@ -328,4 +253,4 @@ const HodProfileSettings: React.FC = () => {
   );
 };
 
-export default HodProfileSettings;
+export default AdminProfileSettings;

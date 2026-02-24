@@ -4,8 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Filter, X } from 'lucide-react';
+import { CacheRefreshButton } from '@/components/ui/CacheRefreshButton';
 import { SessionTable } from '@/components/admin/SessionTable';
-import { Department, Faculty, FeedbackSession, College } from '@/lib/storage';
+import { Department, Faculty, FeedbackSession, College, isSessionActive } from '@/lib/storage';
 
 interface SessionManagementProps {
   college: College | null;
@@ -21,6 +22,10 @@ interface SessionManagementProps {
   setSessionFormOpen: (open: boolean) => void;
   refreshSessions: () => void;
   handleOptimisticSessionUpdate: (sessionId: string, updates: Partial<FeedbackSession>) => void;
+  // Cache refresh props
+  onRefresh?: () => Promise<boolean>;
+  hasStaleData?: boolean;
+  isRefreshing?: boolean;
 }
 
 export const SessionManagement: React.FC<SessionManagementProps> = React.memo(({
@@ -37,6 +42,9 @@ export const SessionManagement: React.FC<SessionManagementProps> = React.memo(({
   setSessionFormOpen,
   refreshSessions,
   handleOptimisticSessionUpdate,
+  onRefresh,
+  hasStaleData = false,
+  isRefreshing = false,
 }) => {
   return (
     <div className="min-h-screen">
@@ -83,7 +91,16 @@ export const SessionManagement: React.FC<SessionManagementProps> = React.memo(({
               )}
             </div>
           </div>
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            {onRefresh && (
+              <CacheRefreshButton
+                onRefresh={onRefresh}
+                hasStaleData={hasStaleData}
+                isRefreshing={isRefreshing}
+                compact={true}
+                label="Refresh"
+              />
+            )}
             <Button className="bg-primary hover:bg-primary/90" onClick={() => setSessionFormOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
               Create Session
@@ -94,8 +111,8 @@ export const SessionManagement: React.FC<SessionManagementProps> = React.memo(({
         <Tabs value={currentSessionTab} onValueChange={setCurrentSessionTab} className="w-full">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="all">All Sessions ({sessions.filter(s => sessionDepartmentFilter === 'all' || s.departmentId === sessionDepartmentFilter).length})</TabsTrigger>
-            <TabsTrigger value="active">Active Sessions ({sessions.filter(s => s.isActive && (sessionDepartmentFilter === 'all' || s.departmentId === sessionDepartmentFilter)).length})</TabsTrigger>
-            <TabsTrigger value="inactive">Inactive Sessions ({sessions.filter(s => !s.isActive && (sessionDepartmentFilter === 'all' || s.departmentId === sessionDepartmentFilter)).length})</TabsTrigger>
+            <TabsTrigger value="active">Active Sessions ({sessions.filter(s => isSessionActive(s) && (sessionDepartmentFilter === 'all' || s.departmentId === sessionDepartmentFilter)).length})</TabsTrigger>
+            <TabsTrigger value="inactive">Inactive Sessions ({sessions.filter(s => !isSessionActive(s) && (sessionDepartmentFilter === 'all' || s.departmentId === sessionDepartmentFilter)).length})</TabsTrigger>
           </TabsList>
 
           <TabsContent value="all" className="mt-6">
@@ -110,7 +127,7 @@ export const SessionManagement: React.FC<SessionManagementProps> = React.memo(({
 
           <TabsContent value="active" className="mt-6">
             <SessionTable
-              sessions={sessions.filter(s => s.isActive && (sessionDepartmentFilter === 'all' || s.departmentId === sessionDepartmentFilter))}
+              sessions={sessions.filter(s => isSessionActive(s) && (sessionDepartmentFilter === 'all' || s.departmentId === sessionDepartmentFilter))}
               faculty={faculty}
               departments={departments}
               onRefresh={refreshSessions}
@@ -120,7 +137,7 @@ export const SessionManagement: React.FC<SessionManagementProps> = React.memo(({
 
           <TabsContent value="inactive" className="mt-6">
             <SessionTable
-              sessions={sessions.filter(s => !s.isActive && (sessionDepartmentFilter === 'all' || s.departmentId === sessionDepartmentFilter))}
+              sessions={sessions.filter(s => !isSessionActive(s) && (sessionDepartmentFilter === 'all' || s.departmentId === sessionDepartmentFilter))}
               faculty={faculty}
               departments={departments}
               onRefresh={refreshSessions}

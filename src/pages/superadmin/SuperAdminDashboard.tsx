@@ -19,6 +19,7 @@ import {
   Department,
   Timestamp,
   HelpTicket,
+  isSessionActive,
 } from '@/lib/storage';
 import {
   Building2,
@@ -989,7 +990,7 @@ export const SuperAdminDashboard: React.FC = () => {
                       <GraduationCap className="h-5 w-5 text-primary" />
                     </div>
                     <div>
-                      <p className="text-2xl font-bold text-foreground">{feedbackSessions.filter(s => s.isActive).length}</p>
+                      <p className="text-2xl font-bold text-foreground">{feedbackSessions.filter(s => isSessionActive(s)).length}</p>
                       <p className="text-sm text-muted-foreground">Active Sessions</p>
                     </div>
                   </div>
@@ -1003,7 +1004,7 @@ export const SuperAdminDashboard: React.FC = () => {
                   {colleges.map((college) => {
                     const collegeDepartments = departments.filter(d => d.collegeId === college.id);
                     const collegeFaculty = users.filter(u => u.collegeId === college.id && (u.role === 'faculty' || u.role === 'hod') && u.isActive);
-                    const collegeActiveSessions = feedbackSessions.filter(s => s.collegeId === college.id && s.isActive);
+                    const collegeActiveSessions = feedbackSessions.filter(s => s.collegeId === college.id && isSessionActive(s));
                     return (
                       <div key={college.id} className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50">
                         <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
@@ -1350,7 +1351,7 @@ export const SuperAdminDashboard: React.FC = () => {
                       <Shield className="h-5 w-5 text-green-600" />
                     </div>
                     <div>
-                      <p className="text-2xl font-bold text-foreground">{feedbackSessions.filter(s => s.isActive).length}</p>
+                      <p className="text-2xl font-bold text-foreground">{feedbackSessions.filter(s => isSessionActive(s)).length}</p>
                       <p className="text-sm text-muted-foreground">Active Sessions</p>
                     </div>
                   </div>
@@ -1362,7 +1363,7 @@ export const SuperAdminDashboard: React.FC = () => {
                       <Shield className="h-5 w-5 text-red-600" />
                     </div>
                     <div>
-                      <p className="text-2xl font-bold text-foreground">{feedbackSessions.filter(s => !s.isActive).length}</p>
+                      <p className="text-2xl font-bold text-foreground">{feedbackSessions.filter(s => !isSessionActive(s)).length}</p>
                       <p className="text-sm text-muted-foreground">Inactive Sessions</p>
                     </div>
                   </div>
@@ -1472,7 +1473,7 @@ export const SuperAdminDashboard: React.FC = () => {
                 <TabsContent value="active" className="space-y-6 mt-6">
                   <div className="space-y-4">
                     {colleges.map((college) => {
-                      const collegeSessions = feedbackSessions.filter(s => s.collegeId === college.id && s.isActive);
+                      const collegeSessions = feedbackSessions.filter(s => s.collegeId === college.id && isSessionActive(s));
                       if (collegeSessions.length === 0) return null;
 
                       return (
@@ -1549,7 +1550,7 @@ export const SuperAdminDashboard: React.FC = () => {
                       );
                     })}
 
-                    {feedbackSessions.filter(s => s.isActive).length === 0 && (
+                    {feedbackSessions.filter(s => isSessionActive(s)).length === 0 && (
                       <div className="text-center py-12">
                         <Shield className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
                         <h3 className="text-lg font-medium text-muted-foreground mb-2">No active sessions</h3>
@@ -1562,7 +1563,7 @@ export const SuperAdminDashboard: React.FC = () => {
                 <TabsContent value="past" className="space-y-6 mt-6">
                   <div className="space-y-4">
                     {colleges.map((college) => {
-                      const collegeSessions = feedbackSessions.filter(s => s.collegeId === college.id && !s.isActive);
+                      const collegeSessions = feedbackSessions.filter(s => s.collegeId === college.id && !isSessionActive(s));
                       if (collegeSessions.length === 0) return null;
 
                       return (
@@ -1639,7 +1640,7 @@ export const SuperAdminDashboard: React.FC = () => {
                       );
                     })}
 
-                    {feedbackSessions.filter(s => !s.isActive).length === 0 && (
+                    {feedbackSessions.filter(s => !isSessionActive(s)).length === 0 && (
                       <div className="text-center py-12">
                         <Shield className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
                         <h3 className="text-lg font-medium text-muted-foreground mb-2">No past sessions</h3>

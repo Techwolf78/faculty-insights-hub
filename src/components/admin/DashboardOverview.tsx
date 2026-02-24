@@ -9,8 +9,9 @@ import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { CacheRefreshButton } from '@/components/ui/CacheRefreshButton';
 import {
-  BarChart3, RefreshCw, Building2, Calendar, Users, FileText, User, TrendingUp, MessageSquare, ClipboardCheck
+  BarChart3, RefreshCw, RotateCcw, Building2, Calendar, Users, FileText, User, TrendingUp, MessageSquare, ClipboardCheck
 } from 'lucide-react';
 import { format, subDays, isAfter } from 'date-fns';
 import { College, FeedbackStats, FeedbackSubmission, Faculty, Department } from '@/lib/storage';
@@ -38,6 +39,8 @@ interface DashboardOverviewProps {
   setSelectedCourse: (value: string) => void;
   selectedYear: string;
   setSelectedYear: (value: string) => void;
+  selectedSemester: string;
+  setSelectedSemester: (value: string) => void;
   selectedDepartment: string;
   setSelectedDepartment: (value: string) => void;
   selectedSubject: string;
@@ -47,6 +50,8 @@ interface DashboardOverviewProps {
   dateRange: { from: string; to: string };
   setDateRange: (range: { from: string; to: string }) => void;
   courseData: Record<string, { years: string[]; yearDepartments?: Record<string, string[]> }>;
+  availableSemesters: string[];
+  availableDepartments: string[];
   availableSubjects: string[];
   availableBatches: string[];
   filteredStats: { totalResponses: number; avgRating: number };
@@ -59,6 +64,10 @@ interface DashboardOverviewProps {
   performanceTrendData: Array<{ [key: string]: string | number }>;
   feedbackTrendYAxisDomain: number[];
   categoryBreakdownData: Array<{ category: string; score: number }>;
+  // Cache refresh props
+  onRefresh?: () => Promise<boolean>;
+  hasStaleData?: boolean;
+  isRefreshing?: boolean;
 }
 
 export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
@@ -67,6 +76,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
   setSelectedCourse,
   selectedYear,
   setSelectedYear,
+  selectedSemester,
+  setSelectedSemester,
   selectedDepartment,
   setSelectedDepartment,
   selectedSubject,
@@ -76,6 +87,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
   dateRange,
   setDateRange,
   courseData,
+  availableSemesters,
+  availableDepartments,
   availableSubjects,
   availableBatches,
   filteredStats,
@@ -88,6 +101,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
   performanceTrendData,
   feedbackTrendYAxisDomain,
   categoryBreakdownData,
+  onRefresh,
+  hasStaleData = false,
+  isRefreshing = false,
 }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -101,7 +117,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
       />
 
       {/* Hierarchical Filtering */}
-      <div className="p-6 border-b bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5 backdrop-blur-sm">
+      <div className="p-3 border-b bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5 backdrop-blur-sm">
         <div className="max-w-full mx-auto">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
@@ -115,7 +131,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
             </div>
             <div className="flex items-center gap-4">
               {/* Active Filters Display */}
-              {(selectedCourse !== 'all' || selectedYear !== 'all' || selectedDepartment !== 'all' || selectedSubject !== 'all' || selectedBatch !== 'all' || dateRange.from || dateRange.to) && (
+              {(selectedCourse !== 'all' || selectedYear !== 'all' || selectedSemester !== 'all' || selectedDepartment !== 'all' || selectedSubject !== 'all' || selectedBatch !== 'all' || dateRange.from || dateRange.to) && (
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Active Filters:</span>
                   <div className="flex flex-wrap gap-1">
@@ -135,6 +151,17 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
                         Year: {selectedYear}
                         <button
                           onClick={() => setSelectedYear('all')}
+                          className="ml-1 hover:bg-secondary-foreground/20 rounded-full p-0.5"
+                        >
+                          ×
+                        </button>
+                      </Badge>
+                    )}
+                    {selectedSemester !== 'all' && (
+                      <Badge variant="secondary" className="text-xs">
+                        Sem: {selectedSemester}
+                        <button
+                          onClick={() => setSelectedSemester('all')}
                           className="ml-1 hover:bg-secondary-foreground/20 rounded-full p-0.5"
                         >
                           ×
@@ -188,26 +215,38 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
                   </div>
                 </div>
               )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setSelectedCourse('all');
-                  setSelectedYear('all');
-                  setSelectedDepartment('all');
-                  setSelectedSubject('all');
-                  setSelectedBatch('all');
-                  setDateRange({ from: '', to: '' });
-                }}
-                className="text-xs"
-              >
-                <RefreshCw className="h-3 w-3 mr-1" />
-                Reset Filters
-              </Button>
+              <div className="flex items-center gap-2">
+                {onRefresh && (
+                  <CacheRefreshButton
+                    onRefresh={onRefresh}
+                    hasStaleData={hasStaleData}
+                    isRefreshing={isRefreshing}
+                    compact={true}
+                    label="Refresh"
+                  />
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedCourse('all');
+                    setSelectedYear('all');
+                    setSelectedSemester('all');
+                    setSelectedDepartment('all');
+                    setSelectedSubject('all');
+                    setSelectedBatch('all');
+                    setDateRange({ from: '', to: '' });
+                  }}
+                  className="text-xs"
+                >
+                  <RotateCcw className="h-3 w-3 mr-1" />
+                  Reset Filters
+                </Button>
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4">
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <Building2 className="h-4 w-4 text-primary" />
@@ -250,20 +289,42 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
 
             <div className="space-y-2">
               <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-primary" />
+                <Label htmlFor="semester-select" className="text-sm font-medium">Semester</Label>
+              </div>
+              <Select
+                value={selectedSemester}
+                onValueChange={setSelectedSemester}
+                disabled={selectedCourse === 'all' || selectedYear === 'all'}
+              >
+                <SelectTrigger id="semester-select" className={`bg-background/80 backdrop-blur-sm ${selectedCourse === 'all' || selectedYear === 'all' ? 'opacity-50' : 'border-primary/20 focus:border-primary'}`}>
+                  <SelectValue placeholder="Select Semester" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Semesters</SelectItem>
+                  {availableSemesters.map(semester => (
+                    <SelectItem key={semester} value={semester}>{semester}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
                 <Users className="h-4 w-4 text-primary" />
                 <Label htmlFor="department-select" className="text-sm font-medium">Department</Label>
               </div>
               <Select
                 value={selectedDepartment}
                 onValueChange={setSelectedDepartment}
-                disabled={selectedCourse === 'all' || selectedYear === 'all'}
+                disabled={selectedCourse === 'all' || selectedYear === 'all' || selectedSemester === 'all'}
               >
-                <SelectTrigger id="department-select" className={`bg-background/80 backdrop-blur-sm ${selectedCourse === 'all' || selectedYear === 'all' ? 'opacity-50' : 'border-primary/20 focus:border-primary'}`}>
+                <SelectTrigger id="department-select" className={`bg-background/80 backdrop-blur-sm ${selectedCourse === 'all' || selectedYear === 'all' || selectedSemester === 'all' ? 'opacity-50' : 'border-primary/20 focus:border-primary'}`}>
                   <SelectValue placeholder="Select Department" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Departments</SelectItem>
-                  {selectedCourse !== 'all' && selectedYear !== 'all' && courseData[selectedCourse as keyof typeof courseData]?.yearDepartments?.[selectedYear]?.map(dept => (
+                  {availableDepartments.map(dept => (
                     <SelectItem key={dept} value={dept}>{dept}</SelectItem>
                   ))}
                 </SelectContent>
@@ -278,9 +339,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
               <Select
                 value={selectedSubject}
                 onValueChange={setSelectedSubject}
-                disabled={selectedCourse === 'all' || selectedYear === 'all' || selectedDepartment === 'all'}
+                disabled={selectedCourse === 'all' || selectedYear === 'all' || selectedSemester === 'all' || selectedDepartment === 'all'}
               >
-                <SelectTrigger id="subject-select" className={`bg-background/80 backdrop-blur-sm ${selectedCourse === 'all' || selectedYear === 'all' || selectedDepartment === 'all' ? 'opacity-50' : 'border-primary/20 focus:border-primary'}`}>
+                <SelectTrigger id="subject-select" className={`bg-background/80 backdrop-blur-sm ${selectedCourse === 'all' || selectedYear === 'all' || selectedSemester === 'all' || selectedDepartment === 'all' ? 'opacity-50' : 'border-primary/20 focus:border-primary'}`}>
                   <SelectValue placeholder="Select Subject" />
                 </SelectTrigger>
                 <SelectContent>
@@ -300,9 +361,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
               <Select
                 value={selectedBatch}
                 onValueChange={setSelectedBatch}
-                disabled={selectedCourse === 'all' || selectedYear === 'all' || selectedDepartment === 'all' || selectedSubject === 'all'}
+                disabled={selectedCourse === 'all' || selectedYear === 'all' || selectedSemester === 'all' || selectedDepartment === 'all' || selectedSubject === 'all'}
               >
-                <SelectTrigger id="batch-select" className={`bg-background/80 backdrop-blur-sm ${selectedCourse === 'all' || selectedYear === 'all' || selectedDepartment === 'all' || selectedSubject === 'all' ? 'opacity-50' : 'border-primary/20 focus:border-primary'}`}>
+                <SelectTrigger id="batch-select" className={`bg-background/80 backdrop-blur-sm ${selectedCourse === 'all' || selectedYear === 'all' || selectedSemester === 'all' || selectedDepartment === 'all' || selectedSubject === 'all' ? 'opacity-50' : 'border-primary/20 focus:border-primary'}`}>
                   <SelectValue placeholder="Select Batch" />
                 </SelectTrigger>
                 <SelectContent>

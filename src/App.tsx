@@ -13,6 +13,7 @@ import { ICEMLogin } from "@/pages/ICEMLogin";
 import { IGSBLogin } from "@/pages/IGSBLogin";
 import { SuperAdminDashboard } from "@/pages/superadmin/SuperAdminDashboard";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
+import AdminProfileSettings from "@/pages/admin/AdminProfileSettings";
 import FacultyDetails from "@/pages/admin/FacultyDetails";
 import FacultyAllocation from "@/pages/admin/FacultyAllocation";
 import SessionResponses from "@/pages/admin/SessionResponses";
@@ -68,12 +69,14 @@ const App = () => {
               <Route path="/admin/faculty-allocation" element={<FacultyAllocation />} />
               <Route path="/admin/faculty-details" element={<FacultyDetails />} />
               <Route path="/admin/questions" element={<AdminDashboard />} />
+              <Route path="/admin/profile" element={<AdminProfileSettings />} />
               <Route path="/admin/help" element={<AdminHelpSection />} />
             </Route>
 
             {/* HOD Routes */}
             <Route element={<DashboardLayout allowedRoles={['hod']} />}>
               <Route path="/hod/dashboard" element={<HodDashboard />} />
+              <Route path="/hod/sessions" element={<HodDashboard />} />
               <Route path="/hod/performance" element={<HodDashboard />} />
               <Route path="/hod/profile" element={<HodProfileSettings />} />
               <Route path="/hod/help" element={<HodHelpSection />} />
@@ -82,6 +85,7 @@ const App = () => {
             {/* Faculty Routes */}
             <Route element={<DashboardLayout allowedRoles={['faculty']} />}>
               <Route path="/faculty/dashboard" element={<FacultyDashboard />} />
+              <Route path="/faculty/sessions" element={<FacultyDashboard />} />
               <Route path="/faculty/profile" element={<FacultyProfileSettings />} />
               <Route path="/faculty/help" element={<FacultyHelpSection />} />
             </Route>

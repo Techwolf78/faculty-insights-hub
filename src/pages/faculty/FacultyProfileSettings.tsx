@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DashboardHeader } from '@/components/layout/DashboardHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -12,10 +12,11 @@ import { FirebaseError } from 'firebase/app';
 import { auth } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
+import { facultyAllocationsApi, feedbackSessionsApi, FacultyAllocation, FeedbackSession } from '@/lib/storage';
 
 const FacultyProfileSettings: React.FC = () => {
   const { user } = useAuth();
-  const { data: facultyProfile } = useFacultyByUserId(user?.id);
+  const { data: facultyProfile, isLoading: isProfileLoading } = useFacultyByUserId(user?.uid || user?.id);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -23,6 +24,34 @@ const FacultyProfileSettings: React.FC = () => {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [allocations, setAllocations] = useState<FacultyAllocation[]>([]);
+  const [sessions, setSessions] = useState<FeedbackSession[]>([]);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+
+  // Loading progress effect
+  useEffect(() => {
+    if (isProfileLoading) {
+      const interval = setInterval(() => {
+        setLoadingProgress(prev => {
+          if (prev >= 90) return prev;
+          const increment = Math.random() * 15 + 5;
+          return Math.min(prev + increment, 90);
+        });
+      }, 400);
+      return () => clearInterval(interval);
+    } else {
+      setLoadingProgress(100);
+      const timeout = setTimeout(() => setLoadingProgress(0), 500);
+      return () => clearTimeout(timeout);
+    }
+  }, [isProfileLoading]);
+
+  useEffect(() => {
+    if (facultyProfile?.id) {
+      facultyAllocationsApi.getByFaculty(facultyProfile.id).then(setAllocations);
+      feedbackSessionsApi.getByFaculty(facultyProfile.id).then(setSessions);
+    }
+  }, [facultyProfile?.id]);
 
   const handleChangePassword = async () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
@@ -73,7 +102,7 @@ const FacultyProfileSettings: React.FC = () => {
     }
   };
 
-  if (!facultyProfile) {
+  if (isProfileLoading) {
     return (
       <div className="min-h-screen bg-background relative">
         {/* Skeleton Main Content */}
@@ -91,11 +120,41 @@ const FacultyProfileSettings: React.FC = () => {
         </div>
         {/* Loading Overlay */}
         <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-4">
+          <div className="flex flex-col items-center gap-4 w-full max-w-xs">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-            <p className="text-muted-foreground">Loading profile...</p>
+            <div className="w-full space-y-2">
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Loading profile...</span>
+                <span>{Math.round(loadingProgress)}%</span>
+              </div>
+              <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-primary transition-all duration-300" 
+                  style={{ width: `${loadingProgress}%` }}
+                />
+              </div>
+            </div>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (!facultyProfile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <Card className="max-w-md w-full text-center">
+          <CardHeader>
+            <CardTitle>Profile Not Found</CardTitle>
+            <CardDescription>
+              We couldn't find a faculty profile associated with your account.
+              Please contact your college administrator.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => window.location.reload()}>Retry</Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -161,13 +220,17 @@ const FacultyProfileSettings: React.FC = () => {
                 <div>
                   <Label className="text-sm font-medium flex items-center gap-2">
                     <GraduationCap className="h-4 w-4" />
-                    Designation
+                    Course
                   </Label>
-                  <p className="text-sm text-muted-foreground mt-1">{facultyProfile.designation}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{allocations[0]?.course || 'Not assigned'}</p>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">Experience</Label>
-                  <p className="text-sm text-muted-foreground mt-1">{facultyProfile.experience} years</p>
+                  <Label className="text-sm font-medium">Academic Year</Label>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {sessions[0]?.academicYear || 
+                     (allocations.length > 0 && allocations[0].years && allocations[0].years[0]) || 
+                     'Not assigned'}
+                  </p>
                 </div>
               </div>
             </CardContent>

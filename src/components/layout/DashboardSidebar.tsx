@@ -35,6 +35,7 @@ const adminLinks: SidebarLink[] = [
   { to: '/admin/faculty', icon: Users, label: 'Faculty' },
   { to: '/admin/bulk-email', icon: Mail, label: 'Bulk Email' },
   { to: '/admin/faculty-allocation', icon: UserCheck, label: 'Faculty Allocation' },
+  { to: '/admin/profile', icon: User, label: 'Profile Settings' },
   { to: '/admin/help', icon: HelpCircle, label: 'Help' },
 ];
 
@@ -47,6 +48,7 @@ const superAdminLinks: SidebarLink[] = [
 
 const hodLinks: SidebarLink[] = [
   { to: '/hod/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/hod/sessions', icon: RefreshCw, label: 'Feedback Sessions' },
   { to: '/hod/performance', icon: TrendingUp, label: 'My Performance' },
   { to: '/hod/profile', icon: User, label: 'Profile Settings' },
   { to: '/hod/help', icon: HelpCircle, label: 'Help' },
@@ -54,6 +56,7 @@ const hodLinks: SidebarLink[] = [
 
 const facultyLinks: SidebarLink[] = [
   { to: '/faculty/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/faculty/sessions', icon: RefreshCw, label: 'Feedback Sessions' },
   { to: '/faculty/profile', icon: User, label: 'Profile Settings' },
   { to: '/faculty/help', icon: HelpCircle, label: 'Help' },
 ];

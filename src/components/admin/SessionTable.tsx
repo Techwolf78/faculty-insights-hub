@@ -2,10 +2,13 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { feedbackSessionsApi, facultyApi, departmentsApi, FeedbackSession, Faculty, Department } from '@/lib/storage';
-import { Edit, ExternalLink, Copy, Trash2, Eye } from 'lucide-react';
+import { feedbackSessionsApi, facultyApi, departmentsApi, FeedbackSession, Faculty, Department, isSessionActive, isSessionExpired } from '@/lib/storage';
+import { Edit, ExternalLink, Copy, Trash2, Eye, Share, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { QRCodeCanvas } from 'qrcode.react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { MessageCircle } from 'lucide-react';
 
 interface SessionTableProps {
   sessions: FeedbackSession[];
@@ -25,18 +28,15 @@ export const SessionTable: React.FC<SessionTableProps> = ({
   onOptimisticUpdate
 }) => {
   const [updatingIds, setUpdatingIds] = useState<Set<string>>(new Set());
+  const [shareSession, setShareSession] = useState<FeedbackSession | null>(null);
 
   const handleToggleActive = async (session: FeedbackSession) => {
     const newActiveState = !session.isActive;
 
     // Check if trying to activate an expired session
-    if (newActiveState && session.expiresAt) {
-      const now = new Date();
-      const expiryDate = session.expiresAt.toDate();
-      if (expiryDate <= now) {
-        toast.error('Cannot activate session: expiry date has already passed');
-        return;
-      }
+    if (newActiveState && isSessionExpired(session)) {
+      toast.error('Cannot activate session: expiry date has already passed');
+      return;
     }
 
     // Optimistic update - immediately update UI
@@ -119,16 +119,19 @@ export const SessionTable: React.FC<SessionTableProps> = ({
                   {session.course} - {session.subject}
                   {session.subjectCode && <span className="font-sans"> ({session.subjectCode})</span>}
                   {session.subjectType && ` - ${session.subjectType}`}
-                  <Badge variant={session.isActive ? 'default' : 'secondary'}>
-                    {session.isActive ? 'Active' : 'Inactive'}
+                  <Badge variant={isSessionActive(session) ? 'default' : 'secondary'}>
+                    {isSessionActive(session) ? 'Active' : 'Inactive'}
                   </Badge>
                 </CardTitle>
                 <div className="text-sm text-muted-foreground mt-1 space-y-1">
-                  <p><strong>Academic Year:</strong> {session.academicYear}</p>
-                  <p><strong>Department:</strong> {getDepartmentName(session.departmentId)}</p>
-                  <p><strong>Batch:</strong> {session.batch}</p>
-                  <p><strong>Faculty:</strong> {getFacultyName(session.facultyId)}</p>
-                  <p><strong>Expires:</strong> {format(session.expiresAt.toDate(), 'MMM d, yyyy HH:mm')}</p>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1">
+                    <div><strong>Academic Year:</strong> {session.academicYear}</div>
+                    <div><strong>Semester:</strong> <Badge variant="outline" className="text-primary border-primary/30 h-5 text-[10px] uppercase font-bold inline-block">{session.semester}</Badge></div>
+                  </div>
+                  <div><strong>Department:</strong> {getDepartmentName(session.departmentId)}</div>
+      <div><strong>Session URL:</strong> <a href={`/feedback/anonymous/${session.uniqueUrl}`} target="_blank" rel="noopener noreferrer">{`/feedback/anonymous/${session.uniqueUrl}`}</a></div>
+                  <div><strong>Faculty:</strong> {getFacultyName(session.facultyId)}</div>
+                  <div><strong>Expires:</strong> {format(session.expiresAt.toDate(), 'MMM d, yyyy HH:mm')}</div>
                 </div>
               </div>
               <div className="flex items-center gap-2 ml-4">
@@ -175,31 +178,70 @@ export const SessionTable: React.FC<SessionTableProps> = ({
                 </Button>
               </div>
               <div className="flex items-center gap-2">
-                {onEdit && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onEdit(session)}
-                    className="flex items-center gap-2"
-                  >
-                    <Edit className="h-4 w-4" />
-                    Edit
-                  </Button>
-                )}
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
-                  onClick={() => handleDelete(session)}
-                  className="flex items-center gap-2 text-destructive hover:text-destructive"
+                  onClick={() => setShareSession(session)}
+                  className="flex items-center gap-2"
                 >
-                  <Trash2 className="h-4 w-4" />
-                  Delete
+                  <Share className="h-4 w-4" />
+                  Share
                 </Button>
               </div>
             </div>
           </CardContent>
         </Card>
       ))}
+      <Dialog open={!!shareSession} onOpenChange={() => setShareSession(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Share Feedback Form</DialogTitle>
+          </DialogHeader>
+          {shareSession && (
+            <div className="flex flex-col items-center gap-4">
+              <QRCodeCanvas 
+                id="qr-code-canvas"
+                value={`${window.location.origin}/feedback/anonymous/${shareSession.uniqueUrl}`} 
+                size={128}
+                level="H"
+              />
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const canvas = document.getElementById('qr-code-canvas') as HTMLCanvasElement;
+                    if (canvas) {
+                      const url = canvas.toDataURL('image/png');
+                      const link = document.createElement('a');
+                      link.download = `qr-code-${shareSession.subject}.png`;
+                      link.href = url;
+                      link.click();
+                      toast.success('QR Code downloaded successfully');
+                    }
+                  }}
+                  className="flex items-center gap-2"
+                >
+                  <Download className="h-4 w-4" />
+                  Download QR Code
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`Check out this feedback form: ${window.location.origin}/feedback/anonymous/${shareSession.uniqueUrl}`)}`;
+                    window.open(whatsappUrl, '_blank');
+                  }}
+                  className="flex items-center gap-2 text-[#25D366] border-[#25D366] hover:bg-green-500 hover:text-white"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  Share to WhatsApp
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

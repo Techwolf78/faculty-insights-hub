@@ -8,10 +8,10 @@ import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
-import { useFacultyMemberStats } from '@/hooks/useCollegeData';
+import { useFacultyMemberStats, useAcademicConfig } from '@/hooks/useCollegeData';
 import { facultyApi, submissionsApi, questionsApi, Faculty, FeedbackSubmission, Question } from '@/lib/storage';
 import { format } from 'date-fns';
-import { Star, Users, MessageSquare, TrendingUp, Download } from 'lucide-react';
+import { Star, Users, MessageSquare, TrendingUp, Download, Calendar } from 'lucide-react';
 import { FacultyExcelReport } from '@/components/reports/FacultyExcelReport';
 
 interface FacultyReportProps {
@@ -24,10 +24,39 @@ const FacultyReport: React.FC<FacultyReportProps> = ({ open, onOpenChange }) => 
   const queryClient = useQueryClient();
   const [faculty, setFaculty] = useState<Faculty[]>([]);
   const [selectedFacultyId, setSelectedFacultyId] = useState<string>('');
+  const [selectedSemester, setSelectedSemester] = useState<string>('all');
+  const [selectedYear, setSelectedYear] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(false);
 
+  const { data: academicConfig } = useAcademicConfig(user?.collegeId);
+
+  const availableSemesters = React.useMemo(() => {
+    if (!academicConfig) return [];
+    const semesters = new Set<string>();
+    
+    // Collect all semesters defined in courseData
+    Object.values(academicConfig.courseData).forEach(course => {
+      if (course.semesters) {
+        course.semesters.forEach(s => semesters.add(s));
+      }
+    });
+
+    // Also check subjectsData for any specific semesters
+    Object.values(academicConfig.subjectsData).forEach(years => {
+      Object.values(years).forEach(sems => {
+        Object.keys(sems).forEach(s => semesters.add(s));
+      });
+    });
+
+    return Array.from(semesters).sort();
+  }, [academicConfig]);
+
   // Use pre-computed stats
-  const { data: facultyStats } = useFacultyMemberStats(selectedFacultyId);
+  const { data: facultyStats } = useFacultyMemberStats(
+    selectedFacultyId, 
+    selectedSemester === 'all' ? undefined : selectedSemester,
+    user?.collegeId
+  );
 
   const loadFaculty = useCallback(async () => {
     if (!user?.collegeId) return;
@@ -67,9 +96,11 @@ const FacultyReport: React.FC<FacultyReportProps> = ({ open, onOpenChange }) => 
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Faculty Selection */}
-          <div className="flex items-center gap-4">
-            <div className="flex-1">
+          {/* Filters Row */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Faculty Selection */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground ml-1">Faculty Member</label>
               <Select value={selectedFacultyId} onValueChange={setSelectedFacultyId}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select faculty member" />
@@ -83,10 +114,48 @@ const FacultyReport: React.FC<FacultyReportProps> = ({ open, onOpenChange }) => 
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Academic Year Selection */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground ml-1">Academic Year</label>
+              <Select value={selectedYear} onValueChange={setSelectedYear}>
+                <SelectTrigger>
+                  <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
+                  <SelectValue placeholder="Select Year" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Years</SelectItem>
+                  <SelectItem value="2023-24">2023-24</SelectItem>
+                  <SelectItem value="2024-25">2024-25</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Semester Selection */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground ml-1">Semester</label>
+              <Select value={selectedSemester} onValueChange={setSelectedSemester}>
+                <SelectTrigger>
+                  <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
+                  <SelectValue placeholder="Select Semester" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Semesters</SelectItem>
+                  {availableSemesters.map((sem) => (
+                    <SelectItem key={sem} value={sem}>{sem}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="flex justify-end">
             {facultyStats && selectedFaculty && (
               <FacultyExcelReport
                 facultyId={selectedFacultyId}
                 facultyName={selectedFaculty.name}
+                academicYear={selectedYear === 'all' ? undefined : selectedYear}
+                semester={selectedSemester === 'all' ? undefined : selectedSemester}
                 stats={facultyStats}
                 comments={facultyStats.recentComments}
                 loading={isLoading}
@@ -114,6 +183,7 @@ const FacultyReport: React.FC<FacultyReportProps> = ({ open, onOpenChange }) => 
                     <FacultyExcelReport
                       facultyId={selectedFacultyId}
                       facultyName={selectedFaculty.name}
+                      semester={selectedSemester === 'all' ? undefined : selectedSemester}
                       stats={facultyStats}
                       comments={facultyStats?.recentComments || []}
                     />

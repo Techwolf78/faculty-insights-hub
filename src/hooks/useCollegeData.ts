@@ -43,10 +43,10 @@ type FacultyPaginatedResult = {
 // ============================================================================
 
 const STALE_TIME = {
-    STATIC: 10 * 60 * 1000,      // 10 minutes for rarely changing data (colleges, academic config)
-    SEMI_STATIC: 5 * 60 * 1000,  // 5 minutes for departments, faculty, questions
-    DYNAMIC: 1 * 60 * 1000,      // 1 minute for sessions, submissions
-    STATS: 2 * 60 * 1000,        // 2 minutes for aggregated stats
+    STATIC: 30 * 60 * 1000,      // 30 minutes for rarely changing data (colleges, academic config)
+    SEMI_STATIC: 15 * 60 * 1000, // 15 minutes for departments, faculty, questions
+    DYNAMIC: 5 * 60 * 1000,      // 5 minutes for sessions, submissions
+    STATS: 10 * 60 * 1000,       // 10 minutes for aggregated stats
 };
 
 // ============================================================================
@@ -416,29 +416,44 @@ export function useAllSubmissions(collegeId: string | undefined) {
 // STATS HOOKS (Optimized - Single Read for Aggregated Data)
 // ============================================================================
 
-export function useCollegeStats(collegeId: string | undefined) {
+export function useCollegeStats(collegeId: string | undefined, semester?: string) {
     return useQuery({
-        queryKey: queryKeys.collegeStats(collegeId || ''),
-        queryFn: () => feedbackStatsApi.getByCollege(collegeId!),
+        queryKey: semester ? ['stats', 'semester', collegeId || '', semester] : queryKeys.collegeStats(collegeId || ''),
+        queryFn: () => {
+            if (semester && collegeId) {
+                return feedbackStatsApi.getBySemester(collegeId, semester);
+            }
+            return feedbackStatsApi.getByCollege(collegeId!);
+        },
         enabled: !!collegeId,
         staleTime: STALE_TIME.STATS,
     });
 }
 
-export function useDepartmentStats(departmentId: string | undefined) {
+export function useDepartmentStats(departmentId: string | undefined, semester?: string, collegeId?: string) {
     return useQuery({
-        queryKey: queryKeys.departmentStats(departmentId || ''),
-        queryFn: () => feedbackStatsApi.getByDepartment(departmentId!),
-        enabled: !!departmentId,
+        queryKey: semester && collegeId ? ['stats', 'departmentSemester', departmentId || '', semester, collegeId || ''] : queryKeys.departmentStats(departmentId || ''),
+        queryFn: () => {
+            if (semester && semester !== 'all' && collegeId) {
+                return feedbackStatsApi.getByDepartmentSemester(collegeId, departmentId!, semester);
+            }
+            return feedbackStatsApi.getByDepartment(departmentId!);
+        },
+        enabled: !!departmentId && (!semester || semester === 'all' || !!collegeId),
         staleTime: STALE_TIME.STATS,
     });
 }
 
-export function useFacultyMemberStats(facultyId: string | undefined) {
+export function useFacultyMemberStats(facultyId: string | undefined, semester?: string, collegeId?: string) {
     return useQuery({
-        queryKey: queryKeys.facultyStats(facultyId || ''),
-        queryFn: () => feedbackStatsApi.getByFaculty(facultyId!),
-        enabled: !!facultyId,
+        queryKey: semester && collegeId ? ['stats', 'facultySemester', facultyId || '', semester, collegeId || ''] : queryKeys.facultyStats(facultyId || ''),
+        queryFn: () => {
+            if (semester && semester !== 'all' && collegeId) {
+                return feedbackStatsApi.getByFacultySemester(collegeId, facultyId!, semester);
+            }
+            return feedbackStatsApi.getByFaculty(facultyId!);
+        },
+        enabled: !!facultyId && (!semester || semester === 'all' || !!collegeId),
         staleTime: STALE_TIME.STATS,
     });
 }
@@ -452,19 +467,19 @@ export function useSessionStats(sessionId: string | undefined) {
     });
 }
 
-export function useAllDepartmentStats(collegeId: string | undefined) {
+export function useAllDepartmentStats(collegeId: string | undefined, semester?: string) {
     return useQuery({
-        queryKey: queryKeys.allDepartmentStats(collegeId || ''),
-        queryFn: () => feedbackStatsApi.getDepartmentStats(collegeId!),
+        queryKey: semester && semester !== 'all' ? ['stats', 'allDepartments', collegeId || '', semester] : queryKeys.allDepartmentStats(collegeId || ''),
+        queryFn: () => feedbackStatsApi.getDepartmentStats(collegeId!, semester),
         enabled: !!collegeId,
         staleTime: STALE_TIME.STATS,
     });
 }
 
-export function useAllFacultyStats(collegeId: string | undefined) {
+export function useAllFacultyStats(collegeId: string | undefined, semester?: string) {
     return useQuery({
-        queryKey: queryKeys.allFacultyStats(collegeId || ''),
-        queryFn: () => feedbackStatsApi.getFacultyStats(collegeId!),
+        queryKey: semester && semester !== 'all' ? ['stats', 'allFaculty', collegeId || '', semester] : queryKeys.allFacultyStats(collegeId || ''),
+        queryFn: () => feedbackStatsApi.getFacultyStats(collegeId!, semester),
         enabled: !!collegeId,
         staleTime: STALE_TIME.STATS,
     });

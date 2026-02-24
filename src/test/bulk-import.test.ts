@@ -5,8 +5,9 @@ import { facultyAllocationsApi } from "@/lib/storage";
 const testData = [
   {
     "Full Name *": "Dr. Priyanka Pawar",
-    "Program *": "MBA",
+    "Course *": "MBA",
     "Year *": "1",
+    "Semester *": "Even",
     "Department *": "Marketing Management",
     "Subjects *": "Marketing Management",
     "Subject Code*": "GC–09",
@@ -15,8 +16,9 @@ const testData = [
   },
   {
     "Full Name *": "Dr. Priyanka Pawar",
-    "Program *": "MBA",
+    "Course *": "MBA",
     "Year *": "1",
+    "Semester *": "Even",
     "Department *": "Marketing Management",
     "Subjects *": "Digital Marketing-I",
     "Subject Code*": "SE - MKT - 01",
@@ -33,16 +35,18 @@ describe("Bulk Import Faculty Allocations", () => {
 
     testData.forEach((item, index) => {
       expect(item).toHaveProperty("Full Name *");
-      expect(item).toHaveProperty("Program *");
+      expect(item).toHaveProperty("Course *");
       expect(item).toHaveProperty("Year *");
+      expect(item).toHaveProperty("Semester *");
       expect(item).toHaveProperty("Department *");
       expect(item).toHaveProperty("Subjects *");
       expect(item).toHaveProperty("Subject Code*");
       expect(item).toHaveProperty("Subject Type*");
 
       expect(typeof item["Full Name *"]).toBe("string");
-      expect(typeof item["Program *"]).toBe("string");
+      expect(typeof item["Course *"]).toBe("string");
       expect(typeof item["Year *"]).toBe("string");
+      expect(typeof item["Semester *"]).toBe("string");
       expect(typeof item["Department *"]).toBe("string");
       expect(typeof item["Subjects *"]).toBe("string");
       expect(typeof item["Subject Code*"]).toBe("string");
@@ -55,8 +59,9 @@ describe("Bulk Import Faculty Allocations", () => {
   it("should transform data correctly", () => {
     const transformedData = testData.map((item) => ({
       facultyName: item["Full Name *"],
-      course: item["Program *"],
+      course: item["Course *"] || item["Program *"],
       year: item["Year *"],
+      semester: item["Semester *"],
       department: item["Department *"],
       subjectName: item["Subjects *"],
       subjectCode: item["Subject Code*"],
@@ -68,6 +73,7 @@ describe("Bulk Import Faculty Allocations", () => {
       facultyName: "Dr. Priyanka Pawar",
       course: "MBA",
       year: "1",
+      semester: "Even",
       department: "Marketing Management",
       subjectName: "Marketing Management",
       subjectCode: "GC–09",

@@ -73,7 +73,7 @@ const FacultyForm: React.FC<FacultyFormProps> = ({ open, onOpenChange, onSuccess
         email: editingFaculty.email,
         designation: editingFaculty.designation,
         specialization: editingFaculty.specialization,
-        experience: editingFaculty.experience.toString(),
+        experience: (editingFaculty.experience ?? 0).toString(),
         highestQualification: editingFaculty.highestQualification,
         role: editingFaculty.role || 'faculty', // Use existing role or default to faculty
       });

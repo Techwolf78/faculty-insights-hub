@@ -170,7 +170,7 @@ const SessionResponses: React.FC = () => {
         
         {/* Centered Session Header */}
         <div className="flex flex-col items-center justify-center text-center space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight">
+          <h1 className="text-2xl font-bold tracking-tight">
             {session.course} - {session.subject}
             {session.subjectCode && <span className="font-sans"> ({session.subjectCode})</span>}
             {session.subjectType && ` - ${session.subjectType}`}
@@ -260,15 +260,15 @@ const SessionResponses: React.FC = () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="responses" className="space-y-6 mt-6">
+        <TabsContent value="responses" className="space-y-2 mt-2">
           {/* Responses Table */}
           <Card>
             <CardHeader>
               <CardTitle>Student Responses</CardTitle>
             </CardHeader>
-        <CardContent>
+        <CardContent className="p-3 pt-0">
           {submissions.length === 0 ? (
-            <div className="text-center py-8">
+            <div className="text-center py-4">
               <p className="text-muted-foreground">No responses received for this session yet.</p>
             </div>
           ) : (
@@ -276,10 +276,10 @@ const SessionResponses: React.FC = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Submission ID</TableHead>
-                    <TableHead>Submitted At</TableHead>
+                    <TableHead className="whitespace-nowrap">Submission ID</TableHead>
+                    <TableHead className="whitespace-nowrap">Submitted At</TableHead>
                     {questions.map(q => (
-                      <TableHead key={q.id}>{q.text}</TableHead>
+                      <TableHead key={q.id} className="text-[10px] leading-tight min-w-[120px] py-2">{q.text}</TableHead>
                     ))}
                   </TableRow>
                 </TableHeader>
@@ -324,7 +324,7 @@ const SessionResponses: React.FC = () => {
 
               {/* Pagination */}
               {totalPages > 1 && (
-                <div className="flex items-center justify-between mt-4">
+                <div className="flex items-center justify-between mt-3">
                   <p className="text-sm text-muted-foreground">
                     Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, submissions.length)} of {submissions.length} responses
                   </p>
