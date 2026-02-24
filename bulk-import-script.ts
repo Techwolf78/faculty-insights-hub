@@ -4,8 +4,10 @@ import { facultyAllocationsApi } from './src/lib/storage';
 // Type definitions
 interface AllocationData {
   'Full Name *': string;
-  'Program *': string;
+  'Course *'?: string;
+  'Program *'?: string;
   'Year *': string;
+  'Semester *': string;
   'Department *': string;
   'Subjects *': string;
   'Subject Code*': string;
@@ -16,8 +18,17 @@ interface AllocationData {
 // Script to bulk import faculty allocations from JSON file
 async function bulkImportAllocations() {
   try {
+    // Get filename and collegeId from command line
+    const filename = process.argv[2] || './icem_fac_sub_allocation.json';
+    const collegeId = process.argv[3] || 'demo-college-id';
+
+    if (!filename) {
+      console.log('Usage: npx ts-node bulk-import-script.ts [json-file] [college-id]');
+      return;
+    }
+
     // Read the JSON file
-    const jsonData = readFileSync('./icem_fac_sub_allocation.json', 'utf-8');
+    const jsonData = readFileSync(filename, 'utf-8');
     const allocationData = JSON.parse(jsonData);
 
     // Validate the data structure
@@ -25,22 +36,19 @@ async function bulkImportAllocations() {
       throw new Error('JSON data must be an array');
     }
 
-    console.log(`Found ${allocationData.length} allocation records to import`);
+    console.log(`Found ${allocationData.length} allocation records in ${filename} to import for college ${collegeId}`);
 
     // Transform data to match API expectations
     const transformedData = allocationData.map((item: AllocationData) => ({
-      facultyName: item['Full Name *'],
-      course: item['Program *'],
-      year: item['Year *'],
-      department: item['Department *'],
-      subjectName: item['Subjects *'],
-      subjectCode: item['Subject Code*'],
-      subjectType: item['Subject Type*'] as 'Theory' | 'Practical' | 'Tutorial'
+      facultyName: item['Full Name *']?.trim(),
+      course: (item['Course *'] || item['Program *'] || '').trim(),
+      year: item['Year *']?.trim(),
+      semester: item['Semester *']?.trim() || '',
+      department: item['Department *']?.trim(),
+      subjectName: item['Subjects *']?.trim(),
+      subjectCode: item['Subject Code*']?.trim(),
+      subjectType: (item['Subject Type*']?.trim() || 'Theory') as 'Theory' | 'Practical' | 'Tutorial'
     }));
-
-    // For demo purposes, using a placeholder collegeId
-    // In production, this would be passed as an argument or read from config
-    const collegeId = 'demo-college-id';
 
     console.log('Starting bulk import...');
     const result = await facultyAllocationsApi.bulkImportAllocations(collegeId, transformedData);

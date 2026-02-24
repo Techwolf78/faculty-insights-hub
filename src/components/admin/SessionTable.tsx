@@ -124,11 +124,14 @@ export const SessionTable: React.FC<SessionTableProps> = ({
                   </Badge>
                 </CardTitle>
                 <div className="text-sm text-muted-foreground mt-1 space-y-1">
-                  <p><strong>Academic Year:</strong> {session.academicYear}</p>
-                  <p><strong>Department:</strong> {getDepartmentName(session.departmentId)}</p>
-      <p><strong>Session URL:</strong> <a href={`/feedback/anonymous/${session.uniqueUrl}`} target="_blank" rel="noopener noreferrer">{`/feedback/anonymous/${session.uniqueUrl}`}</a></p>
-                  <p><strong>Faculty:</strong> {getFacultyName(session.facultyId)}</p>
-                  <p><strong>Expires:</strong> {format(session.expiresAt.toDate(), 'MMM d, yyyy HH:mm')}</p>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1">
+                    <div><strong>Academic Year:</strong> {session.academicYear}</div>
+                    <div><strong>Semester:</strong> <Badge variant="outline" className="text-primary border-primary/30 h-5 text-[10px] uppercase font-bold inline-block">{session.semester}</Badge></div>
+                  </div>
+                  <div><strong>Department:</strong> {getDepartmentName(session.departmentId)}</div>
+      <div><strong>Session URL:</strong> <a href={`/feedback/anonymous/${session.uniqueUrl}`} target="_blank" rel="noopener noreferrer">{`/feedback/anonymous/${session.uniqueUrl}`}</a></div>
+                  <div><strong>Faculty:</strong> {getFacultyName(session.facultyId)}</div>
+                  <div><strong>Expires:</strong> {format(session.expiresAt.toDate(), 'MMM d, yyyy HH:mm')}</div>
                 </div>
               </div>
               <div className="flex items-center gap-2 ml-4">

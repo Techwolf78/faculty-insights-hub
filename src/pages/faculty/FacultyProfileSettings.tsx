@@ -16,7 +16,7 @@ import { facultyAllocationsApi, feedbackSessionsApi, FacultyAllocation, Feedback
 
 const FacultyProfileSettings: React.FC = () => {
   const { user } = useAuth();
-  const { data: facultyProfile, isLoading: isProfileLoading } = useFacultyByUserId(user?.id);
+  const { data: facultyProfile, isLoading: isProfileLoading } = useFacultyByUserId(user?.uid || user?.id);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');

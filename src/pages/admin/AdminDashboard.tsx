@@ -132,10 +132,31 @@ const AdminDashboard = () => {
     loadAllocations();
   }, [user?.collegeId]);
 
+  // Filtering state
+  const [selectedCourse, setSelectedCourse] = useState<string>('all');
+  const [selectedYear, setSelectedYear] = useState<string>('all');
+  const [selectedSemester, setSelectedSemester] = useState<string>('all');
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('all');
+  const [selectedSubject, setSelectedSubject] = useState<string>('all');
+  const [selectedBatch, setSelectedBatch] = useState<string>('all');
+  const [dateRange, setDateRange] = useState<{ from: string; to: string }>({
+    from: '',
+    to: ''
+  });
+
   // Stats hooks for pre-computed analytics
-  const { data: collegeStats, isLoading: collegeStatsLoading } = useCollegeStats(user?.collegeId);
-  const { data: departmentStats = [], isLoading: departmentStatsLoading } = useAllDepartmentStats(user?.collegeId);
-  const { data: facultyStats = [], isLoading: facultyStatsLoading } = useAllFacultyStats(user?.collegeId);
+  const { data: collegeStats, isLoading: collegeStatsLoading } = useCollegeStats(
+    user?.collegeId,
+    selectedSemester === 'all' ? undefined : selectedSemester
+  );
+  const { data: departmentStats = [], isLoading: departmentStatsLoading } = useAllDepartmentStats(
+    user?.collegeId,
+    selectedSemester === 'all' ? undefined : selectedSemester
+  );
+  const { data: facultyStats = [], isLoading: facultyStatsLoading } = useAllFacultyStats(
+    user?.collegeId,
+    selectedSemester === 'all' ? undefined : selectedSemester
+  );
 
   const isLoading = departmentsLoading || facultyLoading || questionGroupsLoading || questionsLoading || sessionsLoading || submissionsLoading || collegeLoading || academicConfigLoading || collegeStatsLoading || departmentStatsLoading || facultyStatsLoading || allocationsLoading;
 
@@ -627,20 +648,41 @@ const AdminDashboard = () => {
   const courseData = useMemo(() => academicConfig?.courseData || {}, [academicConfig?.courseData]);
   const subjectsData = useMemo(() => academicConfig?.subjectsData || {}, [academicConfig?.subjectsData]);
 
-  // Filtering state
-  const [selectedCourse, setSelectedCourse] = useState<string>('all');
-  const [selectedYear, setSelectedYear] = useState<string>('all');
-  const [selectedDepartment, setSelectedDepartment] = useState<string>('all');
-  const [selectedSubject, setSelectedSubject] = useState<string>('all');
-  const [selectedBatch, setSelectedBatch] = useState<string>('all');
-  const [dateRange, setDateRange] = useState<{ from: string; to: string }>({
-    from: '',
-    to: ''
-  });
+  // Get available semesters based on course/year
+  const availableSemesters = useMemo(() => {
+    if (selectedCourse === 'all') return [];
+    
+    const semesters = new Set<string>();
+    const courseData = subjectsData[selectedCourse as keyof typeof subjectsData] || {};
+    
+    if (selectedYear !== 'all') {
+      const yearData = courseData[selectedYear as keyof typeof courseData] || {};
+      Object.keys(yearData).forEach(s => semesters.add(s));
+    } else {
+      Object.values(courseData).forEach(yearData => {
+        Object.keys(yearData).forEach(s => semesters.add(s));
+      });
+    }
+    
+    return Array.from(semesters).sort();
+  }, [selectedCourse, selectedYear, subjectsData]);
+
+  // Get available departments based on course/year/semester
+  const availableDepartments = useMemo(() => {
+    if (selectedCourse === 'all' || selectedYear === 'all' || selectedSemester === 'all') {
+      return [];
+    }
+
+    const courseData = subjectsData[selectedCourse as keyof typeof subjectsData] || {};
+    const yearData = courseData[selectedYear as keyof typeof courseData] || {};
+    const semesterData = yearData[selectedSemester as keyof typeof yearData] || {};
+
+    return Object.keys(semesterData).sort();
+  }, [selectedCourse, selectedYear, selectedSemester, subjectsData]);
 
   // Get available subjects based on current selections
   const availableSubjects = useMemo(() => {
-    if (selectedCourse === 'all' || selectedYear === 'all' || selectedDepartment === 'all') {
+    if (selectedCourse === 'all' || selectedYear === 'all' || selectedSemester === 'all' || selectedDepartment === 'all') {
       return [];
     }
 
@@ -650,13 +692,16 @@ const AdminDashboard = () => {
     const yearSubjects = courseSubjects[selectedYear as keyof typeof courseSubjects];
     if (!yearSubjects) return [];
 
-    const departmentSubjects = yearSubjects[selectedDepartment as keyof typeof yearSubjects];
+    const semesterSubjects = yearSubjects[selectedSemester as keyof typeof yearSubjects];
+    if (!semesterSubjects) return [];
+
+    const departmentSubjects = semesterSubjects[selectedDepartment as keyof typeof semesterSubjects];
     return Object.keys(departmentSubjects || {});
-  }, [selectedCourse, selectedYear, selectedDepartment, subjectsData]);
+  }, [selectedCourse, selectedYear, selectedSemester, selectedDepartment, subjectsData]);
 
   // Get available batches based on current selections
   const availableBatches = useMemo(() => {
-    if (selectedCourse === 'all' || selectedYear === 'all' || selectedDepartment === 'all' || selectedSubject === 'all') {
+    if (selectedCourse === 'all' || selectedYear === 'all' || selectedSemester === 'all' || selectedDepartment === 'all' || selectedSubject === 'all') {
       return [];
     }
 
@@ -666,12 +711,15 @@ const AdminDashboard = () => {
     const yearSubjects = courseSubjects[selectedYear as keyof typeof courseSubjects];
     if (!yearSubjects) return [];
 
-    const departmentSubjects = yearSubjects[selectedDepartment as keyof typeof yearSubjects];
+    const semesterSubjects = yearSubjects[selectedSemester as keyof typeof yearSubjects];
+    if (!semesterSubjects) return [];
+
+    const departmentSubjects = semesterSubjects[selectedDepartment as keyof typeof semesterSubjects];
     if (!departmentSubjects) return [];
 
     const subjectBatches = departmentSubjects[selectedSubject as keyof typeof departmentSubjects];
     return subjectBatches?.batches || [];
-  }, [selectedCourse, selectedYear, selectedDepartment, selectedSubject, subjectsData]);
+  }, [selectedCourse, selectedYear, selectedSemester, selectedDepartment, selectedSubject, subjectsData]);
 
   // Get current section from URL
   const currentSection = location.pathname.split('/').pop() || 'dashboard';
@@ -694,6 +742,13 @@ const AdminDashboard = () => {
       const yearSessions = sessions.filter(s => s.academicYear === selectedYear);
       const yearSessionIds = yearSessions.map(s => s.id);
       filteredSubs = filteredSubs.filter(sub => yearSessionIds.includes(sub.sessionId));
+    }
+
+    // Filter by semester
+    if (selectedSemester !== 'all') {
+      const semSessions = sessions.filter(s => s.semester === selectedSemester);
+      const semSessionIds = semSessions.map(s => s.id);
+      filteredSubs = filteredSubs.filter(sub => semSessionIds.includes(sub.sessionId));
     }
 
     // Filter by department
@@ -748,7 +803,7 @@ const AdminDashboard = () => {
       faculty: filteredFac,
       departments: filteredDepts
     };
-  }, [allSubmissions, faculty, departments, selectedCourse, selectedYear, selectedDepartment, selectedSubject, selectedBatch, dateRange, sessions]);
+  }, [allSubmissions, faculty, departments, selectedCourse, selectedYear, selectedSemester, selectedDepartment, selectedSubject, selectedBatch, dateRange, sessions]);
 
   // Calculate metrics
   const activeSessionsCount = sessions.filter(s => isSessionActive(s)).length;
@@ -909,6 +964,10 @@ const AdminDashboard = () => {
             setSelectedCourse={setSelectedCourse}
             selectedYear={selectedYear}
             setSelectedYear={setSelectedYear}
+            selectedSemester={selectedSemester}
+            setSelectedSemester={setSelectedSemester}
+            availableSemesters={availableSemesters}
+            availableDepartments={availableDepartments}
             selectedDepartment={selectedDepartment}
             setSelectedDepartment={setSelectedDepartment}
             selectedSubject={selectedSubject}
@@ -947,6 +1006,9 @@ const AdminDashboard = () => {
             setBulkCreateOpen={setBulkCreateOpen}
             handleEditFaculty={handleEditFaculty}
             handleDeleteFaculty={handleDeleteFaculty}
+            onRefresh={handleRefresh}
+            hasStaleData={hasStaleData}
+            isRefreshing={isRefreshing}
           />
         );
       case 'bulk-email':

@@ -10,8 +10,10 @@ import { Upload, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 
 interface AllocationData {
   'Full Name *': string;
-  'Program *': string;
+  'Course *'?: string;
+  'Program *'?: string;
   'Year *': string;
+  'Semester *': string;
   'Department *': string;
   'Subjects *': string;
   'Subject Code*': string;
@@ -48,6 +50,7 @@ const BulkImportAllocations: React.FC<BulkImportAllocationsProps> = ({
         "Full Name *": "Dr. Priyanka Pawar",
         "Program *": "MBA",
         "Year *": "1",
+        "Semester *": "Odd",
         "Department *": "Marketing Management",
         "Subjects *": "Marketing Management",
         "Subject Code*": "GC–09",
@@ -57,10 +60,11 @@ const BulkImportAllocations: React.FC<BulkImportAllocationsProps> = ({
       {
         "Full Name *": "Dr. Priyanka Pawar",
         "Program *": "MBA",
-        "Year *": "",  // This will cause an error
+        "Year *": "1",
+        "Semester *": "Odd",
         "Department *": "Marketing Management",
         "Subjects *": "Digital Marketing-I",
-        "Subject Code*": "",  // This will cause an error
+        "Subject Code*": "GC-10",
         "Subject Type*": "Theory",
         "Specialization": "Marketing Management"
       },
@@ -68,6 +72,7 @@ const BulkImportAllocations: React.FC<BulkImportAllocationsProps> = ({
         "Full Name *": "Dr. Priyanka Pawar",
         "Program *": "MBA",
         "Year *": "2",
+        "Semester *": "Even",
         "Department *": "Computer Engineering",
         "Subjects *": "Audit Course (Social Responsibility)",
         "Subject Code*": "AUDIT-001",
@@ -97,8 +102,8 @@ const BulkImportAllocations: React.FC<BulkImportAllocationsProps> = ({
 
       const requiredFields = [
         'Full Name *',
-        'Program *',
         'Year *',
+        'Semester *',
         'Department *',
         'Subjects *',
         'Subject Code*',
@@ -109,6 +114,11 @@ const BulkImportAllocations: React.FC<BulkImportAllocationsProps> = ({
         if (!item[field] || typeof item[field] !== 'string' || item[field].trim() === '') {
           errors.push(`Item ${itemNumber} (${field}): Missing or invalid value`);
         }
+      }
+
+      // Special check for Program * or Course *
+      if (!item['Program *'] && !item['Course *']) {
+        errors.push(`Item ${itemNumber}: Either 'Program *' or 'Course *' is required`);
       }
 
       if (item['Subject Type*'] && !['Theory', 'Practical', 'Tutorial'].includes(item['Subject Type*'])) {
@@ -139,13 +149,14 @@ const BulkImportAllocations: React.FC<BulkImportAllocationsProps> = ({
 
       // Transform data to match API expectations
       const transformedData = data.map((item: AllocationData) => ({
-        facultyName: item['Full Name *'],
-        course: item['Program *'],
-        year: item['Year *'],
-        department: item['Department *'],
-        subjectName: item['Subjects *'],
-        subjectCode: item['Subject Code*'],
-        subjectType: item['Subject Type*'] as 'Theory' | 'Practical' | 'Tutorial'
+        facultyName: item['Full Name *']?.trim(),
+        course: (item['Course *'] || item['Program *'] || '').trim(),
+        year: item['Year *']?.trim(),
+        semester: item['Semester *']?.trim(),
+        department: item['Department *']?.trim(),
+        subjectName: item['Subjects *']?.trim(),
+        subjectCode: item['Subject Code*']?.trim(),
+        subjectType: (item['Subject Type*']?.trim() || 'Theory') as 'Theory' | 'Practical' | 'Tutorial'
       }));
 
       const result = await facultyAllocationsApi.bulkImportAllocations(collegeId, transformedData);

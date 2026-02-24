@@ -34,6 +34,29 @@ export { Timestamp };
 // Firestore field value types
 type FirestoreFieldValue = string | number | boolean | null | Timestamp | string[] | Record<string, unknown>;
 
+export interface BulkCreateFacultyData {
+  name: string;
+  email: string;
+  role: 'faculty' | 'hod';
+  designation?: string;
+  specialization?: string;
+  highestQualification?: string;
+  experience?: number;
+  phone?: string;
+  userId?: string; // Optional userId for retries
+}
+
+export interface BulkStatus {
+  index: number;
+  email: string;
+  name: string;
+  authStatus: 'pending' | 'success' | 'failed' | 'skipped' | 'exists';
+  firestoreUserStatus: 'pending' | 'success' | 'failed' | 'skipped';
+  firestoreFacultyStatus: 'pending' | 'success' | 'failed' | 'skipped';
+  error?: string;
+  userId?: string;
+}
+
 export interface College {
   id: string;
   name: string;
@@ -54,7 +77,8 @@ export interface College {
 }
 
 export interface User {
-  id: string;
+  id: string; // Firestore Document ID
+  uid?: string; // Firebase Auth UID
   email: string;
   name: string;
   phone?: string;
@@ -117,6 +141,7 @@ export interface FacultyAllocation {
   course: string;
   department: string;
   years: string[];
+  semester: string; // Dimension for the specific semester
   subjects: {
     name: string;
     code: string;
@@ -227,6 +252,8 @@ export interface FeedbackSubmission {
   facultyId: string;
   collegeId: string;
   departmentId?: string;
+  academicYear: string; // Store for historical stats without joining
+  semester: string; // Store for historical stats without joining
   responses: FeedbackResponse[];
   metrics: {
     overallRating: number;
@@ -243,11 +270,13 @@ export interface FeedbackSubmission {
 
 export interface FeedbackStats {
   id: string;
-  type: 'college' | 'department' | 'faculty' | 'session';
+  type: 'college' | 'department' | 'faculty' | 'session' | 'academicYear' | 'semester' | 'facultySemester' | 'departmentSemester';
   entityId: string;
   collegeId: string;
   departmentId?: string;
   facultyId?: string;
+  academicYear?: string;
+  semester?: string;
   totalSubmissions: number;
   averageRating: number;
   categoryScores: Record<string, { average: number; count: number }>;
@@ -272,9 +301,11 @@ export interface AcademicConfig {
   courseData: Record<string, {
     years: string[];
     yearDepartments: Record<string, string[]>;
-    semesters?: string[];
+    semesters?: string[]; // Generic available semesters for the course (e.g., ['Odd', 'Even'])
+    yearSemesters?: Record<string, string[]>; // Optional semester list overrides per year
   }>;
-  subjectsData: Record<string, Record<string, Record<string, Record<string, { code: string; type: string; batches: string[] }>>>>;
+  // Updated structure: course -> year -> semester -> department -> subject
+  subjectsData: Record<string, Record<string, Record<string, Record<string, Record<string, { code: string; type: string; batches: string[] }>>>>>;
   batches: string[];
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -783,121 +814,167 @@ export const facultyApi = {
     return `FAC${nextNumber.toString().padStart(3, '0')}`;
   },
 
-// Bulk create faculty members
-  bulkCreate: async (facultyData: Array<{
-    name: string;
-    email: string;
-    role: 'faculty' | 'hod';
-    designation?: string;
-    specialization?: string;
-    highestQualification?: string;
-    experience?: number;
-    phone?: string;
-  }>, collegeId: string): Promise<{
-    success: Faculty[];
-    errors: Array<{ index: number; data: {
-      name: string;
-      email: string;
-      role: 'faculty' | 'hod';
-      designation?: string;
-      specialization?: string;
-      highestQualification?: string;
-      experience?: number;
-      phone?: string;
-    }; error: string }>;
-  }> => {
-    const results = {
-      success: [] as Faculty[],
-      errors: [] as Array<{ index: number; data: {
-        name: string;
-        email: string;
-        role: 'faculty' | 'hod';
-        designation?: string;
-        specialization?: string;
-        highestQualification?: string;
-        experience?: number;
-        phone?: string;
-      }; error: string }>,
+  // Bulk create faculty members
+  bulkCreate: async (
+    facultyData: BulkCreateFacultyData[], 
+    collegeId: string,
+    onProgress?: (status: BulkStatus) => void
+  ): Promise<{
+    results: BulkStatus[];
+    summary: {
+      total: number;
+      success: number;
+      failed: number;
     };
+  }> => {
+    const results: BulkStatus[] = [];
+    const summary = {
+      total: facultyData.length,
+      success: 0,
+      failed: 0
+    };
+
+    // Initialize secondary Firebase app once for the entire bulk operation
+    const { createUserWithEmailAndPassword, getAuth } = await import('firebase/auth');
+    const { initializeApp, deleteApp, getApp } = await import('firebase/app');
+    
+    const firebaseConfig = {
+      apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+      authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+      projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+      storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+      appId: import.meta.env.VITE_FIREBASE_APP_ID
+    };
+
+    const appName = `BulkCreate-${Date.now()}`;
+    let secondaryApp;
+    try {
+      secondaryApp = initializeApp(firebaseConfig, appName);
+    } catch (e) {
+      secondaryApp = getApp(appName);
+    }
+    const secondaryAuth = getAuth(secondaryApp);
+
+    const existingFaculty = await facultyApi.getByCollege(collegeId);
+    const existingEmails = new Set(existingFaculty.map(f => f.email.toLowerCase()));
 
     // Process each faculty member
     for (let i = 0; i < facultyData.length; i++) {
       const member = facultyData[i];
-      
+      const status: BulkStatus = {
+        index: i,
+        email: member.email,
+        name: member.name,
+        authStatus: 'pending',
+        firestoreUserStatus: 'pending',
+        firestoreFacultyStatus: 'pending',
+      };
+
       try {
-        // Validate required fields
-        if (!member.name?.trim()) {
-          results.errors.push({ index: i, data: member, error: 'Name is required' });
-          continue;
-        }
-        if (!member.email?.trim()) {
-          results.errors.push({ index: i, data: member, error: 'Email is required' });
-          continue;
-        }
-        if (!member.role || !['faculty', 'hod'].includes(member.role)) {
-          results.errors.push({ index: i, data: member, error: 'Role must be either "faculty" or "hod"' });
-          continue;
-        }
-
-        // Check for duplicate email
-        const existingFaculty = await facultyApi.getByCollege(collegeId);
-        const emailExists = existingFaculty.some(f => f.email.toLowerCase() === member.email.toLowerCase());
-        if (emailExists) {
-          results.errors.push({ index: i, data: member, error: `Email "${member.email}" already exists` });
-          continue;
-        }
-
-        // Generate next faculty ID
+        // Generate the ID once for this item to use for both Password and Record
         const employeeId = await facultyApi.generateNextFacultyId(collegeId);
 
-        // Generate password based on employeeId
-        const password = employeeId.replace('FAC', 'Fac') + '@';
+        // 1. Check if already exists in Firestore Faculty (but only if we're not retrying with a userId)
+        if (!member.userId && existingEmails.has(member.email.toLowerCase())) {
+          status.authStatus = 'exists';
+          status.firestoreUserStatus = 'success';
+          status.firestoreFacultyStatus = 'success';
+          results.push(status);
+          summary.success++;
+          if (onProgress) onProgress(status);
+          continue;
+        }
 
-        // Create user account first
-        const { createUserWithEmailAndPassword } = await import('firebase/auth');
-        const auth = getAuth();
-        
-        const userCredential = await createUserWithEmailAndPassword(auth, member.email, password);
-        const userId = userCredential.user.uid;
+        // 2. Auth Creation (skip if userId provided)
+        let userId = member.userId || '';
+        if (!userId) {
+          try {
+            // Generate password following the pattern: FAC001 -> Fac001@
+            const generatedPassword = employeeId.replace('FAC', 'Fac') + '@';
+            
+            const userCredential = await createUserWithEmailAndPassword(secondaryAuth, member.email, generatedPassword);
+            userId = userCredential.user.uid;
+            status.authStatus = 'success';
+            status.userId = userId;
+          } catch (authError: unknown) {
+            const error = authError as { code?: string; message: string };
+            if (error.code === 'auth/email-already-in-use') {
+              status.authStatus = 'failed';
+              status.error = 'User already exists in Authentication but not in Faculty records.';
+              throw new Error(status.error);
+            } else {
+              status.authStatus = 'failed';
+              status.error = error.message;
+              throw error;
+            }
+          }
+        } else {
+          status.authStatus = 'skipped';
+          status.userId = userId;
+        }
 
-        // Set user role
-        await setDoc(doc(db, 'users', userId), {
-          email: member.email,
-          role: member.role,
-          collegeId,
-          createdAt: Timestamp.now(),
-          isActive: true,
-        });
+        // 3. Firestore User Document
+        try {
+          await setDoc(doc(db, 'users', userId), {
+            email: member.email.toLowerCase().trim(),
+            name: member.name.trim(),
+            role: member.role,
+            collegeId,
+            createdAt: Timestamp.now(),
+            isActive: true,
+          }, { merge: true }); // Use merge for retries
+          status.firestoreUserStatus = 'success';
+        } catch (userDocError: unknown) {
+          status.firestoreUserStatus = 'failed';
+          status.error = userDocError instanceof Error ? userDocError.message : String(userDocError);
+          throw userDocError;
+        }
 
-        // Create faculty record
-        const facultyMember = await facultyApi.create({
-          userId,
-          collegeId,
-          employeeId,
-          name: member.name.trim(),
-          email: member.email.toLowerCase().trim(),
-          phone: member.phone?.trim() || '',
-          designation: member.designation?.trim() || 'Assistant Professor',
-          specialization: member.specialization?.trim() || '',
-          highestQualification: member.highestQualification?.trim() || '',
-          experience: member.experience || 0,
-          role: member.role,
-          isActive: true,
-        });
+        // 4. Firestore Faculty Document
+        try {
+          await facultyApi.create({
+            userId,
+            collegeId,
+            employeeId,
+            name: member.name.trim(),
+            email: member.email.toLowerCase().trim(),
+            phone: member.phone?.trim() || '',
+            designation: member.designation?.trim() || 'Assistant Professor',
+            specialization: member.specialization?.trim() || '',
+            highestQualification: member.highestQualification?.trim() || '',
+            experience: member.experience || 0,
+            role: member.role,
+            isActive: true,
+          });
+          status.firestoreFacultyStatus = 'success';
+          summary.success++;
+        } catch (facultyDocError: unknown) {
+          status.firestoreFacultyStatus = 'failed';
+          status.error = facultyDocError instanceof Error ? facultyDocError.message : String(facultyDocError);
+          throw facultyDocError;
+        }
 
-        results.success.push(facultyMember);
-        
       } catch (error: unknown) {
-        console.error(`Error creating faculty at index ${i}:`, error);
-        results.errors.push({ 
-          index: i, 
-          data: member, 
-          error: error instanceof Error ? error.message : 'Unknown error occurred' 
-        });
+        status.error = error instanceof Error ? error.message : String(error);
+        summary.failed++;
       }
+
+      results.push(status);
+      if (onProgress) onProgress(status);
+      
+      // Small delay
+      await new Promise(resolve => setTimeout(resolve, 50));
     }
 
-    return results;
+    // Cleanup
+    try {
+      await deleteApp(secondaryApp);
+    } catch (e) {
+      console.error('Error deleting secondary app:', e);
+    }
+
+    return { results, summary };
   },
 };
 
@@ -970,18 +1047,20 @@ export const facultyAllocationsApi = {
     course: string,
     department: string,
     year: string,
+    semester: string,
     subjects: { name: string; code: string; type: 'Theory' | 'Practical' | 'Tutorial' }[],
     excludeFacultyId?: string
   ): Promise<{ subjectName: string; facultyName: string; facultyId: string }[]> => {
     // Fetch all active allocations for the college
     const allocations = await facultyAllocationsApi.getActiveByCollege(collegeId);
 
-    // Filter allocations that match course, department, and include the year
+    // Filter allocations that match course, department, year AND semester
     const relevantAllocations = allocations.filter(
       (alloc) =>
         alloc.course === course &&
         alloc.department === department &&
         alloc.years.includes(year) &&
+        (alloc.semester === semester || !alloc.semester) && // Match semester or legacy allocations
         alloc.facultyId !== excludeFacultyId
     );
 
@@ -1017,6 +1096,7 @@ export const facultyAllocationsApi = {
       facultyName: string;
       course: string;
       year: string;
+      semester: string;
       department: string;
       subjectName: string;
       subjectCode: string;
@@ -1039,6 +1119,7 @@ export const facultyAllocationsApi = {
         course: string;
         department: string;
         year: string;
+        semester: string;
         subjects: { name: string; code: string; type: 'Theory' | 'Practical' | 'Tutorial' }[];
       }>();
 
@@ -1049,28 +1130,29 @@ export const facultyAllocationsApi = {
           continue;
         }
 
-        const key = `${facultyId}-${item.course}-${item.department}-${item.year}`;
+        const key = `${facultyId}-${item.course}-${item.department}-${item.year}-${item.semester}`;
         const existing = groupedAllocations.get(key);
 
         if (existing) {
           // Check if subject already exists in this batch
-          const subjectExists = existing.subjects.some(s => s.name === item.subjectName && s.code === item.subjectCode && s.type === item.subjectType);
+          const subjectExists = existing.subjects.some(s => s.name === item.subjectName.trim() && s.code === item.subjectCode?.trim() && s.type === item.subjectType);
           if (!subjectExists) {
             existing.subjects.push({
-              name: item.subjectName,
-              code: item.subjectCode,
+              name: item.subjectName.trim(),
+              code: item.subjectCode?.trim() || '',
               type: item.subjectType
             });
           }
         } else {
           groupedAllocations.set(key, {
             facultyId,
-            course: item.course,
-            department: item.department,
-            year: item.year,
+            course: item.course.trim(),
+            department: item.department.trim(),
+            year: item.year.trim(),
+            semester: item.semester.trim(),
             subjects: [{
-              name: item.subjectName,
-              code: item.subjectCode,
+              name: item.subjectName.trim(),
+              code: item.subjectCode?.trim() || '',
               type: item.subjectType
             }]
           });
@@ -1084,7 +1166,8 @@ export const facultyAllocationsApi = {
           alloc.facultyId === allocation.facultyId &&
           alloc.course === allocation.course &&
           alloc.department === allocation.department &&
-          alloc.years.includes(allocation.year)
+          alloc.years.includes(allocation.year) &&
+          alloc.semester === allocation.semester
         );
 
         if (existingAllocation) {
@@ -1094,12 +1177,13 @@ export const facultyAllocationsApi = {
             allocation.course,
             allocation.department,
             allocation.year,
+            allocation.semester,
             allocation.subjects,
             allocation.facultyId
           );
 
           if (conflicts.length > 0) {
-            errors.push(`Subject conflict for ${allocation.course} ${allocation.department} Year ${allocation.year}: ${conflicts.map(c => c.subjectName).join(', ')}`);
+            errors.push(`Subject conflict for ${allocation.course} ${allocation.department} Year ${allocation.year} ${allocation.semester}: ${conflicts.map(c => c.subjectName).join(', ')}`);
           }
         } else {
           // Check for subject conflicts for new allocation
@@ -1108,12 +1192,13 @@ export const facultyAllocationsApi = {
             allocation.course,
             allocation.department,
             allocation.year,
+            allocation.semester,
             allocation.subjects,
             allocation.facultyId
           );
 
           if (conflicts.length > 0) {
-            errors.push(`Subject conflict for ${allocation.course} ${allocation.department} Year ${allocation.year}: ${conflicts.map(c => c.subjectName).join(', ')}`);
+            errors.push(`Subject conflict for ${allocation.course} ${allocation.department} Year ${allocation.year} ${allocation.semester}: ${conflicts.map(c => c.subjectName).join(', ')}`);
           }
         }
       }
@@ -1135,7 +1220,8 @@ export const facultyAllocationsApi = {
             alloc.facultyId === allocation.facultyId &&
             alloc.course === allocation.course &&
             alloc.department === allocation.department &&
-            alloc.years.includes(allocation.year)
+            alloc.years.includes(allocation.year) &&
+            alloc.semester === allocation.semester
           );
 
           if (existingAllocation) {
@@ -1160,6 +1246,7 @@ export const facultyAllocationsApi = {
               course: allocation.course,
               department: allocation.department,
               years: [allocation.year],
+              semester: allocation.semester,
               subjects: allocation.subjects,
               isActive: true,
               createdAt: Timestamp.now(),
@@ -1172,7 +1259,7 @@ export const facultyAllocationsApi = {
 
           successCount++;
         } catch (error) {
-          errors.push(`Error processing allocation for ${allocation.course} ${allocation.department} Year ${allocation.year}: ${error}`);
+          errors.push(`Error processing allocation for ${allocation.course} ${allocation.department} Year ${allocation.year} ${allocation.semester}: ${error}`);
         }
       }
 
@@ -1529,7 +1616,18 @@ export const submissionsApi = {
       });
       
       // Update feedbackStats collection (non-transactional for performance)
-      await updateFeedbackStats(submission.collegeId, submission.departmentId, submission.facultyId, submission.sessionId, overallRating, categoryRatings, comments, now);
+      await updateFeedbackStats(
+        submission.collegeId, 
+        submission.departmentId!, 
+        submission.facultyId, 
+        submission.sessionId, 
+        overallRating, 
+        categoryRatings, 
+        comments, 
+        now,
+        submission.academicYear,
+        submission.semester
+      );
       
       return { id: docRef.id, ...submissionData };
     } else {
@@ -1541,13 +1639,15 @@ export const submissionsApi = {
         // This will succeed if firestore.rules allow anonymous write to feedbackStats
         await updateFeedbackStats(
           submission.collegeId, 
-          submission.departmentId, 
+          submission.departmentId!, 
           submission.facultyId, 
           submission.sessionId, 
           overallRating, 
           categoryRatings, 
           comments, 
-          now
+          now,
+          submission.academicYear,
+          submission.semester
         );
         
         // Also try to update basic counts in session and faculty docs
@@ -1596,7 +1696,9 @@ async function updateFeedbackStats(
   rating: number,
   categoryRatings: Record<string, number>,
   comments: { comment?: string; rating?: number }[],
-  timestamp: Timestamp
+  timestamp: Timestamp,
+  academicYear?: string,
+  semester?: string
 ): Promise<void> {
   const monthKey = new Date().toISOString().slice(0, 7); // "2025-01"
   const ratingBucket = Math.round(rating);
@@ -1613,11 +1715,29 @@ async function updateFeedbackStats(
       { type: 'session', entityId: sessionId, collegeId, departmentId, facultyId }
     );
   }
+
+  // Add academicYear and semester based stats
+  if (academicYear) {
+    statsUpdates.push({ type: 'academicYear', entityId: academicYear, collegeId });
+  }
+  if (semester) {
+    statsUpdates.push({ type: 'semester', entityId: semester, collegeId });
+    if (facultyId) {
+      statsUpdates.push({ type: 'facultySemester', entityId: `${facultyId}_${semester}`, collegeId });
+    }
+    if (departmentId) {
+      statsUpdates.push({ type: 'departmentSemester', entityId: `${departmentId}_${semester}`, collegeId });
+    }
+  }
   
   const batch = writeBatch(db);
   
   for (const update of statsUpdates) {
-    const statsId = `${update.type}_${update.entityId}`;
+    // AcademicYear, Semester, facultySemester and departmentSemester IDs are scoped to college to avoid collisions
+    const statsId = (update.type === 'academicYear' || update.type === 'semester' || update.type === 'facultySemester' || update.type === 'departmentSemester') 
+      ? `${update.type}_${update.collegeId}_${update.entityId.replace(/\s+/g, '_')}`
+      : `${update.type}_${update.entityId}`;
+
     const statsRef = doc(db, 'feedbackStats', statsId);
     const statsDoc = await getDoc(statsRef);
     
@@ -1704,6 +1824,8 @@ async function updateFeedbackStats(
         type: update.type,
         entityId: update.entityId,
         collegeId: update.collegeId,
+        ...(update.type === 'academicYear' && { academicYear: update.entityId }),
+        ...(update.type === 'semester' && { semester: update.entityId }),
         ...(update.departmentId && { departmentId: update.departmentId }),
         ...(update.facultyId && { facultyId: update.facultyId }),
         totalSubmissions: 1,
@@ -1758,30 +1880,92 @@ export const feedbackStatsApi = {
     return null;
   },
 
+  getByAcademicYear: async (collegeId: string, academicYear: string): Promise<FeedbackStats | null> => {
+    const statsId = `academicYear_${collegeId}_${academicYear.replace(/\s+/g, '_')}`;
+    const docSnap = await getDoc(doc(db, 'feedbackStats', statsId));
+    if (docSnap.exists()) {
+      return { id: docSnap.id, ...docSnap.data() } as FeedbackStats;
+    }
+    return null;
+  },
+
+  getBySemester: async (collegeId: string, semester: string): Promise<FeedbackStats | null> => {
+    const statsId = `semester_${collegeId}_${semester.replace(/\s+/g, '_')}`;
+    const docSnap = await getDoc(doc(db, 'feedbackStats', statsId));
+    if (docSnap.exists()) {
+      return { id: docSnap.id, ...docSnap.data() } as FeedbackStats;
+    }
+    return null;
+  },
+
+  getByFacultySemester: async (collegeId: string, facultyId: string, semester: string): Promise<FeedbackStats | null> => {
+    const statsId = `facultySemester_${collegeId}_${facultyId}_${semester.replace(/\s+/g, '_')}`;
+    const docSnap = await getDoc(doc(db, 'feedbackStats', statsId));
+    if (docSnap.exists()) {
+      return { id: docSnap.id, ...docSnap.data() } as FeedbackStats;
+    }
+    return null;
+  },
+
+  getByDepartmentSemester: async (collegeId: string, departmentId: string, semester: string): Promise<FeedbackStats | null> => {
+    const statsId = `departmentSemester_${collegeId}_${departmentId}_${semester.replace(/\s+/g, '_')}`;
+    const docSnap = await getDoc(doc(db, 'feedbackStats', statsId));
+    if (docSnap.exists()) {
+      return { id: docSnap.id, ...docSnap.data() } as FeedbackStats;
+    }
+    return null;
+  },
+
   getAllByCollege: async (collegeId: string): Promise<FeedbackStats[]> => {
     const q = query(collection(db, 'feedbackStats'), where('collegeId', '==', collegeId));
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FeedbackStats));
   },
 
-  getDepartmentStats: async (collegeId: string): Promise<FeedbackStats[]> => {
-    const q = query(
-      collection(db, 'feedbackStats'),
-      where('type', '==', 'department'),
-      where('collegeId', '==', collegeId)
-    );
+  getDepartmentStats: async (collegeId: string, semester?: string): Promise<FeedbackStats[]> => {
+    let q;
+    if (semester && semester !== 'all') {
+      q = query(
+        collection(db, 'feedbackStats'),
+        where('type', '==', 'department-semester'),
+        where('collegeId', '==', collegeId),
+        where('semester', '==', semester)
+      );
+    } else {
+      q = query(
+        collection(db, 'feedbackStats'),
+        where('type', '==', 'department'),
+        where('collegeId', '==', collegeId)
+      );
+    }
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FeedbackStats));
+    return querySnapshot.docs.map(doc => {
+      const data = doc.data() as Record<string, unknown>;
+      return { id: doc.id, ...data } as unknown as FeedbackStats;
+    });
   },
 
-  getFacultyStats: async (collegeId: string): Promise<FeedbackStats[]> => {
-    const q = query(
-      collection(db, 'feedbackStats'),
-      where('type', '==', 'faculty'),
-      where('collegeId', '==', collegeId)
-    );
+  getFacultyStats: async (collegeId: string, semester?: string): Promise<FeedbackStats[]> => {
+    let q;
+    if (semester && semester !== 'all') {
+      q = query(
+        collection(db, 'feedbackStats'),
+        where('type', '==', 'faculty-semester'),
+        where('collegeId', '==', collegeId),
+        where('semester', '==', semester)
+      );
+    } else {
+      q = query(
+        collection(db, 'feedbackStats'),
+        where('type', '==', 'faculty'),
+        where('collegeId', '==', collegeId)
+      );
+    }
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FeedbackStats));
+    return querySnapshot.docs.map(doc => {
+      const data = doc.data() as Record<string, unknown>;
+      return { id: doc.id, ...data } as unknown as FeedbackStats;
+    });
   },
 };
 

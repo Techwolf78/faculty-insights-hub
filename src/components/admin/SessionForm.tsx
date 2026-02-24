@@ -28,11 +28,12 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
   const [questionGroups, setQuestionGroups] = useState<QuestionGroup[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [courseData, setCourseData] = useState<Record<string, { years: string[]; yearDepartments: Record<string, string[]> }>>({});
-  const [subjectsData, setSubjectsData] = useState<Record<string, Record<string, Record<string, Record<string, { code: string; type: string; batches: string[] }>>>>>({});
+  const [subjectsData, setSubjectsData] = useState<Record<string, Record<string, Record<string, Record<string, Record<string, { code: string; type: string; batches: string[] }>>>>>>({});
 
   // Refs for dropdowns
   const courseSelectRef = React.useRef<HTMLButtonElement>(null);
   const yearSelectRef = React.useRef<HTMLButtonElement>(null);
+  const semesterSelectRef = React.useRef<HTMLButtonElement>(null);
   const departmentSelectRef = React.useRef<HTMLButtonElement>(null);
   const subjectSelectRef = React.useRef<HTMLButtonElement>(null);
   const batchSelectRef = React.useRef<HTMLButtonElement>(null);
@@ -41,12 +42,14 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
   // Form state
   const [course, setCourse] = useState('');
   const [academicYear, setAcademicYear] = useState('');
+  const [semester, setSemester] = useState('');
   const [department, setDepartment] = useState('');
   const [subject, setSubject] = useState('');
   const [batch, setBatch] = useState('');
   const [questionGroup, setQuestionGroup] = useState('');
   const [selectedFaculty, setSelectedFaculty] = useState('');
   const [facultyOpen, setFacultyOpen] = useState(false);
+  const [expiryOption, setExpiryOption] = useState('10'); // Default to 10 minutes
   const [expiresAt, setExpiresAt] = useState('');
   const [subjectCode, setSubjectCode] = useState('');
   const [subjectType, setSubjectType] = useState<'Theory' | 'Practical' | 'Tutorial'>('Theory');
@@ -54,6 +57,7 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
+      const activeRole = user?.activeRole || user?.role;
       const [depts, fac, groups, config, allocs] = await Promise.all([
         departmentsApi.getByCollege(user!.collegeId!),
         facultyApi.getByCollege(user!.collegeId!),
@@ -68,6 +72,14 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
       setCourseData(config.courseData);
       setSubjectsData(config.subjectsData);
       setAllocations(allocs);
+
+      // Auto-select faculty if user is a faculty member or HOD
+      if (activeRole === 'faculty' || activeRole === 'hod') {
+        const currentFaculty = fac.find(f => f.userId === (user?.uid || user?.id));
+        if (currentFaculty) {
+          setSelectedFaculty(currentFaculty.id);
+        }
+      }
     } catch (error) {
       console.error('Error loading data:', error);
       toast.error('Failed to load data');
@@ -84,13 +96,16 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
   }, [open, user?.collegeId, loadData]);
 
   const resetForm = () => {
+    const activeRole = user?.activeRole || user?.role;
     setCourse('');
     setAcademicYear('');
+    setSemester('');
     setDepartment('');
     setSubject('');
     setBatch('');
     setQuestionGroup('');
     setSelectedFaculty('');
+    setExpiryOption(activeRole === 'faculty' ? '10' : 'default');
     setExpiresAt('');
     setSubjectCode('');
     setSubjectType('Theory');
@@ -115,28 +130,35 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
     return [...new Set(facultyAllocations.flatMap(a => a.years))];
   }, [facultyAllocations, course]);
 
-  const availableDepartments = useMemo(() => {
+  const availableSemesters = useMemo(() => {
     if (course && academicYear) {
-      return [...new Set(facultyAllocations.filter(a => a.course === course && a.years.includes(academicYear)).map(a => a.department))];
+      return [...new Set(facultyAllocations.filter(a => a.course === course && a.years.includes(academicYear)).map(a => a.semester))];
     }
     return [];
   }, [facultyAllocations, course, academicYear]);
 
+  const availableDepartments = useMemo(() => {
+    if (course && academicYear && semester) {
+      return [...new Set(facultyAllocations.filter(a => a.course === course && a.years.includes(academicYear) && a.semester === semester).map(a => a.department))];
+    }
+    return [];
+  }, [facultyAllocations, course, academicYear, semester]);
+
   const availableSubjects = useMemo(() => {
-    if (course && academicYear && department) {
+    if (course && academicYear && semester && department) {
       return facultyAllocations
-        .filter(a => a.course === course && a.years.includes(academicYear) && a.department === department)
+        .filter(a => a.course === course && a.years.includes(academicYear) && a.semester === semester && a.department === department)
         .flatMap(a => a.subjects.map(s => s.name));
     }
     return [];
-  }, [facultyAllocations, course, academicYear, department]);
+  }, [facultyAllocations, course, academicYear, semester, department]);
 
   const availableBatches = useMemo(() => {
-    if (course && academicYear && department && subject) {
-      return subjectsData[course as keyof typeof subjectsData]?.[academicYear]?.[department]?.[subject]?.batches || [];
+    if (course && academicYear && semester && department && subject) {
+      return subjectsData[course]?.[academicYear]?.[semester]?.[department]?.[subject]?.batches || [];
     }
     return [];
-  }, [subjectsData, course, academicYear, department, subject]);
+  }, [subjectsData, course, academicYear, semester, department, subject]);
 
   // Auto-set batch to empty when no batches are available
   useEffect(() => {
@@ -161,6 +183,13 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
   }, [availableYears]);
 
   useEffect(() => {
+    if (availableSemesters.length === 1 && !semester) {
+      setSemester(availableSemesters[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableSemesters]);
+
+  useEffect(() => {
     if (availableDepartments.length === 1 && !department) {
       setDepartment(availableDepartments[0]);
     }
@@ -180,6 +209,7 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
       const matchingAllocation = facultyAllocations.find(a =>
         a.course === course &&
         a.years.includes(academicYear) &&
+        a.semester === semester &&
         a.department === department &&
         a.subjects.some(s => s.name === subject)
       );
@@ -194,7 +224,7 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
       setSubjectCode('');
       setSubjectType('Theory');
     }
-  }, [subject, course, department, academicYear, facultyAllocations]);
+  }, [subject, course, department, academicYear, semester, facultyAllocations]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -222,6 +252,22 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
 
       const uniqueUrl = `session-${crypto.randomUUID().slice(0, 8)}`;
 
+      let expirationDate: Date;
+      if (expiryOption === 'custom' && expiresAt) {
+        expirationDate = new Date(expiresAt);
+      } else if (expiryOption === '5') {
+        expirationDate = new Date(Date.now() + 5 * 60 * 1000);
+      } else if (expiryOption === '10') {
+        expirationDate = new Date(Date.now() + 10 * 60 * 1000);
+      } else if (expiryOption === '30') {
+        expirationDate = new Date(Date.now() + 30 * 60 * 1000);
+      } else if (expiryOption === '60') {
+        expirationDate = new Date(Date.now() + 60 * 60 * 1000);
+      } else {
+        // Default 30 days
+        expirationDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      }
+
       await feedbackSessionsApi.create({
         collegeId: user.collegeId,
         departmentId: selectedDept.id,
@@ -229,6 +275,7 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
         questionGroupId: questionGroup,
         course,
         academicYear,
+        semester,
         subject,
         subjectCode,
         subjectType,
@@ -239,7 +286,7 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
         status: 'active',
         startDate: Timestamp.now(),
         createdBy: user.id,
-        expiresAt: expiresAt ? Timestamp.fromDate(new Date(expiresAt)) : Timestamp.fromDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
+        expiresAt: Timestamp.fromDate(expirationDate),
       });
 
       toast.success('Feedback session created successfully!');
@@ -247,14 +294,7 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
       onSuccess?.();
 
       // Reset form
-      setCourse('');
-      setAcademicYear('');
-      setDepartment('');
-      setSubject('');
-      setBatch('');
-      setQuestionGroup('');
-      setSelectedFaculty('');
-      setExpiresAt('');
+      resetForm();
     } catch (error) {
       console.error('Error creating session:', error);
       toast.error('Failed to create session');
@@ -274,58 +314,74 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="faculty">Faculty Member</Label>
-            <Popover open={facultyOpen} onOpenChange={setFacultyOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={facultyOpen}
-                  className="w-full justify-between font-normal"
-                >
-                  {selectedFaculty
-                    ? faculty.find((f) => f.id === selectedFaculty)?.name
-                    : "Select faculty member"}
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
-                <Command>
-                  <CommandInput placeholder="Search faculty member..." />
-                  <CommandList>
-                    <CommandEmpty>No faculty found.</CommandEmpty>
-                    <CommandGroup>
-                      {faculty.map((f) => (
-                        <CommandItem
-                          key={f.id}
-                          value={`${f.name} ${f.designation || ''}`}
-                          onSelect={() => {
-                            setSelectedFaculty(f.id);
-                            setCourse(''); // Reset all dependent fields
-                            setAcademicYear('');
-                            setDepartment('');
-                            setSubject('');
-                            setBatch('');
-                            setQuestionGroup('');
-                            setFacultyOpen(false);
-                          }}
-                        >
-                          <Check
-                            className={cn(
-                              "mr-2 h-4 w-4",
-                              selectedFaculty === f.id ? "opacity-100" : "opacity-0"
-                            )}
-                          />
-                          {f.name}{f.designation ? ` - ${f.designation}` : ''}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-          </div>
+          {(user?.activeRole || user?.role) !== 'faculty' && (
+            <div className="space-y-2">
+              <Label htmlFor="faculty">Faculty Member</Label>
+              <Popover open={facultyOpen} onOpenChange={setFacultyOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={facultyOpen}
+                    className="w-full justify-between font-normal"
+                  >
+                    {selectedFaculty
+                      ? faculty.find((f) => f.id === selectedFaculty)?.name
+                      : "Select faculty member"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
+                  <Command>
+                    <CommandInput placeholder="Search faculty member..." />
+                    <CommandList>
+                      <CommandEmpty>No faculty found.</CommandEmpty>
+                      <CommandGroup>
+                        {faculty.map((f) => (
+                          <CommandItem
+                            key={f.id}
+                            value={`${f.name} ${f.employeeId} ${f.designation || ''}`}
+                            onSelect={() => {
+                              setSelectedFaculty(f.id);
+                              setCourse(''); // Reset all dependent fields
+                              setAcademicYear('');
+                              setSemester('');
+                              setDepartment('');
+                              setSubject('');
+                              setBatch('');
+                              setQuestionGroup('');
+                              setFacultyOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedFaculty === f.id ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {f.name} ({f.employeeId}){f.designation ? ` - ${f.designation}` : ''}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+          )}
+
+          {/* If faculty, show current faculty name as read-only but keep it hidden if possible to same space */}
+          {(user?.activeRole || user?.role) === 'faculty' && selectedFaculty && (
+            <div className="bg-primary/5 p-3 rounded-lg border border-primary/20 flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+                {faculty.find(f => f.id === selectedFaculty)?.name.charAt(0)}
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Faculty Member</p>
+                <p className="font-semibold text-foreground">{faculty.find(f => f.id === selectedFaculty)?.name}</p>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -333,6 +389,7 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
               <Select value={course} onValueChange={(value) => {
                 setCourse(value);
                 setAcademicYear(''); // Reset dependent fields
+                setSemester('');
                 setDepartment('');
                 setSubject('');
                 setBatch('');
@@ -357,6 +414,7 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
               <Label htmlFor="academicYear">Academic Year</Label>
               <Select value={academicYear} onValueChange={(value) => {
                 setAcademicYear(value);
+                setSemester('');
                 setDepartment(''); // Reset dependent fields
                 setSubject('');
                 setBatch('');
@@ -378,6 +436,30 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="semester">Semester</Label>
+              <Select value={semester} onValueChange={(value) => {
+                setSemester(value);
+                setDepartment(''); // Reset dependent fields
+                setSubject('');
+                setBatch('');
+                setQuestionGroup('');
+                // Close the dropdown after selection
+                setTimeout(() => {
+                  semesterSelectRef.current?.click();
+                }, 100);
+              }} disabled={!selectedFaculty || !course || !academicYear}>
+                <SelectTrigger ref={semesterSelectRef}>
+                  <SelectValue placeholder="Select semester" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableSemesters.map((sem) => (
+                    <SelectItem key={sem} value={sem}>{sem}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="department">Department</Label>
               <Select value={department} onValueChange={(value) => {
                 setDepartment(value);
@@ -388,7 +470,7 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
                 setTimeout(() => {
                   departmentSelectRef.current?.click();
                 }, 100);
-              }} disabled={!selectedFaculty || !course || !academicYear}>
+              }} disabled={!selectedFaculty || !course || !academicYear || !semester}>
                 <SelectTrigger ref={departmentSelectRef}>
                   <SelectValue placeholder="Select department" />
                 </SelectTrigger>
@@ -410,7 +492,7 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
                 setTimeout(() => {
                   subjectSelectRef.current?.click();
                 }, 100);
-              }} disabled={!selectedFaculty || !course || !academicYear || !department}>
+              }} disabled={!selectedFaculty || !course || !academicYear || !semester || !department}>
                 <SelectTrigger ref={subjectSelectRef}>
                   <SelectValue placeholder="Select subject" />
                 </SelectTrigger>
@@ -491,18 +573,47 @@ export const SessionForm: React.FC<SessionFormProps> = ({ open, onOpenChange, on
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="expiresAt">Expires At (Optional)</Label>
-            <Input
-              id="expiresAt"
-              type="datetime-local"
-              value={expiresAt}
-              onChange={(e) => setExpiresAt(e.target.value)}
-              className="max-w-xs"
-            />
-            <p className="text-xs text-muted-foreground">
-              Leave empty for 30 days default expiry
-            </p>
+          <div className="space-y-4 pt-2 border-t border-border/50">
+            <div className="space-y-2">
+              <Label htmlFor="expiryOption">Session Duration</Label>
+              <Select value={expiryOption} onValueChange={setExpiryOption}>
+                <SelectTrigger id="expiryOption">
+                  <SelectValue placeholder="Select session duration" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="5">5 Minutes</SelectItem>
+                  <SelectItem value="10">10 Minutes</SelectItem>
+                  <SelectItem value="30">30 Minutes</SelectItem>
+                  <SelectItem value="60">60 Minutes</SelectItem>
+                  <SelectItem value="default">30 Days (Standard)</SelectItem>
+                  <SelectItem value="custom">Custom Date & Time</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {expiryOption === 'custom' && (
+              <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
+                <Label htmlFor="expiresAt">Expires At</Label>
+                <Input
+                  id="expiresAt"
+                  type="datetime-local"
+                  value={expiresAt}
+                  onChange={(e) => setExpiresAt(e.target.value)}
+                  className="max-w-md"
+                  required={expiryOption === 'custom'}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Session will automatically close at this time.
+                </p>
+              </div>
+            )}
+            
+            {expiryOption !== 'custom' && expiryOption !== 'default' && (
+              <p className="text-xs text-primary font-medium flex items-center gap-1.5 px-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                Session will expire in {expiryOption} minutes after creation.
+              </p>
+            )}
           </div>
 
           <DialogFooter className="flex gap-3 pt-4">

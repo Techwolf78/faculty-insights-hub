@@ -16,7 +16,7 @@ import { facultyAllocationsApi, feedbackSessionsApi, FacultyAllocation, Feedback
 
 const HodProfileSettings: React.FC = () => {
   const { user } = useAuth();
-  const { data: hodProfile } = useFacultyByUserId(user?.id);
+  const { data: hodProfile } = useFacultyByUserId(user?.uid || user?.id);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -26,10 +26,7 @@ const HodProfileSettings: React.FC = () => {
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [hodAllocations, setHodAllocations] = useState<FacultyAllocation[]>([]);
   const [hodSessions, setHodSessions] = useState<FeedbackSession[]>([]);
-  const [hodDepartmentName, setHodDepartmentName] = useState<string | null>(null);
-
-  // Get department information
-  const { data: department } = useDepartmentByName(hodDepartmentName, user?.collegeId);
+  const [hodDepartmentNames, setHodDepartmentNames] = useState<string[]>([]);
 
   useEffect(() => {
     if (hodProfile?.id) {
@@ -39,8 +36,8 @@ const HodProfileSettings: React.FC = () => {
           console.log("Allocations fetched:", allocations);
           setHodAllocations(allocations);
           if (allocations.length > 0) {
-            const deptName = allocations[0].department;
-            setHodDepartmentName(deptName);
+            const uniqueDepts = [...new Set(allocations.map(a => a.department))].filter(Boolean) as string[];
+            setHodDepartmentNames(uniqueDepts);
           }
         })
         .catch(error => {
@@ -202,14 +199,20 @@ const HodProfileSettings: React.FC = () => {
                     <Building className="h-4 w-4" />
                     Department
                   </Label>
-                  <p className="text-sm text-muted-foreground mt-1">{department?.name || 'Not assigned'}</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {hodDepartmentNames.length > 1 
+                      ? hodDepartmentNames.join(' & ') 
+                      : (hodDepartmentNames[0] || 'Not assigned')}
+                  </p>
                 </div>
                 <div>
                   <Label className="text-sm font-medium flex items-center gap-2">
                     <GraduationCap className="h-4 w-4" />
                     Course
                   </Label>
-                  <p className="text-sm text-muted-foreground mt-1">{hodAllocations[0]?.course || 'Not assigned'}</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {[...new Set(hodAllocations.map(a => a.course))].join(', ') || 'Not assigned'}
+                  </p>
                 </div>
                 <div>
                   <Label className="text-sm font-medium">Academic Year</Label>

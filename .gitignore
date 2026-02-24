@@ -23,7 +23,12 @@ serviceAccountKey.json
 
 # Sensitive data files
 faculty_registration.json
+icem_fac_reg.json
 icem_fac_sub_allocation.json
+igsb_fac_reg.json
+igsb_fac_sub_alloca.json
+igsb_fac_sub_allocation.json
+firebase_console_users.json
 
 # Development scripts (remove before production)
 bulk-delete-users.js
@@ -31,6 +36,10 @@ bulk-import-script.ts
 migrate_faculty.js
 update_submissions.js
 analyze-json.ts
+delete-all-faculty.js
+delete-non-superadmin-users.js
+bulk-import-faculty.js
+bulk-import-script.ts
 
 # Internal documentation
 implementation_plan.md.resolved

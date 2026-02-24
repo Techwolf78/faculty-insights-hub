@@ -2,7 +2,7 @@
  * React hook for cache management and fresh data detection
  */
 
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect, useMemo, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { CacheManager, getCacheStatus, CACHE_TTL } from '@/lib/cacheManager';
 
@@ -25,19 +25,28 @@ export function useCacheRefresh(cacheKeys: string[] = []) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [cacheStatus, setCacheStatus] = useState<Record<string, CacheStatus>>({});
   const [lastRefreshTime, setLastRefreshTime] = useState<number>(Date.now());
+  
+  // Memoize the cache keys string to prevent unnecessary re-renders
+  const cacheKeysStr = useMemo(() => cacheKeys.join(','), [cacheKeys.join(',')]);
 
-  // Update cache status
+  // Update cache status only when keys actually change
   useEffect(() => {
     const status: Record<string, CacheStatus> = {};
     cacheKeys.forEach(key => {
       status[key] = getCacheStatus(key);
     });
-    setCacheStatus(status);
-  }, [cacheKeys]);
+    
+    // Only update if the status has actually changed
+    setCacheStatus(prevStatus => {
+      const hasChanged = JSON.stringify(prevStatus) !== JSON.stringify(status);
+      return hasChanged ? status : prevStatus;
+    });
+  }, [cacheKeysStr]);
 
-  // Check if any cache is stale
-  const hasStaleData = Object.values(cacheStatus).some(
-    (status: CacheStatus) => status.isStale
+  // Check if any cache is stale - memoize to prevent recalculation
+  const hasStaleData = useMemo(
+    () => Object.values(cacheStatus).some((status: CacheStatus) => status.isStale),
+    [cacheStatus]
   );
 
   // Refresh all data
@@ -65,7 +74,7 @@ export function useCacheRefresh(cacheKeys: string[] = []) {
     } finally {
       setIsRefreshing(false);
     }
-  }, [queryClient, cacheKeys]);
+  }, [queryClient, cacheKeysStr]);
 
   // Clear all cache completely
   const clearAll = useCallback(() => {
@@ -75,8 +84,8 @@ export function useCacheRefresh(cacheKeys: string[] = []) {
     setLastRefreshTime(Date.now());
   }, [queryClient]);
 
-  // Get cache stats
-  const stats: CacheStats = CacheManager.getStats();
+  // Get cache stats - memoize to prevent creating new object on every render
+  const stats: CacheStats = useMemo(() => CacheManager.getStats(), [lastRefreshTime]);
 
   return {
     isRefreshing,

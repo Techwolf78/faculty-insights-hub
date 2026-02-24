@@ -3,8 +3,10 @@ import { readFileSync, writeFileSync } from 'fs';
 // Type definitions
 interface AllocationData {
   'Full Name *': string;
-  'Program *': string;
+  'Course *'?: string;
+  'Program *'?: string;
   'Year *': string;
+  'Semester *'?: string;
   'Department *': string;
   'Subjects *': string;
   'Subject Code*': string;
@@ -35,10 +37,14 @@ function analyzeAndFixAllocations() {
     allocations.forEach((item: AllocationData, index: number) => {
       const itemNum = index + 1;
 
+      // Check for Program * or Course *
+      if (!item['Program *'] && !item['Course *']) {
+        issues.push(`Item ${itemNum}: Missing both 'Program *' and 'Course *'`);
+      }
+
       // Check required fields
       const requiredFields = [
         'Full Name *',
-        'Program *',
         'Year *',
         'Department *',
         'Subjects *',
@@ -58,6 +64,11 @@ function analyzeAndFixAllocations() {
             });
           }
         }
+      }
+
+      // Check for Semester *
+      if (!item['Semester *'] || item['Semester *'].trim() === '') {
+        issues.push(`Item ${itemNum}: Missing or empty 'Semester *'`);
       }
 
       // Check subject type

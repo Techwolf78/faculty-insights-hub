@@ -28,6 +28,7 @@ export const CollegeExcelReport: React.FC<CollegeExcelReportProps> = ({
         name: 'College Overview',
         data: [
           { Metric: 'College', Value: collegeName },
+          { Metric: 'Semester', Value: collegeStats.semester || 'All' },
           { Metric: 'Report Generated', Value: formatDate(new Date()) },
           { Metric: 'Total Departments', Value: departmentStats.length },
           { Metric: 'Total Faculty', Value: facultyStats.length },
@@ -59,6 +60,8 @@ export const CollegeExcelReport: React.FC<CollegeExcelReportProps> = ({
       data: departmentStats
         .map(stats => ({
           Department_ID: stats.departmentId || '',
+
+          Semester: stats.semester || 'All',
           Average_Rating: formatRating(stats.averageRating),
           Total_Submissions: stats.totalSubmissions,
           Faculty_Count: facultyStats.filter(f => f.departmentId === stats.departmentId).length,
@@ -68,7 +71,7 @@ export const CollegeExcelReport: React.FC<CollegeExcelReportProps> = ({
           Last_Updated: formatDate(stats.lastUpdated)
         }))
         .sort((a, b) => parseFloat(b.Average_Rating) - parseFloat(a.Average_Rating)),
-      headers: ['Department ID', 'Average Rating', 'Total Submissions', 'Faculty Count', '7D Trend', '30D Trend', '90D Trend', 'Last Updated']
+      headers: ['Department ID', 'Semester', 'Average Rating', 'Total Submissions', 'Faculty Count', '7D Trend', '30D Trend', '90D Trend', 'Last Updated']
     });
 
     // Faculty Performance Sheet
@@ -78,6 +81,8 @@ export const CollegeExcelReport: React.FC<CollegeExcelReportProps> = ({
         .map(stats => ({
           Faculty_ID: stats.facultyId || '',
           Department_ID: stats.departmentId || '',
+
+          Semester: stats.semester || 'All',
           Average_Rating: formatRating(stats.averageRating),
           Total_Submissions: stats.totalSubmissions,
           Rating_Trend_7D: stats.trend.last7Days,
@@ -86,7 +91,7 @@ export const CollegeExcelReport: React.FC<CollegeExcelReportProps> = ({
           Last_Updated: formatDate(stats.lastUpdated)
         }))
         .sort((a, b) => parseFloat(b.Average_Rating) - parseFloat(a.Average_Rating)),
-      headers: ['Faculty ID', 'Department ID', 'Average Rating', 'Total Submissions', '7D Trend', '30D Trend', '90D Trend', 'Last Updated']
+      headers: ['Faculty ID', 'Department ID', 'Semester', 'Average Rating', 'Total Submissions', '7D Trend', '30D Trend', '90D Trend', 'Last Updated']
     });
 
     // Top/Bottom Performers

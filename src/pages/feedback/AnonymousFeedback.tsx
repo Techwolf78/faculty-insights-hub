@@ -255,6 +255,108 @@ export const AnonymousFeedback: React.FC = () => {
     );
   }, []);
 
+  // ----- test helpers (for quick population) -----
+  const testComments = useMemo(() => [
+    'excellent course delivery',
+    'very helpful session',
+    'clear and concise',
+    'engaging classroom atmosphere',
+    'knowledgeable and patient',
+    'well structured lectures',
+    'useful practical examples',
+    'responsive to questions',
+    'friendly and approachable',
+    'supported our learning',
+    'encouraged participation always',
+    'provided timely feedback',
+    'made topics interesting',
+    'organized and punctual',
+    'kept us motivated',
+    'creative teaching methods',
+    'great visuals used',
+    'explained concepts clearly',
+    'good student pace',
+    'helped with doubts',
+    'very supportive teacher',
+    'accessible outside class',
+    'challenging but fair',
+    'improved understanding',
+    'excellent exam prep',
+    'inspired to learn',
+    'balanced theory practice',
+    'interactive and lively',
+    'clarified difficult topics',
+    'real life examples',
+    'thumbs up round',
+    'fantastic teaching style',
+    'kept lectures engaging',
+    'excellent communication skills',
+    'always open minded',
+    'very organized sessions',
+    'encouraged critical thinking',
+    'very approachable always',
+    'explained using analogies',
+    'made learning enjoyable',
+    'answered all queries',
+    'respectful and kind',
+    'excellent subject knowledge',
+    'motivated us daily',
+    'effective use time',
+    'clear assignment instructions',
+    'positive classroom vibe',
+    'valuable career advice',
+    'helpful course materials',
+    'overall wonderful teaching',
+  ], []);
+
+  // flatten ordered questions for test generation
+  const orderedQuestions = useMemo(() => {
+    return categories.flatMap(cat => groupedQuestions[cat]);
+  }, [categories, groupedQuestions]);
+
+  const simulateResponses = useCallback(async () => {
+    if (!validatedSession || !faculty || orderedQuestions.length === 0) return;
+
+    for (let i = 0; i < 10; i++) {
+      const simulated: CleanResponse[] = orderedQuestions.map((q, idx) => {
+        const questionNumber = idx + 1;
+        const resp: CleanResponse = { questionId: q.id, questionCategory: q.category };
+        if (q.responseType === 'rating' || q.responseType === 'both') {
+          resp.rating = Math.floor(Math.random() * 5) + 1;
+        }
+        if (questionNumber === 8 && q.responseType === 'boolean') {
+          resp.booleanValue = true;
+        }
+        if (questionNumber === 9) {
+          resp.comment = testComments[Math.floor(Math.random() * testComments.length)];
+        }
+        // for text questions maybe add comment randomly
+        if ((q.responseType === 'text' || q.responseType === 'both') && questionNumber !== 9) {
+          if (Math.random() < 0.3) {
+            resp.comment = testComments[Math.floor(Math.random() * testComments.length)];
+          }
+        }
+        return resp;
+      });
+
+      try {
+        await submissionsApi.create({
+          sessionId: validatedSession.id,
+          facultyId: faculty.id,
+          collegeId: validatedSession.collegeId,
+          departmentId: validatedSession.departmentId,
+          academicYear: validatedSession.academicYear,
+          semester: validatedSession.semester,
+          responses: simulated,
+        });
+        console.log('simulated submission', i + 1);
+      } catch (err) {
+        console.error('error simulating submission', err);
+      }
+    }
+    alert('10 simulated responses have been submitted');
+  }, [validatedSession, faculty, orderedQuestions, testComments]);
+
   const canProceed = () => {
     const requiredQuestions = questions.filter(q => q.required);
     return requiredQuestions.every(q => {
@@ -305,6 +407,8 @@ export const AnonymousFeedback: React.FC = () => {
         facultyId: faculty.id,
         collegeId: validatedSession.collegeId,
         departmentId: validatedSession.departmentId,
+        academicYear: validatedSession.academicYear,
+        semester: validatedSession.semester,
         responses: cleanResponses,
       });
 
@@ -422,9 +526,17 @@ export const AnonymousFeedback: React.FC = () => {
                     {validatedSession?.subject}
                     {validatedSession?.subjectCode && <span className="font-sans"> ({validatedSession.subjectCode})</span>}
                     {validatedSession?.subjectType && ` - ${validatedSession.subjectType}`}
+                    {validatedSession?.semester && ` • ${validatedSession.semester} Sem`}
                   </p>
                 </div>
               </div>
+            </div>
+
+            {/* Testing helper button */}
+            <div className="text-center py-2">
+              <Button onClick={simulateResponses} size="sm" variant="outline">
+                Submit 10 responses
+              </Button>
             </div>
 
             {/* All Questions */}

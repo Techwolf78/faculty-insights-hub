@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { GraduationCap, Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { FirebaseError } from 'firebase/app';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +13,7 @@ export const IGSBLogin: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loginTimeoutReached, setLoginTimeoutReached] = useState(false);
 
   const { login, user, isLoading } = useAuth();
   const navigate = useNavigate();
@@ -19,37 +21,93 @@ export const IGSBLogin: React.FC = () => {
   // Handle navigation when user data becomes available after login
   useEffect(() => {
     if (user && !isLoading) {
+      console.log('User logged in successfully:', user.name || user.email, 'Role:', user.activeRole || user.role);
       const roleToNavigate = user.activeRole || user.role;
       switch (roleToNavigate) {
         case 'superAdmin':
+          console.log('Navigating to super-admin');
           navigate('/super-admin');
           break;
         case 'admin':
+          console.log('Navigating to admin dashboard');
           navigate('/admin/dashboard');
           break;
         case 'hod':
+          console.log('Navigating to HOD dashboard');
           navigate('/hod/dashboard');
           break;
         case 'faculty':
+          console.log('Navigating to faculty dashboard');
           navigate('/faculty/dashboard');
           break;
         default:
-          navigate('/');
+          console.error('Invalid user role:', roleToNavigate);
+          setError('Invalid user role assigned. Please contact your administrator.');
+          break;
       }
+    } else if (!user && !isLoading && isSubmitting) {
+      // If we're not loading, not logged in, but were submitting, something went wrong
+      console.error('Login completed but user state not updated');
+      setError('Login completed but failed to load user data. Please try logging in again.');
+      setIsSubmitting(false);
     }
-  }, [user, isLoading, navigate]);
+  }, [user, isLoading, navigate, isSubmitting]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('Starting login attempt for email:', email);
     setError('');
+    setLoginTimeoutReached(false);
     setIsSubmitting(true);
 
-    const result = await login(email, password);
+    try {
+      // Client-side validation
+      if (!email.trim()) {
+        setError('Email address is required');
+        setIsSubmitting(false);
+        return;
+      }
 
-    if (!result.success) {
-      setError(result.error || 'Login failed');
-      setIsSubmitting(false);
-    } else {
+      if (!password.trim()) {
+        setError('Password is required');
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Basic email format validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        setError('Please enter a valid email address');
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Set a timeout for the login process
+      const loginTimeout = setTimeout(() => {
+        setLoginTimeoutReached(true);
+        setError('Login is taking longer than expected. This might be due to network issues or server problems. Please try again.');
+        setIsSubmitting(false);
+      }, 30000); // 30 seconds timeout
+
+      try {
+        const result = await login(email, password);
+
+        clearTimeout(loginTimeout);
+
+        if (!result.success) {
+          setError(result.error || 'Login failed. Please try again.');
+        }
+        // Success case is handled by useEffect watching user state
+      } catch (error: unknown) {
+        clearTimeout(loginTimeout);
+        console.error('Unexpected login error:', error);
+        setError('An unexpected error occurred. Please try again or contact support.');
+      } finally {
+        setIsSubmitting(false);
+      }
+    } catch (validationError: unknown) {
+      console.error('Validation error:', validationError);
+      setError('Form validation failed. Please check your input and try again.');
       setIsSubmitting(false);
     }
   };
@@ -102,9 +160,17 @@ export const IGSBLogin: React.FC = () => {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {error && (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm animate-scale-in">
-                <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                {error}
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-red-50 border-2 border-red-200 text-red-800 animate-scale-in shadow-lg">
+                <AlertCircle className="h-6 w-6 flex-shrink-0 mt-0.5 text-red-600" />
+                <div className="flex-1">
+                  <p className="font-semibold text-sm mb-1 text-red-900">Login Failed</p>
+                  <p className="text-sm leading-relaxed">{error}</p>
+                  {loginTimeoutReached && (
+                    <p className="text-xs mt-2 text-red-700">
+                      If this persists, please check your internet connection or contact support.
+                    </p>
+                  )}
+                </div>
               </div>
             )}
 

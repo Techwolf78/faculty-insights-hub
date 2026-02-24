@@ -1,37 +1,140 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { useAuth } from '@/contexts/AuthContext';
-import { facultyApi, facultyAllocationsApi, Faculty, type FacultyAllocation, College, collegesApi } from '@/lib/storage';
-import { getAcademicConfig } from '@/lib/academicConfig';
-import { toast } from 'sonner';
-import { X, Plus, Users, BookOpen, GraduationCap, Trash2, Calendar, AlertTriangle, Upload, Check, ChevronsUpDown } from 'lucide-react';
-import { DashboardHeader } from '@/components/layout/DashboardHeader';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import BulkImportAllocations from '@/components/admin/BulkImportAllocations';
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  facultyApi,
+  facultyAllocationsApi,
+  Faculty,
+  type FacultyAllocation,
+  College,
+  collegesApi,
+} from "@/lib/storage";
+import { getAcademicConfig } from "@/lib/academicConfig";
+import { toast } from "sonner";
+import {
+  X,
+  Plus,
+  Users,
+  BookOpen,
+  GraduationCap,
+  Trash2,
+  Calendar,
+  AlertTriangle,
+  Upload,
+  Check,
+  ChevronsUpDown,
+} from "lucide-react";
+import { DashboardHeader } from "@/components/layout/DashboardHeader";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import BulkImportAllocations from "@/components/admin/BulkImportAllocations";
 
 const FacultyAllocation: React.FC = () => {
   const { user } = useAuth();
   const [faculty, setFaculty] = useState<Faculty[]>([]);
   const [allocations, setAllocations] = useState<FacultyAllocation[]>([]);
-  const [courseData, setCourseData] = useState<Record<string, { years: string[]; yearDepartments: Record<string, string[]> }>>({});
-  const [subjectsData, setSubjectsData] = useState<Record<string, Record<string, Record<string, Record<string, { code: string; type: string; batches: string[] }>>>>>({});
+  const [courseData, setCourseData] = useState<
+    Record<
+      string,
+      {
+        years: string[];
+        yearDepartments: Record<string, string[]>;
+        semesters?: string[];
+      }
+    >
+  >({});
+  const [subjectsData, setSubjectsData] = useState<
+    Record<
+      string,
+      Record<
+        string,
+        Record<
+          string,
+          Record<
+            string,
+            Record<string, { code: string; type: string; batches: string[] }>
+          >
+        >
+      >
+    >
+  >({});
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedFaculty, setSelectedFaculty] = useState<string>('');
-  const [selectedCourse, setSelectedCourse] = useState<string>('');
+  const [selectedFaculty, setSelectedFaculty] = useState<string>("");
+  const [selectedCourse, setSelectedCourse] = useState<string>("");
+  const [selectedSemester, setSelectedSemester] = useState<string>("");
   const [selectedYears, setSelectedYears] = useState<string[]>([]);
-  const [yearSubjects, setYearSubjects] = useState<Record<string, { department: string; subjects: { name: string; code: string; type: 'Theory' | 'Practical' | 'Tutorial' }[] }[]>>({});
+  const [yearSubjects, setYearSubjects] = useState<
+    Record<
+      string,
+      {
+        department: string;
+        subjects: {
+          name: string;
+          code: string;
+          type: "Theory" | "Practical" | "Tutorial";
+        }[];
+      }[]
+    >
+  >({});
   const [college, setCollege] = useState<College | null>(null);
-  const [deletingAllocation, setDeletingAllocation] = useState<FacultyAllocation | null>(null);
-  const [deletingSubject, setDeletingSubject] = useState<{ allocation: FacultyAllocation; subjectIndex: number } | null>(null);
-  const [subjectConflicts, setSubjectConflicts] = useState<Record<string, { subjectName: string; facultyName: string; facultyId: string }[]>>({});
+  const [deletingAllocation, setDeletingAllocation] =
+    useState<FacultyAllocation | null>(null);
+  const [deletingSubject, setDeletingSubject] = useState<{
+    allocation: FacultyAllocation;
+    subjectIndex: number;
+  } | null>(null);
+  const [subjectConflicts, setSubjectConflicts] = useState<
+    Record<
+      string,
+      { subjectName: string; facultyName: string; facultyId: string }[]
+    >
+  >({});
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [facultyComboboxOpen, setFacultyComboboxOpen] = useState(false);
   const [showUnallocated, setShowUnallocated] = useState(false);
@@ -40,12 +143,13 @@ const FacultyAllocation: React.FC = () => {
     if (!user?.collegeId) return;
 
     try {
-      const [facultyList, config, existingAllocations, collegeData] = await Promise.all([
-        facultyApi.getActiveByCollege(user.collegeId),
-        getAcademicConfig(user.collegeId),
-        facultyAllocationsApi.getByCollege(user.collegeId),
-        collegesApi.getById(user.collegeId)
-      ]);
+      const [facultyList, config, existingAllocations, collegeData] =
+        await Promise.all([
+          facultyApi.getActiveByCollege(user.collegeId),
+          getAcademicConfig(user.collegeId),
+          facultyAllocationsApi.getByCollege(user.collegeId),
+          collegesApi.getById(user.collegeId),
+        ]);
 
       setFaculty(facultyList);
       setCourseData(config.courseData);
@@ -53,15 +157,24 @@ const FacultyAllocation: React.FC = () => {
       setAllocations(existingAllocations);
       setCollege(collegeData);
     } catch (error) {
-      console.error('Error loading data:', error);
-      toast.error('Failed to load data');
+      console.error("Error loading data:", error);
+      toast.error("Failed to load data");
     }
   }, [user]);
 
   const checkConflicts = useCallback(async () => {
-    if (!user?.collegeId || !selectedCourse || selectedYears.length === 0) return;
+    if (
+      !user?.collegeId ||
+      !selectedCourse ||
+      !selectedSemester ||
+      selectedYears.length === 0
+    )
+      return;
 
-    const newConflicts: Record<string, { subjectName: string; facultyName: string; facultyId: string }[]> = {};
+    const newConflicts: Record<
+      string,
+      { subjectName: string; facultyName: string; facultyId: string }[]
+    > = {};
 
     for (const year of selectedYears) {
       const yearData = yearSubjects[year] || [];
@@ -72,15 +185,23 @@ const FacultyAllocation: React.FC = () => {
           selectedCourse,
           deptData.department,
           year,
+          selectedSemester,
           deptData.subjects,
-          selectedFaculty
+          selectedFaculty,
         );
         newConflicts[key] = conflicts;
       }
     }
 
     setSubjectConflicts(newConflicts);
-  }, [user?.collegeId, selectedCourse, selectedYears, yearSubjects, selectedFaculty]);
+  }, [
+    user?.collegeId,
+    selectedCourse,
+    selectedSemester,
+    selectedYears,
+    yearSubjects,
+    selectedFaculty,
+  ]);
 
   const checkConflictsRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -104,56 +225,103 @@ const FacultyAllocation: React.FC = () => {
     };
   }, [checkConflicts]);
 
-  const availableYears = selectedCourse ? courseData[selectedCourse]?.years || [] : [];
+  const availableYears = selectedCourse
+    ? courseData[selectedCourse]?.years || []
+    : [];
+
+  const availableSemesters = React.useMemo(() => {
+    if (!selectedCourse || selectedYears.length === 0) return [];
+
+    // Get semesters that exist for the selected course and at least one of the selected years
+    const semesters = new Set<string>();
+    selectedYears.forEach((year) => {
+      const yearData = subjectsData[selectedCourse]?.[year] || {};
+      Object.keys(yearData).forEach((sem) => semesters.add(sem));
+    });
+
+    // If no semesters found in subjectsData, fall back to courseData generic semesters
+    if (semesters.size === 0 && selectedCourse) {
+      (courseData[selectedCourse]?.semesters || []).forEach((sem) =>
+        semesters.add(sem),
+      );
+    }
+
+    return Array.from(semesters).sort();
+  }, [selectedCourse, selectedYears, subjectsData, courseData]);
 
   const handleYearToggle = (year: string) => {
-    setSelectedYears(prev =>
-      prev.includes(year)
-        ? prev.filter(y => y !== year)
-        : [...prev, year]
+    setSelectedYears((prev) =>
+      prev.includes(year) ? prev.filter((y) => y !== year) : [...prev, year],
     );
   };
 
   const handleDepartmentToggle = (year: string, department: string) => {
-    setYearSubjects(prev => {
+    setYearSubjects((prev) => {
       const current = prev[year] || [];
-      const existing = current.find(d => d.department === department);
+      const existing = current.find((d) => d.department === department);
       if (existing) {
         return {
           ...prev,
-          [year]: current.filter(d => d.department !== department)
+          [year]: current.filter((d) => d.department !== department),
         };
       } else {
         return {
           ...prev,
-          [year]: [...current, { department, subjects: [] }]
+          [year]: [...current, { department, subjects: [] }],
         };
       }
     });
   };
 
-  const handleSubjectToggle = (year: string, department: string, subject: { name: string; code: string; type: 'Theory' | 'Practical' | 'Tutorial' }) => {
-    setYearSubjects(prev => {
+  const handleSubjectToggle = (
+    year: string,
+    department: string,
+    subject: {
+      name: string;
+      code: string;
+      type: "Theory" | "Practical" | "Tutorial";
+    },
+  ) => {
+    setYearSubjects((prev) => {
       const current = prev[year] || [];
       return {
         ...prev,
-        [year]: current.map(d =>
+        [year]: current.map((d) =>
           d.department === department
             ? {
                 ...d,
-                subjects: d.subjects.some(s => s.name === subject.name && s.code === subject.code && s.type === subject.type)
-                  ? d.subjects.filter(s => !(s.name === subject.name && s.code === subject.code && s.type === subject.type))
-                  : [...d.subjects, subject]
+                subjects: d.subjects.some(
+                  (s) =>
+                    s.name.trim().toLowerCase() === subject.name.trim().toLowerCase() &&
+                    s.code.trim() === subject.code.trim() &&
+                    (s.type === subject.type || (subject.type === "Theory / Practical" && (s.type === "Theory" || s.type === "Practical"))),
+                )
+                  ? d.subjects.filter(
+                      (s) =>
+                        !(
+                          s.name.trim().toLowerCase() === subject.name.trim().toLowerCase() &&
+                          s.code.trim() === subject.code.trim() &&
+                          (s.type === subject.type || (subject.type === "Theory / Practical" && (s.type === "Theory" || s.type === "Practical")))
+                        ),
+                    )
+                  : [...d.subjects, subject],
               }
-            : d
-        )
+            : d,
+        ),
       };
     });
   };
 
   const handleSave = async () => {
-    if (!selectedFaculty || !selectedCourse || selectedYears.length === 0) {
-      toast.error('Please select faculty, course, and at least one year');
+    if (
+      !selectedFaculty ||
+      !selectedCourse ||
+      !selectedSemester ||
+      selectedYears.length === 0
+    ) {
+      toast.error(
+        "Please select faculty, course, semester, and at least one year",
+      );
       return;
     }
 
@@ -161,19 +329,23 @@ const FacultyAllocation: React.FC = () => {
     for (const year of selectedYears) {
       const yearData = yearSubjects[year] || [];
       for (const deptData of yearData) {
-        const newSubjects = deptData.subjects.filter(subject => {
-          const isAlreadyAllocated = allocations.some(alloc =>
-            alloc.facultyId === selectedFaculty &&
-            alloc.course === selectedCourse &&
-            alloc.department === deptData.department &&
-            alloc.years.includes(year) &&
-            alloc.subjects.some(s => s.name === subject.name)
+        const newSubjects = deptData.subjects.filter((subject) => {
+          const isAlreadyAllocated = allocations.some(
+            (alloc) =>
+              alloc.facultyId === selectedFaculty &&
+              alloc.course === selectedCourse &&
+              alloc.semester === selectedSemester &&
+              alloc.department === deptData.department &&
+              alloc.years.includes(year) &&
+              alloc.subjects.some((s) => s.name.trim().toLowerCase() === subject.name.trim().toLowerCase()),
           );
           return !isAlreadyAllocated;
         });
 
         if (newSubjects.length === 0) {
-          toast.error(`Please select at least one new subject for ${deptData.department} in ${year} (subjects already allocated are not counted)`);
+          toast.error(
+            `Please select at least one new subject for ${deptData.department} in ${year} (subjects already allocated for ${selectedSemester} are not counted)`,
+          );
           return;
         }
       }
@@ -188,124 +360,201 @@ const FacultyAllocation: React.FC = () => {
         const yearData = yearSubjects[year] || [];
         for (const deptData of yearData) {
           // Filter out subjects that are already allocated to this faculty
-          const newSubjects = deptData.subjects.filter(subject => {
-            const isAlreadyAllocated = allocations.some(alloc =>
-              alloc.facultyId === selectedFaculty &&
-              alloc.course === selectedCourse &&
-              alloc.department === deptData.department &&
-              alloc.years.includes(year) &&
-              alloc.subjects.some(s => s.name === subject.name && s.code === subject.code && s.type === subject.type)
+          const newSubjects = deptData.subjects.filter((subject) => {
+            const isAlreadyAllocated = allocations.some(
+              (alloc) =>
+                alloc.facultyId === selectedFaculty &&
+                alloc.course === selectedCourse &&
+                alloc.semester === selectedSemester &&
+                alloc.department === deptData.department &&
+                alloc.years.includes(year) &&
+                alloc.subjects.some(
+                  (s) =>
+                    s.name.trim().toLowerCase() === subject.name.trim().toLowerCase() &&
+                    s.code.trim() === subject.code.trim() &&
+                    (s.type === subject.type || (subject.type === "Theory / Practical" && (s.type === "Theory" || s.type === "Practical"))),
+                ),
             );
             return !isAlreadyAllocated;
           });
 
           if (newSubjects.length > 0) {
-            // Check if allocation already exists for this faculty/course/department/year
-            const existingAllocation = allocations.find(alloc =>
-              alloc.facultyId === selectedFaculty &&
-              alloc.course === selectedCourse &&
-              alloc.department === deptData.department &&
-              alloc.years.includes(year)
+            // Check if allocation already exists for this faculty/course/semester/department/year
+            const existingAllocation = allocations.find(
+              (alloc) =>
+                alloc.facultyId === selectedFaculty &&
+                alloc.course === selectedCourse &&
+                alloc.semester === selectedSemester &&
+                alloc.department === deptData.department &&
+                alloc.years.includes(year),
             );
 
             if (existingAllocation) {
               // Update existing allocation by adding new subjects
-              const updatedSubjects = [...existingAllocation.subjects, ...newSubjects];
+              const updatedSubjects = [
+                ...existingAllocation.subjects,
+                ...newSubjects,
+              ];
               allocationPromises.push(
-                facultyAllocationsApi.update(existingAllocation.id, { subjects: updatedSubjects })
+                facultyAllocationsApi.update(existingAllocation.id, {
+                  subjects: updatedSubjects,
+                }),
               );
             } else {
               // Create new allocation
-              const newAllocation: Omit<FacultyAllocation, 'id' | 'createdAt' | 'updatedAt'> = {
+              const newAllocation: Omit<
+                FacultyAllocation,
+                "id" | "createdAt" | "updatedAt"
+              > = {
                 facultyId: selectedFaculty,
                 collegeId: user!.collegeId!,
                 course: selectedCourse,
                 department: deptData.department,
                 years: [year],
+                semester: selectedSemester,
                 subjects: newSubjects,
                 isActive: true,
               };
-              allocationPromises.push(facultyAllocationsApi.create(newAllocation));
+              allocationPromises.push(
+                facultyAllocationsApi.create(newAllocation),
+              );
             }
           }
         }
       }
 
       if (allocationPromises.length === 0) {
-        toast.error('No new subjects to allocate');
+        toast.error("No new subjects to allocate");
         setIsLoading(false);
         return;
       }
 
       await Promise.all(allocationPromises);
 
-      toast.success('Faculty allocation saved successfully');
+      toast.success("Faculty allocation saved successfully");
       loadData(); // Refresh data
       resetForm();
     } catch (error) {
-      console.error('Error saving allocation:', error);
-      toast.error('Failed to save allocation');
+      console.error("Error saving allocation:", error);
+      toast.error("Failed to save allocation");
     } finally {
       setIsLoading(false);
     }
   };
 
   const resetForm = () => {
-    setSelectedFaculty('');
-    setSelectedCourse('');
+    setSelectedFaculty("");
+    setSelectedCourse("");
+    setSelectedSemester("");
     setSelectedYears([]);
     setYearSubjects({});
   };
 
   const getAvailableDepartments = (year: string) => {
-    return selectedCourse ? courseData[selectedCourse]?.yearDepartments?.[year] || [] : [];
+    if (!selectedCourse || !selectedSemester) return [];
+
+    // Departments for the selected course, year, and semester
+    const semData =
+      subjectsData[selectedCourse]?.[year]?.[selectedSemester] || {};
+    return Object.keys(semData);
   };
 
   const getAvailableSubjects = (year: string, department: string) => {
-    return subjectsData[selectedCourse]?.[year]?.[department] || {};
+    if (!selectedCourse || !selectedSemester) return {};
+    return (
+      subjectsData[selectedCourse]?.[year]?.[selectedSemester]?.[department] ||
+      {}
+    );
   };
 
-  const selectedFacultyData = faculty.find(f => f.id === selectedFaculty);
+  const selectedFacultyData = faculty.find((f) => f.id === selectedFaculty);
   // Count only unique faculty IDs that exist in the active `faculty` list — prevents orphan/duplicate allocation IDs inflating the number
-  const allocatedFacultyIds = React.useMemo(() => new Set(allocations.map(a => a.facultyId)), [allocations]);
+  const allocatedFacultyIds = React.useMemo(
+    () => new Set(allocations.map((a) => a.facultyId)),
+    [allocations],
+  );
   const uniqueFacultyCount = React.useMemo(() => {
-    const activeFacultyIds = new Set(faculty.map(f => f.id));
-    return new Set(allocations.filter(a => activeFacultyIds.has(a.facultyId)).map(a => a.facultyId)).size;
+    const activeFacultyIds = new Set(faculty.map((f) => f.id));
+    return new Set(
+      allocations
+        .filter((a) => activeFacultyIds.has(a.facultyId))
+        .map((a) => a.facultyId),
+    ).size;
   }, [allocations, faculty]);
 
-  const unallocatedFaculty = React.useMemo(() => faculty.filter(f => !allocatedFacultyIds.has(f.id)), [faculty, allocatedFacultyIds]);
+  const unallocatedFaculty = React.useMemo(
+    () => faculty.filter((f) => !allocatedFacultyIds.has(f.id)),
+    [faculty, allocatedFacultyIds],
+  );
 
   const handleDeleteAllocation = async (allocation: FacultyAllocation) => {
     try {
       await facultyAllocationsApi.delete(allocation.id);
-      toast.success('Allocation deleted successfully');
+      toast.success("Allocation deleted successfully");
       loadData();
       setDeletingAllocation(null);
     } catch (error) {
-      console.error('Error deleting allocation:', error);
-      toast.error('Failed to delete allocation');
+      console.error("Error deleting allocation:", error);
+      toast.error("Failed to delete allocation");
     }
   };
 
-  const handleDeleteSubject = async ({ allocation, subjectIndex }: { allocation: FacultyAllocation; subjectIndex: number }) => {
+  const handleDeleteSubject = async ({
+    allocation,
+    subjectIndex,
+  }: {
+    allocation: FacultyAllocation;
+    subjectIndex: number;
+  }) => {
     try {
-      const updatedSubjects = allocation.subjects.filter((_, idx) => idx !== subjectIndex);
+      const updatedSubjects = allocation.subjects.filter(
+        (_, idx) => idx !== subjectIndex,
+      );
 
       if (updatedSubjects.length === 0) {
         // If no subjects left, delete the entire allocation
         await facultyAllocationsApi.delete(allocation.id);
-        toast.success('Allocation deleted successfully (no subjects remaining)');
+        toast.success(
+          "Allocation deleted successfully (no subjects remaining)",
+        );
       } else {
         // Update the allocation with remaining subjects
-        await facultyAllocationsApi.update(allocation.id, { subjects: updatedSubjects });
-        toast.success('Subject removed from allocation successfully');
+        await facultyAllocationsApi.update(allocation.id, {
+          subjects: updatedSubjects,
+        });
+        toast.success("Subject removed from allocation successfully");
       }
 
       loadData();
       setDeletingSubject(null);
     } catch (error) {
-      console.error('Error deleting subject:', error);
-      toast.error('Failed to delete subject');
+      console.error("Error deleting subject:", error);
+      toast.error("Failed to delete subject");
+    }
+  };
+
+  const handleDeleteAllAllocations = async () => {
+    if (allocations.length === 0) {
+      toast.info("No allocations to delete");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const deletePromises = allocations.map((alloc) =>
+        facultyAllocationsApi.delete(alloc.id),
+      );
+      await Promise.all(deletePromises);
+      toast.success(
+        `Deleted all ${allocations.length} allocation(s) successfully`,
+      );
+      loadData();
+      setDeletingAllocation(null);
+    } catch (error) {
+      console.error("Error deleting all allocations:", error);
+      toast.error("Failed to delete allocations");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -318,7 +567,6 @@ const FacultyAllocation: React.FC = () => {
       />
 
       <div className="p-2 space-y-6">
-
         {/* Allocation Form */}
         <Card className="border-0 bg-white">
           <CardHeader className="pb-3">
@@ -329,7 +577,9 @@ const FacultyAllocation: React.FC = () => {
                 </div>
                 <div>
                   <CardTitle className="text-lg">Create Allocation</CardTitle>
-                  <CardDescription className="text-sm">Select faculty and subjects</CardDescription>
+                  <CardDescription className="text-sm">
+                    Select faculty and subjects
+                  </CardDescription>
                 </div>
               </div>
               <Button
@@ -344,13 +594,15 @@ const FacultyAllocation: React.FC = () => {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-
-            {/* Faculty, Course, and Years Selection in same row */}
-            <div className="grid grid-cols-1 md:grid-cols-[40%_20%_40%] gap-4">
+            {/* Faculty, Course, Semester, and Years Selection in same row */}
+            <div className="grid grid-cols-1 md:grid-cols-[25%_20%_20%_35%] gap-4 overflow-hidden">
               {/* Faculty Selection */}
               <div className="space-y-1">
                 <Label className="text-sm font-medium">Faculty *</Label>
-                <Popover open={facultyComboboxOpen} onOpenChange={setFacultyComboboxOpen}>
+                <Popover
+                  open={facultyComboboxOpen}
+                  onOpenChange={setFacultyComboboxOpen}
+                >
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
@@ -359,7 +611,11 @@ const FacultyAllocation: React.FC = () => {
                       className="w-full justify-between h-9"
                     >
                       {selectedFaculty
-                        ? faculty.find((f) => f.id === selectedFaculty)?.name + " (" + faculty.find((f) => f.id === selectedFaculty)?.employeeId + ")"
+                        ? faculty.find((f) => f.id === selectedFaculty)?.name +
+                          " (" +
+                          faculty.find((f) => f.id === selectedFaculty)
+                            ?.employeeId +
+                          ")"
                         : "Select faculty"}
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
@@ -376,7 +632,8 @@ const FacultyAllocation: React.FC = () => {
                               value={f.name + " " + f.employeeId}
                               onSelect={() => {
                                 setSelectedFaculty(f.id);
-                                setSelectedCourse('');
+                                setSelectedCourse("");
+                                setSelectedSemester("");
                                 setSelectedYears([]);
                                 setYearSubjects({});
                                 setFacultyComboboxOpen(false);
@@ -384,7 +641,9 @@ const FacultyAllocation: React.FC = () => {
                             >
                               <Check
                                 className={`mr-2 h-4 w-4 ${
-                                  selectedFaculty === f.id ? "opacity-100" : "opacity-0"
+                                  selectedFaculty === f.id
+                                    ? "opacity-100"
+                                    : "opacity-0"
                                 }`}
                               />
                               {f.name} ({f.employeeId})
@@ -400,13 +659,24 @@ const FacultyAllocation: React.FC = () => {
               {/* Course Selection */}
               <div className="space-y-1">
                 <Label className="text-sm font-medium">Course *</Label>
-                <Select value={selectedCourse} disabled={!selectedFaculty} onValueChange={(value) => {
-                  setSelectedCourse(value);
-                  setSelectedYears([]);
-                  setYearSubjects({});
-                }}>
+                <Select
+                  value={selectedCourse}
+                  disabled={!selectedFaculty}
+                  onValueChange={(value) => {
+                    setSelectedCourse(value);
+                    setSelectedSemester("");
+                    setSelectedYears([]);
+                    setYearSubjects({});
+                  }}
+                >
                   <SelectTrigger className="h-9">
-                    <SelectValue placeholder={selectedFaculty ? "Select course" : "Select faculty first"} />
+                    <SelectValue
+                      placeholder={
+                        selectedFaculty
+                          ? "Select course"
+                          : "Select faculty first"
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {Object.keys(courseData).map((course) => (
@@ -426,7 +696,9 @@ const FacultyAllocation: React.FC = () => {
                     {availableYears.map((year) => (
                       <Badge
                         key={year}
-                        variant={selectedYears.includes(year) ? "default" : "outline"}
+                        variant={
+                          selectedYears.includes(year) ? "default" : "outline"
+                        }
                         className="cursor-pointer text-xs px-2 py-1"
                         onClick={() => handleYearToggle(year)}
                       >
@@ -435,113 +707,247 @@ const FacultyAllocation: React.FC = () => {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-xs text-muted-foreground">Select course first</div>
+                  <div className="text-xs text-muted-foreground">
+                    Select course first
+                  </div>
                 )}
+              </div>
+
+              {/* Semester Selection */}
+              <div className="space-y-1 overflow-hidden">
+                <Label className="text-sm font-medium">Semester *</Label>
+                <Select
+                  value={selectedSemester}
+                  disabled={!selectedCourse}
+                  onValueChange={(value) => {
+                    setSelectedSemester(value);
+                    setYearSubjects({});
+                  }}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue
+                      placeholder={
+                        selectedCourse
+                          ? "Select semester"
+                          : "Select course first"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableSemesters.map((sem) => (
+                      <SelectItem key={sem} value={sem}>
+                        {sem}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
-          {/* Department and Subject Selection per Year */}
-          {selectedYears.map((year) => (
-            <Card key={year} className="border-l-4 border-l-primary bg-card/50">
-              <CardHeader className="pb-1 pt-3 px-4">
-                <CardTitle className="text-base">{year} - Subjects</CardTitle>
-              </CardHeader>
-              <CardContent className="px-4 pb-3 pt-0 space-y-2">
-                {/* Departments */}
-                <div>
-                  <Label className="text-xs font-medium text-gray-600">Departments</Label>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {getAvailableDepartments(year).map((dept) => (
-                      <Badge
-                        key={dept}
-                        variant={(yearSubjects[year] || []).some(d => d.department === dept) ? "default" : "outline"}
-                        className="cursor-pointer text-xs px-2 py-0.5"
-                        onClick={() => handleDepartmentToggle(year, dept)}
-                      >
-                        {dept}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Subjects per Department */}
-                {(yearSubjects[year] || []).map((deptData) => (
-                  <div key={deptData.department} className="space-y-1">
-                    <Label className="text-xs font-medium text-gray-600">{deptData.department}</Label>
-                    <div className="flex flex-wrap gap-1">
-                      {Object.entries(getAvailableSubjects(year, deptData.department)).map(([subjectKey, subjectData]) => {
-                        const subject = { name: subjectKey.replace(/\s*\((Theory|Practical)\)$/, ''), code: subjectData.code, type: subjectData.type as 'Theory' | 'Practical' };
-                        const isSelected = deptData.subjects.some(s => s.name === subject.name && s.code === subject.code && s.type === subject.type);
-
-                        // Check if this subject is already allocated to the selected faculty
-                        const isAlreadyAllocated = allocations.some(alloc =>
-                          alloc.facultyId === selectedFaculty &&
-                          alloc.course === selectedCourse &&
-                          alloc.department === deptData.department &&
-                          alloc.years.includes(year) &&
-                          alloc.subjects.some(s => s.name === subject.name && s.code === subject.code && s.type === subject.type)
-                        );
-
-                        return (
-                          <Badge
-                            key={subjectKey}
-                            variant={isAlreadyAllocated ? "secondary" : isSelected ? "default" : "outline"}
-                            className={isAlreadyAllocated ? "cursor-not-allowed opacity-60 text-xs px-2 py-0.5" : "cursor-pointer text-xs px-2 py-0.5"}
-                            onClick={() => !isAlreadyAllocated && handleSubjectToggle(year, deptData.department, subject)}
-                          >
-                            {subject.name} ({subject.code || 'N/A'}) - {subject.type || 'N/A'}
-                            {isAlreadyAllocated && " ✓"}
-                          </Badge>
-                        );
-                      })}
+            {/* Department and Subject Selection per Year */}
+            {selectedYears.map((year) => (
+              <Card
+                key={year}
+                className="border-l-4 border-l-primary bg-card/50"
+              >
+                <CardHeader className="pb-1 pt-3 px-4">
+                  <CardTitle className="text-base">{year} - Subjects</CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-3 pt-0 space-y-2">
+                  {/* Departments */}
+                  <div>
+                    <Label className="text-xs font-medium text-gray-600">
+                      Departments
+                    </Label>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {getAvailableDepartments(year).map((dept) => (
+                        <Badge
+                          key={dept}
+                          variant={
+                            (yearSubjects[year] || []).some(
+                              (d) => d.department === dept,
+                            )
+                              ? "default"
+                              : "outline"
+                          }
+                          className="cursor-pointer text-xs px-2 py-0.5"
+                          onClick={() => handleDepartmentToggle(year, dept)}
+                        >
+                          {dept}
+                        </Badge>
+                      ))}
                     </div>
-                    {subjectConflicts[`${year}-${deptData.department}`]?.length > 0 && (
-                      <div className="mt-1 space-y-1">
-                        {subjectConflicts[`${year}-${deptData.department}`].map((conflict, idx) => (
-                          <div key={idx} className="text-xs text-yellow-600 flex items-center gap-1">
-                            <AlertTriangle className="h-3 w-3 text-destructive flex-shrink-0" />
-                            <span>Remove <strong>{conflict.subjectName}</strong> from <strong>{conflict.facultyName}</strong> • Path: {selectedCourse}/{deptData.department}/{year}/{conflict.subjectName}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
                   </div>
-                ))}
-              </CardContent>
-            </Card>
-          ))}
 
-          <div className="flex justify-end gap-1.5 pt-1.5 border-t">
-            <Button variant="outline" onClick={resetForm} className="px-2.5 py-1 h-7 text-xs">
-              Reset
-            </Button>
-              <Button onClick={handleSave} disabled={isLoading} className="px-2.5 py-1 h-7 bg-primary hover:bg-primary/90 text-primary-foreground text-xs">
-              {isLoading ? 'Saving...' : 'Save'}
-            </Button>
-          </div>
-        </CardContent>
+                  {/* Subjects per Department */}
+                  {(yearSubjects[year] || []).map((deptData) => (
+                    <div key={deptData.department} className="space-y-1">
+                      <Label className="text-xs font-medium text-gray-600">
+                        {deptData.department}
+                      </Label>
+                      <div className="flex flex-wrap gap-1">
+                        {Object.entries(
+                          getAvailableSubjects(year, deptData.department),
+                        ).map(([subjectKey, subjectData]) => {
+                          const subject = {
+                            name: subjectKey.replace(
+                              /\s*\((Theory|Practical)\)$/,
+                              "",
+                            ),
+                            code: subjectData.code,
+                            type: subjectData.type as "Theory" | "Practical",
+                          };
+                          const isSelected = deptData.subjects.some(
+                            (s) =>
+                              s.name.trim().toLowerCase() === subject.name.trim().toLowerCase() &&
+                              s.code.trim() === subject.code.trim() &&
+                              (s.type === subject.type || (subject.type === "Theory / Practical" && (s.type === "Theory" || s.type === "Practical"))),
+                          );
+
+                          // Check if this subject is already allocated to the selected faculty
+                          const isAlreadyAllocated = allocations.some(
+                            (alloc) =>
+                              alloc.facultyId === selectedFaculty &&
+                              alloc.course === selectedCourse &&
+                              alloc.department === deptData.department &&
+                              alloc.years.includes(year) &&
+                              alloc.subjects.some(
+                                (s) =>
+                                  s.name.trim().toLowerCase() === subject.name.trim().toLowerCase() &&
+                                  s.code.trim() === subject.code.trim() &&
+                                  (s.type === subject.type || (subject.type === "Theory / Practical" && (s.type === "Theory" || s.type === "Practical"))),
+                              ),
+                          );
+
+                          return (
+                            <Badge
+                              key={subjectKey}
+                              variant={
+                                isAlreadyAllocated
+                                  ? "secondary"
+                                  : isSelected
+                                    ? "default"
+                                    : "outline"
+                              }
+                              className={
+                                isAlreadyAllocated
+                                  ? "cursor-not-allowed opacity-60 text-xs px-2 py-0.5"
+                                  : "cursor-pointer text-xs px-2 py-0.5"
+                              }
+                              onClick={() =>
+                                !isAlreadyAllocated &&
+                                handleSubjectToggle(
+                                  year,
+                                  deptData.department,
+                                  subject,
+                                )
+                              }
+                            >
+                              {subject.name} ({subject.code || "N/A"}) -{" "}
+                              {subject.type || "N/A"}
+                              {isAlreadyAllocated && " ✓"}
+                            </Badge>
+                          );
+                        })}
+                      </div>
+                      {subjectConflicts[`${year}-${deptData.department}`]
+                        ?.length > 0 && (
+                        <div className="mt-1 space-y-1">
+                          {subjectConflicts[
+                            `${year}-${deptData.department}`
+                          ].map((conflict, idx) => (
+                            <div
+                              key={idx}
+                              className="text-xs text-yellow-600 flex items-center gap-1"
+                            >
+                              <AlertTriangle className="h-3 w-3 text-destructive flex-shrink-0" />
+                              <span>
+                                Remove <strong>{conflict.subjectName}</strong>{" "}
+                                from <strong>{conflict.facultyName}</strong> •
+                                Path: {selectedCourse}/{deptData.department}/
+                                {year}/{conflict.subjectName}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            ))}
+
+            <div className="flex justify-end gap-1.5 pt-1.5 border-t">
+              <Button
+                variant="outline"
+                onClick={resetForm}
+                className="px-2.5 py-1 h-7 text-xs"
+              >
+                Reset
+              </Button>
+              <Button
+                onClick={handleSave}
+                disabled={isLoading}
+                className="px-2.5 py-1 h-7 bg-primary hover:bg-primary/90 text-primary-foreground text-xs"
+              >
+                {isLoading ? "Saving..." : "Save"}
+              </Button>
+            </div>
+          </CardContent>
         </Card>
 
         {/* All Allocations Table */}
         <Card>
           <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                <BookOpen className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <CardTitle>All Faculty Allocations</CardTitle>
-                <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
-                  <div>Faculty with allocations <span className="font-semibold">{uniqueFacultyCount}</span> of <span className="font-semibold">{faculty.length}</span></div>
-                  <div className="text-muted-foreground">•</div>
-                  <div>{allocations.length} allocation{allocations.length !== 1 ? 's' : ''}</div>
-                  {unallocatedFaculty.length > 0 && (
-                    <Button variant="link" size="sm" className="ml-2 text-xs p-0" onClick={() => setShowUnallocated(true)}>
-                      Show unallocated ({unallocatedFaculty.length})
-                    </Button>
-                  )}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <BookOpen className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle>All Faculty Allocations</CardTitle>
+                  <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
+                    <div>
+                      Faculty with allocations{" "}
+                      <span className="font-semibold">
+                        {uniqueFacultyCount}
+                      </span>{" "}
+                      of <span className="font-semibold">{faculty.length}</span>
+                    </div>
+                    <div className="text-muted-foreground">•</div>
+                    <div>
+                      {allocations.length} allocation
+                      {allocations.length !== 1 ? "s" : ""}
+                    </div>
+                    {unallocatedFaculty.length > 0 && (
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="ml-2 text-xs p-0"
+                        onClick={() => setShowUnallocated(true)}
+                      >
+                        Show unallocated ({unallocatedFaculty.length})
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
+              {allocations.length > 0 && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() =>
+                    setDeletingAllocation({
+                      id: "delete-all",
+                    } as FacultyAllocation)
+                  }
+                  disabled={isLoading}
+                  className="gap-1.5"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete all
+                </Button>
+              )}
             </div>
           </CardHeader>
           <CardContent>
@@ -549,13 +955,15 @@ const FacultyAllocation: React.FC = () => {
               <div className="text-center py-12">
                 <GraduationCap className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <p className="text-muted-foreground">No allocations found</p>
-                <p className="text-sm text-muted-foreground">Create your first allocation using the form above</p>
+                <p className="text-sm text-muted-foreground">
+                  Create your first allocation using the form above
+                </p>
               </div>
             ) : (
               <div className="space-y-3">
                 {/* Group allocations by faculty */}
                 {faculty
-                  .filter(f => allocations.some(a => a.facultyId === f.id))
+                  .filter((f) => allocations.some((a) => a.facultyId === f.id))
                   .sort((a, b) => {
                     // If selectedFaculty is set, prioritize it
                     if (selectedFaculty) {
@@ -566,91 +974,150 @@ const FacultyAllocation: React.FC = () => {
                     return a.name.localeCompare(b.name);
                   })
                   .map((facultyMember) => {
-                  const facultyAllocations = allocations.filter(a => a.facultyId === facultyMember.id);
-                  return (
-                    <Card key={facultyMember.id} className={`overflow-hidden ${facultyMember.id === selectedFaculty ? 'ring-2 ring-primary shadow-lg' : ''}`}>
-                      <CardHeader className={`${facultyMember.id === selectedFaculty ? 'bg-gradient-to-r from-primary/10 to-primary/20' : 'bg-gradient-to-r from-primary/5 to-primary/10'} border-b py-3`}>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                            <div className={`h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 ${facultyMember.id === selectedFaculty ? 'bg-primary/30' : 'bg-primary/20'}`}>
-                              <Users className="h-5 w-5 text-primary" />
-                            </div>
+                    const facultyAllocations = allocations.filter(
+                      (a) => a.facultyId === facultyMember.id,
+                    );
+                    return (
+                      <Card
+                        key={facultyMember.id}
+                        className={`overflow-hidden ${facultyMember.id === selectedFaculty ? "ring-2 ring-primary shadow-lg" : ""}`}
+                      >
+                        <CardHeader
+                          className={`${facultyMember.id === selectedFaculty ? "bg-gradient-to-r from-primary/10 to-primary/20" : "bg-gradient-to-r from-primary/5 to-primary/10"} border-b py-3`}
+                        >
+                          <div className="flex items-center justify-between">
                             <div className="flex items-center gap-4">
-                              <h3 className="font-semibold text-base">{facultyMember.name}</h3>
-                              <Badge variant="outline" className="text-xs">{facultyMember.employeeId}</Badge>
-                              <Badge variant="secondary" className="text-xs">{facultyMember.designation}</Badge>
-                              {facultyMember.id === selectedFaculty && (
-                                <Badge variant="default" className="text-xs bg-primary">Selected</Badge>
-                              )}
-                              <span className="text-sm text-muted-foreground font-medium">
-                                {facultyAllocations.length} allocation{facultyAllocations.length !== 1 ? 's' : ''}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="p-3">
-                        <div className="space-y-2">
-                          {facultyAllocations.map((allocation) => (
-                            <div key={allocation.id} className="border rounded-lg p-3 bg-card hover:bg-accent/5 transition-colors">
-                              <div className="flex justify-between items-start">
-                                <div className="flex-1 space-y-2">
-                                  <div className="flex items-center gap-4">
-                                    <div className="flex items-center gap-2">
-                                      <BookOpen className="h-4 w-4 text-primary" />
-                                      <span className="text-sm font-medium">Course:</span>
-                                      <Badge variant="default">{allocation.course}</Badge>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      <GraduationCap className="h-4 w-4 text-primary" />
-                                      <span className="text-sm font-medium">Department:</span>
-                                      <Badge variant="secondary">{allocation.department}</Badge>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      <Calendar className="h-4 w-4 text-primary" />
-                                      <span className="text-sm font-medium">Year:</span>
-                                      {allocation.years.map(year => (
-                                        <Badge key={year} variant="outline" className="text-xs">{year}</Badge>
-                                      ))}
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <span className="text-sm font-medium text-muted-foreground mb-2 block">Subjects:</span>
-                                    <div className="flex flex-wrap gap-2">
-                                      {allocation.subjects.map((subject, idx) => (
-                                        <div key={idx} className="flex items-center gap-1">
-                                          <Badge variant="default" className="text-xs">
-                                            {subject.name} ({subject.code || 'N/A'}) - {subject.type || 'N/A'}
-                                          </Badge>
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="text-destructive hover:text-destructive hover:bg-destructive/10 h-5 w-5 p-0"
-                                            onClick={() => setDeletingSubject({ allocation, subjectIndex: idx })}
-                                          >
-                                            <Trash2 className="h-3 w-3" />
-                                          </Button>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                </div>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="text-destructive hover:text-destructive hover:bg-destructive/10 ml-2"
-                                  onClick={() => setDeletingAllocation(allocation)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
+                              <div
+                                className={`h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 ${facultyMember.id === selectedFaculty ? "bg-primary/30" : "bg-primary/20"}`}
+                              >
+                                <Users className="h-5 w-5 text-primary" />
+                              </div>
+                              <div className="flex items-center gap-4">
+                                <h3 className="font-semibold text-base">
+                                  {facultyMember.name}
+                                </h3>
+                                <Badge variant="outline" className="text-xs">
+                                  {facultyMember.employeeId}
+                                </Badge>
+                                <Badge variant="secondary" className="text-xs">
+                                  {facultyMember.designation}
+                                </Badge>
+                                {facultyMember.id === selectedFaculty && (
+                                  <Badge
+                                    variant="default"
+                                    className="text-xs bg-primary"
+                                  >
+                                    Selected
+                                  </Badge>
+                                )}
+                                <span className="text-sm text-muted-foreground font-medium">
+                                  {facultyAllocations.length} allocation
+                                  {facultyAllocations.length !== 1 ? "s" : ""}
+                                </span>
                               </div>
                             </div>
-                          ))}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
+                          </div>
+                        </CardHeader>
+                        <CardContent className="p-3">
+                          <div className="space-y-2">
+                            {facultyAllocations.map((allocation) => (
+                              <div
+                                key={allocation.id}
+                                className="border rounded-lg p-3 bg-card hover:bg-accent/5 transition-colors"
+                              >
+                                <div className="flex justify-between items-start">
+                                  <div className="flex-1 space-y-2">
+                                    <div className="flex items-center gap-4">
+                                      <div className="flex items-center gap-2">
+                                        <BookOpen className="h-4 w-4 text-primary" />
+                                        <span className="text-sm font-medium">
+                                          Course:
+                                        </span>
+                                        <Badge variant="default">
+                                          {allocation.course}
+                                        </Badge>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <GraduationCap className="h-4 w-4 text-primary" />
+                                        <span className="text-sm font-medium">
+                                          Department:
+                                        </span>
+                                        <Badge variant="secondary">
+                                          {allocation.department}
+                                        </Badge>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <Calendar className="h-4 w-4 text-primary" />
+                                        <span className="text-sm font-medium">
+                                          Year:
+                                        </span>
+                                        {allocation.years.map((year) => (
+                                          <Badge
+                                            key={year}
+                                            variant="outline"
+                                            className="text-xs"
+                                          >
+                                            {year}
+                                          </Badge>
+                                        ))}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <span className="text-sm font-medium text-muted-foreground mb-2 block">
+                                        Subjects:
+                                      </span>
+                                      <div className="flex flex-wrap gap-2">
+                                        {allocation.subjects.map(
+                                          (subject, idx) => (
+                                            <div
+                                              key={idx}
+                                              className="flex items-center gap-1"
+                                            >
+                                              <Badge
+                                                variant="default"
+                                                className="text-xs"
+                                              >
+                                                {subject.name} (
+                                                {subject.code || "N/A"}) -{" "}
+                                                {subject.type || "N/A"}
+                                              </Badge>
+                                              <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="text-destructive hover:text-destructive hover:bg-destructive/10 h-5 w-5 p-0"
+                                                onClick={() =>
+                                                  setDeletingSubject({
+                                                    allocation,
+                                                    subjectIndex: idx,
+                                                  })
+                                                }
+                                              >
+                                                <Trash2 className="h-3 w-3" />
+                                              </Button>
+                                            </div>
+                                          ),
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="text-destructive hover:text-destructive hover:bg-destructive/10 ml-2"
+                                    onClick={() =>
+                                      setDeletingAllocation(allocation)
+                                    }
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
               </div>
             )}
           </CardContent>
@@ -661,42 +1128,74 @@ const FacultyAllocation: React.FC = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Unallocated faculty</DialogTitle>
-            <DialogDescription>These faculty members currently have no teaching allocations.</DialogDescription>
+            <DialogDescription>
+              These faculty members currently have no teaching allocations.
+            </DialogDescription>
           </DialogHeader>
           <div className="max-h-64 overflow-auto space-y-2 mt-2">
             {unallocatedFaculty.length === 0 ? (
-              <div className="text-sm text-muted-foreground">All faculty have allocations.</div>
+              <div className="text-sm text-muted-foreground">
+                All faculty have allocations.
+              </div>
             ) : (
-              unallocatedFaculty.map(f => (
-                <div key={f.id} className="flex items-center justify-between p-2 border rounded-md">
+              unallocatedFaculty.map((f) => (
+                <div
+                  key={f.id}
+                  className="flex items-center justify-between p-2 border rounded-md"
+                >
                   <div>
                     <div className="font-medium">{f.name}</div>
-                    <div className="text-xs text-muted-foreground">{f.employeeId} • {f.email}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {f.employeeId} • {f.email}
+                    </div>
                   </div>
-                  <Button size="sm" variant="ghost" onClick={() => setShowUnallocated(false)}>Close</Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setShowUnallocated(false)}
+                  >
+                    Close
+                  </Button>
                 </div>
               ))
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowUnallocated(false)}>Close</Button>
+            <Button variant="outline" onClick={() => setShowUnallocated(false)}>
+              Close
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={!!deletingAllocation} onOpenChange={() => setDeletingAllocation(null)}>
+      <AlertDialog
+        open={!!deletingAllocation}
+        onOpenChange={() => setDeletingAllocation(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Allocation?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {deletingAllocation?.id === "delete-all"
+                ? "Delete All Allocations?"
+                : "Delete Allocation?"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this allocation? This action cannot be undone.
+              {deletingAllocation?.id === "delete-all"
+                ? `Are you sure you want to delete all ${allocations.length} allocation(s)? This action cannot be undone.`
+                : "Are you sure you want to delete this allocation? This action cannot be undone."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deletingAllocation && handleDeleteAllocation(deletingAllocation)}
+              onClick={() => {
+                if (deletingAllocation?.id === "delete-all") {
+                  handleDeleteAllAllocations();
+                } else if (deletingAllocation) {
+                  handleDeleteAllocation(deletingAllocation);
+                }
+              }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
@@ -706,7 +1205,10 @@ const FacultyAllocation: React.FC = () => {
       </AlertDialog>
 
       {/* Delete Subject Confirmation Dialog */}
-      <AlertDialog open={!!deletingSubject} onOpenChange={() => setDeletingSubject(null)}>
+      <AlertDialog
+        open={!!deletingSubject}
+        onOpenChange={() => setDeletingSubject(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Subject?</AlertDialogTitle>
@@ -716,16 +1218,41 @@ const FacultyAllocation: React.FC = () => {
           </AlertDialogHeader>
           <div className="mt-3 p-3 bg-muted rounded-md">
             <div className="text-sm space-y-1">
-              <div><strong>Course:</strong> {deletingSubject?.allocation.course}</div>
-              <div><strong>Department:</strong> {deletingSubject?.allocation.department}</div>
-              <div><strong>Year:</strong> {deletingSubject?.allocation.years.join(', ')}</div>
-              <div><strong>Subject:</strong> {deletingSubject?.allocation.subjects[deletingSubject.subjectIndex]?.name} ({deletingSubject?.allocation.subjects[deletingSubject.subjectIndex]?.code || 'N/A'}) - {deletingSubject?.allocation.subjects[deletingSubject.subjectIndex]?.type || 'N/A'}</div>
+              <div>
+                <strong>Course:</strong> {deletingSubject?.allocation.course}
+              </div>
+              <div>
+                <strong>Department:</strong>{" "}
+                {deletingSubject?.allocation.department}
+              </div>
+              <div>
+                <strong>Year:</strong>{" "}
+                {deletingSubject?.allocation.years.join(", ")}
+              </div>
+              <div>
+                <strong>Subject:</strong>{" "}
+                {
+                  deletingSubject?.allocation.subjects[
+                    deletingSubject.subjectIndex
+                  ]?.name
+                }{" "}
+                (
+                {deletingSubject?.allocation.subjects[
+                  deletingSubject.subjectIndex
+                ]?.code || "N/A"}
+                ) -{" "}
+                {deletingSubject?.allocation.subjects[
+                  deletingSubject.subjectIndex
+                ]?.type || "N/A"}
+              </div>
             </div>
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deletingSubject && handleDeleteSubject(deletingSubject)}
+              onClick={() =>
+                deletingSubject && handleDeleteSubject(deletingSubject)
+              }
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete Subject
@@ -738,7 +1265,7 @@ const FacultyAllocation: React.FC = () => {
       <BulkImportAllocations
         open={showBulkImport}
         onOpenChange={setShowBulkImport}
-        collegeId={user?.collegeId || ''}
+        collegeId={user?.collegeId || ""}
         onSuccess={loadData}
       />
     </div>

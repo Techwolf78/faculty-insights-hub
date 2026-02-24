@@ -26,6 +26,7 @@ export const DepartmentExcelReport: React.FC<DepartmentExcelReportProps> = ({
         name: 'Department Overview',
         data: [
           { Metric: 'Department', Value: departmentName },
+          { Metric: 'Semester', Value: departmentStats.semester || 'All' },
           { Metric: 'Report Generated', Value: formatDate(new Date()) },
           { Metric: 'Total Faculty', Value: facultyStats.length },
           { Metric: '', Value: '' },
@@ -56,6 +57,7 @@ export const DepartmentExcelReport: React.FC<DepartmentExcelReportProps> = ({
       data: facultyStats
         .map(stats => ({
           Faculty_ID: stats.facultyId || '',
+          Semester: stats.semester || 'All',
           Average_Rating: formatRating(stats.averageRating),
           Total_Submissions: stats.totalSubmissions,
           Rating_Trend_7D: stats.trend.last7Days,
@@ -63,8 +65,8 @@ export const DepartmentExcelReport: React.FC<DepartmentExcelReportProps> = ({
           Rating_Trend_90D: stats.trend.last90Days,
           Last_Updated: formatDate(stats.lastUpdated)
         }))
-        .sort((a, b) => parseFloat(b.Average_Rating) - parseFloat(a.Average_Rating)),
-      headers: ['Faculty ID', 'Average Rating', 'Total Submissions', '7D Trend', '30D Trend', '90D Trend', 'Last Updated']
+        .sort((a, b) => parseFloat(b.Average_Rating) - parseFloat(a.Average_Rating)), // Sort by rating
+      headers: ['Faculty ID', 'Semester', 'Average Rating', 'Total Submissions', '7D Trend', '30D Trend', '90D Trend', 'Last Updated']
     });
 
     // Faculty Category Breakdown

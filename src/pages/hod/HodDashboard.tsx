@@ -23,8 +23,9 @@ import {
   useDepartmentByHodId,
   useDepartmentByName,
   useCollege,
+  useDepartments,
 } from '@/hooks/useCollegeData';
-import { Users, TrendingUp, MessageSquare, BarChart3, Filter, BookOpen, Award, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Users, User as UserIcon, TrendingUp, MessageSquare, BarChart3, Filter, BookOpen, Award, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, LineChart, Line } from 'recharts';
 import { DepartmentExcelReport } from '@/components/reports/DepartmentExcelReport';
 import { Button } from '@/components/ui/button';
@@ -32,11 +33,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ProgressBar } from '@/components/ui/ProgressBar';
+import { SessionManagement } from '@/components/admin/SessionManagement';
+import { SessionForm } from '@/components/admin/SessionForm';
 import { facultyAllocationsApi, FacultyAllocation, feedbackSessionsApi, FeedbackSession, isSessionActive } from '@/lib/storage';
 import { format } from 'date-fns';
 
 export const HodDashboard: React.FC = () => {
   const { user } = useAuth();
+  const { data: hodFacultyProfile, isLoading: hodProfileLoading } = useFacultyByUserId(user?.uid || user?.id);
+  // compute display name using faculty profile if available, otherwise fall back to auth user
+  const hodDisplayName = hodFacultyProfile?.name || user?.name || '';
+  console.log('HodDashboard auth user:', user);
+  console.log('HodDashboard profile:', hodFacultyProfile, 'displayName:', hodDisplayName);
   const location = useLocation();
   const queryClient = useQueryClient();
 
@@ -66,23 +74,39 @@ export const HodDashboard: React.FC = () => {
   const [hodAllocations, setHodAllocations] = useState<FacultyAllocation[]>([]);
   const [hodSessions, setHodSessions] = useState<FeedbackSession[]>([]);
   const [hodSelectedSubject, setHodSelectedSubject] = useState<string>('all');
-  const [hodDepartmentName, setHodDepartmentName] = useState<string | null>(null);
+  const [hodDepartmentNames, setHodDepartmentNames] = useState<string[]>([]);
+  const [selectedDeptName, setSelectedDeptName] = useState<string>('');
   const [facultyCurrentPage, setFacultyCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 5;
 
+  // Session management state
+  const [sessionFormOpen, setSessionFormOpen] = useState(false);
+  const [currentSessionTab, setCurrentSessionTab] = useState('all');
+  const [sessionDepartmentFilter, setSessionDepartmentFilter] = useState('all');
+
+  // Semester filtering state
+  const [selectedSemester, setSelectedSemester] = useState<string>('all');
+
   // HOD's personal performance data
-  const { data: hodFacultyProfile, isLoading: hodProfileLoading } = useFacultyByUserId(user?.id);
+  // NOTE: hodFacultyProfile is declared above for the display name
   const { data: hodSubmissions = [] } = useSubmissionsByFaculty(hodFacultyProfile?.id);
-  const { data: hodStats } = useFacultyMemberStats(hodFacultyProfile?.id);
+  const { data: hodStats } = useFacultyMemberStats(
+    hodFacultyProfile?.id,
+    selectedSemester !== 'all' ? selectedSemester : undefined,
+    user?.collegeId
+  );
 
   useEffect(() => {
     if (hodFacultyProfile?.id) {
       facultyAllocationsApi.getByFaculty(hodFacultyProfile.id).then(allocations => {
         setHodAllocations(allocations);
-        // Set department name from allocations
+        // Extract unique department names from allocations
         if (allocations.length > 0) {
-          const deptName = allocations[0].department;
-          setHodDepartmentName(deptName);
+          const uniqueDepts = [...new Set(allocations.map(a => a.department))].filter(Boolean) as string[];
+          setHodDepartmentNames(uniqueDepts);
+          if (uniqueDepts.length > 0 && !selectedDeptName) {
+            setSelectedDeptName(uniqueDepts[0]);
+          }
         }
       });
       feedbackSessionsApi.getByFaculty(hodFacultyProfile.id).then(setHodSessions);
@@ -90,15 +114,70 @@ export const HodDashboard: React.FC = () => {
   }, [hodFacultyProfile?.id]);
 
   // React Query hooks for optimized data fetching
-  const { data: department, isLoading: deptLoading } = useDepartmentByName(hodDepartmentName, user?.collegeId);
+  const { data: departments = [] } = useDepartments(user?.collegeId);
+  const { data: department, isLoading: deptLoading } = useDepartmentByName(selectedDeptName, user?.collegeId);
   const { data: faculty = [], isLoading: facultyLoading } = useFacultyByDepartment(department?.name);
   const { data: collegeFaculty = [], isLoading: collegeFacultyLoading } = useFaculty(user?.collegeId);
   const { data: collegeSessions = [], isLoading: collegeSessionsLoading } = useSessions(user?.collegeId);
-  const { data: departmentStats } = useDepartmentStats(department?.id);
-  const { data: allFacultyStats = [] } = useAllFacultyStats(user?.collegeId);
+  const { data: departmentStats } = useDepartmentStats(
+    department?.id,
+    selectedSemester !== 'all' ? selectedSemester : undefined,
+    user?.collegeId
+  );
+  const { data: allFacultyStats = [] } = useAllFacultyStats(
+    user?.collegeId,
+    selectedSemester !== 'all' ? selectedSemester : undefined
+  );
   const { data: questions = [], isLoading: questionsLoading } = useQuestions(user?.collegeId);
   const { data: sessions = [], isLoading: sessionsLoading } = useSessionsByDepartment(department?.id);
+
+  // Optimized refresh for session operations only
+  const refreshSessions = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['sessions'] });
+  }, [queryClient]);
+
+  // Optimistic update for session changes
+  const handleOptimisticSessionUpdate = useCallback((sessionId: string, updates: Partial<FeedbackSession>) => {
+    // Update the sessions query cache optimistically
+    queryClient.setQueryData(
+      ['sessions', 'college', user?.collegeId],
+      (oldData: FeedbackSession[] | undefined) => {
+        if (!oldData) return oldData;
+        return oldData.map(session =>
+          session.id === sessionId ? { ...session, ...updates } : session
+        );
+      }
+    );
+
+    // Also update department sessions if they are separate
+    if (department?.id) {
+       queryClient.setQueryData(
+        ['sessions', 'department', department.id],
+        (oldData: FeedbackSession[] | undefined) => {
+          if (!oldData) return oldData;
+          return oldData.map(session =>
+            session.id === sessionId ? { ...session, ...updates } : session
+          );
+        }
+      );
+    }
+  }, [queryClient, user?.collegeId, department?.id]);
+
   const { data: departmentSubmissions = [] } = useSubmissionsByDepartment(department?.id);
+
+  const getTotalSessionCount = useCallback(() => collegeSessions.length, [collegeSessions]);
+  const getDepartmentSessionCount = useCallback((deptId: string) => 
+    collegeSessions.filter(s => s.departmentId === deptId).length, 
+  [collegeSessions]);
+
+  // Filter all department submissions by semester only
+  const semesterFilteredSubmissions = useMemo(() => {
+    let filtered = departmentSubmissions;
+    if (selectedSemester !== 'all') {
+      filtered = filtered.filter(sub => sub.semester === selectedSemester);
+    }
+    return filtered;
+  }, [departmentSubmissions, selectedSemester]);
 
   const isLoading = deptLoading || facultyLoading || questionsLoading || sessionsLoading || hodProfileLoading || collegeFacultyLoading || collegeSessionsLoading;
 
@@ -140,6 +219,12 @@ export const HodDashboard: React.FC = () => {
   // Subject filter state
   const [selectedSubject, setSelectedSubject] = useState<string>('all');
 
+  // Reset filters when department changes
+  useEffect(() => {
+    setSelectedSubject('all');
+    setFacultyCurrentPage(1);
+  }, [selectedDeptName]);
+
   // Reset pagination when filter changes
   useEffect(() => {
     setFacultyCurrentPage(1);
@@ -161,7 +246,7 @@ export const HodDashboard: React.FC = () => {
   // Filter submissions based on selected subject (excluding HOD's submissions)
   const filteredSubmissions = useMemo(() => {
     // First filter out HOD's submissions
-    const nonHodSubmissions = departmentSubmissions.filter(sub => sub.facultyId !== hodFacultyProfile?.id);
+    const nonHodSubmissions = semesterFilteredSubmissions.filter(sub => sub.facultyId !== hodFacultyProfile?.id);
     
     if (selectedSubject === 'all') {
       return nonHodSubmissions;
@@ -172,7 +257,7 @@ export const HodDashboard: React.FC = () => {
       .map(s => s.id);
     // Filter submissions by session ID
     return nonHodSubmissions.filter(sub => sessionIdsForSubject.includes(sub.sessionId));
-  }, [departmentSubmissions, sessions, selectedSubject, department?.id, hodFacultyProfile?.id]);
+  }, [semesterFilteredSubmissions, sessions, selectedSubject, department?.id, hodFacultyProfile?.id]);
 
   // Department stats - calculated dynamically from filtered submissions
   const { deptAverage, totalResponses } = useMemo(() => {
@@ -283,14 +368,21 @@ export const HodDashboard: React.FC = () => {
   }, [hodSessions]);
 
   const hodFilteredSubmissions = useMemo(() => {
-    if (hodSelectedSubject === 'all') {
-      return hodSubmissions;
+    let filtered = hodSubmissions;
+    if (selectedSemester !== 'all') {
+      filtered = filtered.filter(sub => sub.semester === selectedSemester);
     }
+
+    if (hodSelectedSubject === 'all') {
+      return filtered;
+    }
+    
     const sessionIdsForSubject = hodSessions
       .filter(s => s.subject === hodSelectedSubject)
       .map(s => s.id);
-    return hodSubmissions.filter(sub => sessionIdsForSubject.includes(sub.sessionId));
-  }, [hodSubmissions, hodSessions, hodSelectedSubject]);
+      
+    return filtered.filter(sub => sessionIdsForSubject.includes(sub.sessionId));
+  }, [hodSubmissions, hodSessions, hodSelectedSubject, selectedSemester]);
 
   const hodFilteredStats = useMemo(() => {
     if (hodSelectedSubject === 'all' || hodFilteredSubmissions.length === 0) {
@@ -420,43 +512,56 @@ export const HodDashboard: React.FC = () => {
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
                     <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
-                      <span className="text-xs font-medium text-primary text-center leading-tight">
-                        {user?.name?.split(' ').map(n => n[0]).join('')}
-                      </span>
+                      <UserIcon className="h-5 w-5 text-primary" />
                     </div>
                     <div>
-                      <h2 className="font-display text-xl font-semibold text-foreground">{user?.name}</h2>
-                      <p className="text-muted-foreground">
-                        {hodAllocations.length > 0
-                          ? hodAllocations.flatMap(a => a.subjects.map(s => s.name)).join(', ')
-                          : 'No subjects assigned'
-                        }
+                      <h2 className="font-display text-xl font-semibold text-foreground">{hodDisplayName}</h2>
+                      <p className="text-muted-foreground italic text-xs">
+                        HOD, {hodDepartmentNames.join(' & ') || department?.name || 'Department'}
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Subject:</span>
-                    <Select value={hodSelectedSubject} onValueChange={setHodSelectedSubject}>
-                      <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="Select subject" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Subjects</SelectItem>
-                        {hodUniqueSubjects.map((subject) => {
-                          const subjectSessionIds = hodSessions
-                            .filter(s => s.subject === subject)
-                            .map(s => s.id);
-                          const subjectResponseCount = hodSubmissions.filter(sub =>
-                            subjectSessionIds.includes(sub.sessionId)
-                          ).length;
-                          return (
-                            <SelectItem key={subject} value={subject} disabled={subjectResponseCount === 0}>
-                              {subject} ({subjectResponseCount})
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
+                  
+                  <div className="flex flex-wrap items-center gap-3 bg-secondary/30 p-1 rounded-md border">
+                    <span className="text-xs font-semibold px-2 text-muted-foreground uppercase tracking-wider border-r border-border">Period</span>
+                    
+                    <div className="flex items-center gap-1.5 ml-1">
+                      
+
+                      <Select value={selectedSemester} onValueChange={setSelectedSemester}>
+                        <SelectTrigger className="w-[110px] h-8 text-xs border-none shadow-none bg-transparent hover:bg-secondary/50 transition-colors">
+                          <SelectValue placeholder="Semester" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Semesters</SelectItem>
+                          <SelectItem value="Odd">Odd</SelectItem>
+                          <SelectItem value="Even">Even</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <Select value={hodSelectedSubject} onValueChange={setHodSelectedSubject}>
+                        <SelectTrigger className="w-[160px] h-8 text-xs border-none shadow-none bg-transparent hover:bg-secondary/50 transition-colors">
+                          <SelectValue placeholder="Subject" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Subjects</SelectItem>
+                          {hodUniqueSubjects.map((subject) => {
+                            const subjectSessionIds = hodSessions
+                              .filter(s => s.subject === subject)
+                              .map(s => s.id);
+                            const subjectResponseCount = hodSubmissions.filter(sub =>
+                              subjectSessionIds.includes(sub.sessionId) &&
+                              (selectedSemester === 'all' || sub.semester === selectedSemester)
+                            ).length;
+                            return (
+                              <SelectItem key={subject} value={subject} disabled={subjectResponseCount === 0}>
+                                {subject} ({subjectResponseCount})
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -706,11 +811,33 @@ export const HodDashboard: React.FC = () => {
           </div>
         );
 
+      case 'sessions':
+        return (
+          <SessionManagement
+            college={college}
+            sessions={collegeSessions}
+            sessionDepartmentFilter={sessionDepartmentFilter}
+            setSessionDepartmentFilter={setSessionDepartmentFilter}
+            currentSessionTab={currentSessionTab}
+            setCurrentSessionTab={setCurrentSessionTab}
+            departments={departments}
+            faculty={collegeFaculty}
+            getTotalSessionCount={getTotalSessionCount}
+            getDepartmentSessionCount={getDepartmentSessionCount}
+            setSessionFormOpen={setSessionFormOpen}
+            refreshSessions={refreshSessions}
+            handleOptimisticSessionUpdate={handleOptimisticSessionUpdate}
+            onRefresh={handleRefresh}
+            hasStaleData={hasStaleData}
+            isRefreshing={isRefreshing}
+          />
+        );
+
       case 'reports':
         return (
           <div className="min-h-screen">
             <DashboardHeader
-              title="Department Reports"
+              title={`${selectedDeptName || department?.name || 'Department'} Reports`}
               subtitle="Generate and download comprehensive reports"
               college={college}
             />
@@ -725,7 +852,8 @@ export const HodDashboard: React.FC = () => {
                 </div>
                 <DepartmentExcelReport
                   departmentName={department?.name || 'Department'}
-                  facultyStats={allFacultyStats.filter(f => f.departmentId === user?.departmentId)}
+                  semester={selectedSemester !== 'all' ? selectedSemester : undefined}
+                  facultyStats={allFacultyStats.filter(f => f.departmentId === department?.id)}
                   departmentStats={departmentStats}
                 />
               </div>
@@ -757,11 +885,11 @@ export const HodDashboard: React.FC = () => {
         return (
           <div className="min-h-screen">
             <DashboardHeader
-              title={`${department?.name || 'Department'} Dashboard`}
+              title={`${selectedDeptName || department?.name || 'Department'} Overview`}
               subtitle="Department performance overview and faculty analytics"
               college={college}
               rightElement={
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center justify-end gap-3">
                   <CacheRefreshButton
                     onRefresh={handleRefresh}
                     hasStaleData={hasStaleData}
@@ -769,28 +897,62 @@ export const HodDashboard: React.FC = () => {
                     compact={true}
                     label="Refresh"
                   />
-                  <span className="text-sm text-muted-foreground">Subject:</span>
-                  <Select value={selectedSubject} onValueChange={setSelectedSubject}>
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder="Select subject" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Subjects</SelectItem>
-                      {departmentSubjects.map((subject) => {
-                        const subjectSessionIds = sessions
-                          .filter(s => s.subject === subject && s.departmentId === department?.id && s.facultyId !== hodFacultyProfile?.id)
-                          .map(s => s.id);
-                        const subjectResponseCount = departmentSubmissions.filter(sub =>
-                          subjectSessionIds.includes(sub.sessionId) && sub.facultyId !== hodFacultyProfile?.id
-                        ).length;
-                        return (
-                          <SelectItem key={subject} value={subject} disabled={subjectResponseCount === 0}>
-                            {subject} ({subjectResponseCount})
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
+                  
+                  <div className="flex items-center gap-2 bg-secondary/30 p-1 rounded-md border">
+                    <span className="text-xs font-semibold px-2 text-muted-foreground uppercase tracking-wider border-r border-border">View</span>
+                    
+                    <div className="flex items-center gap-1.5 ml-1">
+                      {hodDepartmentNames.length > 1 && (
+                        <div className="flex items-center gap-1.5 border-r border-border pr-1.5 mr-0.5">
+                          <Select value={selectedDeptName} onValueChange={setSelectedDeptName}>
+                            <SelectTrigger className="w-[200px] h-8 text-xs border-none shadow-none bg-primary/10 text-primary font-semibold hover:bg-primary/20 transition-colors">
+                              <SelectValue placeholder="Select Department" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {hodDepartmentNames.map(deptName => (
+                                <SelectItem key={deptName} value={deptName} className="text-xs">
+                                  {deptName}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      <Select value={selectedSemester} onValueChange={setSelectedSemester}>
+                        <SelectTrigger className="w-[110px] h-8 text-xs border-none shadow-none bg-transparent hover:bg-secondary/50 transition-colors">
+                          <SelectValue placeholder="Semester" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Semesters</SelectItem>
+                          <SelectItem value="Odd">Odd</SelectItem>
+                          <SelectItem value="Even">Even</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+                        <SelectTrigger className="w-[160px] h-8 text-xs border-none shadow-none bg-transparent hover:bg-secondary/50 transition-colors">
+                          <SelectValue placeholder="Subject" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Subjects</SelectItem>
+                          {departmentSubjects.map((subject) => {
+                            const subjectSessionIds = sessions
+                              .filter(s => s.subject === subject && s.departmentId === department?.id && s.facultyId !== hodFacultyProfile?.id)
+                              .map(s => s.id);
+                            const subjectResponseCount = semesterFilteredSubmissions.filter(sub =>
+                              subjectSessionIds.includes(sub.sessionId) && sub.facultyId !== hodFacultyProfile?.id
+                            ).length;
+                            return (
+                              <SelectItem key={subject} value={subject} disabled={subjectResponseCount === 0}>
+                                {subject} ({subjectResponseCount})
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </div>
               }
             />
@@ -849,15 +1011,14 @@ export const HodDashboard: React.FC = () => {
                             <td className="py-4 px-4">
                               <div className="flex items-center gap-3">
                                 <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
-                                  <span className="text-xs font-medium text-primary text-center leading-tight">
-                                    {f.name.split(' ').map(n => n[0]).join('')}
-                                  </span>
+                                  <UserIcon className="h-5 w-5 text-primary" />
                                 </div>
                                 <span className="font-medium text-foreground">{f.name}</span>
                               </div>
                             </td>
                             <td className="py-4 px-4">
-                              <span className="text-sm text-muted-foreground">
+                              <span className="text-sm text-muted-foreground flex items-center gap-2">
+                                <BookOpen className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
                                 {f.subjects || 'Not specified'}
                               </span>
                             </td>
@@ -1012,5 +1173,15 @@ export const HodDashboard: React.FC = () => {
     }
   };
 
-  return renderContent();
+  return (
+    <>
+      {renderContent()}
+      <SessionForm
+        open={sessionFormOpen}
+        onOpenChange={setSessionFormOpen}
+        onSuccess={refreshSessions}
+      />
+    </>
+  );
 };
+

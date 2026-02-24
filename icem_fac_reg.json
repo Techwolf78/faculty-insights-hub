@@ -2,7 +2,6 @@
   {
     "name": "Dr. Priyanka Pawar",
     "email": "priyanka.pawar@indiraicem.ac.in",
-    "password": "John@123",
     "role": "hod",
     "designation": "Associate Professor",
     "specialization": "Marketing Management",
@@ -13,7 +12,6 @@
   {
     "name": "Ms. Trupti N. Kathale",
     "email": "trupti.kathale@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "Mathematics",
@@ -24,7 +22,6 @@
   {
     "name": "Dr. Pravin Thorat",
     "email": "pravin.thorat@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "Human Resources Management",
@@ -35,7 +32,6 @@
   {
     "name": "Mrs. Priyanka H. Mahajan",
     "email": "priyanka.mahajan@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "Electrical Power System",
@@ -46,7 +42,6 @@
   {
     "name": "Dr. Manjusha Tatiya",
     "email": "manjusha.tatiya@indiraicem.ac.in",
-    "password": "John@123",
     "role": "hod",
     "designation": "Assistant Professor",
     "specialization": "Computer Science and Engineering",
@@ -57,7 +52,6 @@
   {
     "name": "Mr. Shubham Rathod",
     "email": "athod.shubham@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "Physics",
@@ -68,7 +62,6 @@
   {
     "name": "Mr. Swapnil M. Chaudhari",
     "email": "swapnil.chaudhari@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "Mathematics",
@@ -79,7 +72,6 @@
   {
     "name": "Dr. Manjusha Tomar",
     "email": "manjusha.tomar@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Associate Professor",
     "specialization": "Optimization",
@@ -90,7 +82,6 @@
   {
     "name": "Dr. Saurabh Gupta",
     "email": "saurabhgupta@indiraicem.ac.in",
-    "password": "John@123",
     "role": "hod",
     "designation": "Professor",
     "specialization": "Thermal Engineering",
@@ -101,7 +92,6 @@
   {
     "name": "Mr. Dhiraj Bhagwate",
     "email": "d.bhagwat@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "Electronics Engineering",
@@ -112,7 +102,6 @@
   {
     "name": "Dr. Dayanand A. Kamble",
     "email": "dayanand.kamble@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "Chemistry",
@@ -123,7 +112,6 @@
   {
     "name": "Dr. Mandakini Dahiwade",
     "email": "mandakini.dahiwade@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "Chemistry",
@@ -134,7 +122,6 @@
   {
     "name": "Dr. Archana Salve",
     "email": "archana.salve@indiraicem.ac.in",
-    "password": "John@123",
     "role": "hod",
     "designation": "Professor",
     "specialization": "Human resource management",
@@ -145,7 +132,6 @@
   {
     "name": "Dr. Awantika Bijwe",
     "email": "awantika.bijwe@indiraicem.ac.in",
-    "password": "John@123",
     "role": "hod",
     "designation": "Assistant Professor",
     "specialization": "Computer Applications",
@@ -156,7 +142,6 @@
   {
     "name": "Mr. Sanjay Mathapati",
     "email": "sanjay.mathapati@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "Computer Applications",
@@ -167,7 +152,6 @@
   {
     "name": "Mrs. Monika Patil",
     "email": "monika.patil@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "Computer Science and Engineering",
@@ -178,7 +162,6 @@
   {
     "name": "Mr. Shreyas Satpute",
     "email": "shreyas.satpute@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "Environmental Engineering",
@@ -189,7 +172,6 @@
   {
     "name": "Mr. Vishal A. Meshram",
     "email": "vishal.meshram@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "Heat Power Engineering",
@@ -200,7 +182,6 @@
   {
     "name": "Mrs. Ashwini Atul Admane",
     "email": "ashwini.admane@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "Heat Power Engineering",
@@ -211,7 +192,6 @@
   {
     "name": "Shubhangi Manwatkar",
     "email": "shubhangi.kamble@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "Heat Power Engineering",
@@ -222,7 +202,6 @@
   {
     "name": "Dr. Darshana Desai",
     "email": "desai.darshana@indiraicem.ac.in",
-    "password": "John@123",
     "role": "hod",
     "designation": "Professor",
     "specialization": "Computer Applications",
@@ -233,7 +212,6 @@
   {
     "name": "Mrs. Supriya Kumbhar",
     "email": "supriya.kumbhar@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "Mechanical",
@@ -244,7 +222,6 @@
   {
     "name": "Dr. Vikas Nandgaonkar",
     "email": "vikas.nandgaonkar@indiraicem.ac.in",
-    "password": "John@123",
     "role": "hod",
     "designation": "Associate Professor",
     "specialization": "Computer Networks",
@@ -255,7 +232,6 @@
   {
     "name": "Amit Narwade",
     "email": "amit.narwade@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "Automobile",
@@ -266,7 +242,6 @@
   {
     "name": "Mrs. Shreya Shenai",
     "email": "shreya.shenai@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "Computer Applications",
@@ -277,7 +252,6 @@
   {
     "name": "Pranali Khatake",
     "email": "pranali.khatake@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "M. E. (Mech-Design)",
@@ -288,7 +262,6 @@
   {
     "name": "Mrs. Vidya Dhoke",
     "email": "vidya.dhoke@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "M. Tech (CSE)",
@@ -299,7 +272,6 @@
   {
     "name": "Prof. Deepa Padwal",
     "email": "deepa.padwal@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "M.E.(CS)",
@@ -310,7 +282,6 @@
   {
     "name": "Prof. Prakash Bhusari",
     "email": "prakash.bhusari@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "M.Sc(CS)",
@@ -321,7 +292,6 @@
   {
     "name": "Prof. Ashwini Gaikwad",
     "email": "ashwini.gaikwad@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "M.Tech (Automobile)",
@@ -332,7 +302,6 @@
   {
     "name": "Dr. Sunil D. Rathod",
     "email": "sunil.rathod@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Associate Professor",
     "specialization": "PhD in CS",
@@ -343,7 +312,6 @@
   {
     "name": "Dr. Soumitra Das",
     "email": "soumitra.das@indiraicem.ac.in",
-    "password": "John@123",
     "role": "hod",
     "designation": "Professor",
     "specialization": "PhD in CSE",
@@ -354,7 +322,6 @@
   {
     "name": "Prof. Rupali Adhau",
     "email": "rupali.adhau@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "Computer Engineering",
@@ -365,7 +332,6 @@
   {
     "name": "Mrs. Savita A. Jangale",
     "email": "savita.jangale@indiraicem.ac.in",
-    "password": "John@123",
     "role": "hod",
     "designation": "Assistant Professor",
     "specialization": "ME (CM)",
@@ -376,7 +342,6 @@
   {
     "name": "Mrs. Minal S. Patil",
     "email": "patil.minal@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "ME Computer",
@@ -387,7 +352,6 @@
   {
     "name": "Mrs. Savitri Ashok Mote",
     "email": "savitri.pawar@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "M.Tech",
@@ -398,7 +362,6 @@
   {
     "name": "Mrs. Anita Patil",
     "email": "anita.patil@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "ME Computer",
@@ -409,7 +372,6 @@
   {
     "name": "Mrs. Mrunal Aniruddha Vaidya",
     "email": "mrunal.vaidya@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "ME Computer",
@@ -420,7 +382,6 @@
   {
     "name": "Mani Shankar Pandey",
     "email": "manishankar.pandey@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "Retail Marketing & HR",
@@ -431,7 +392,6 @@
   {
     "name": "Malayaj Kumar",
     "email": "malayaj.kumar@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "MTech CSE",
@@ -442,7 +402,6 @@
   {
     "name": "Sushil Bhaskarrao Chopade",
     "email": "sushil.chopade@indiraicem.ac.in",
-    "password": "John@123",
     "role": "hod",
     "designation": "Assistant Professor",
     "specialization": "",
@@ -453,7 +412,6 @@
   {
     "name": "Sagar Uttamrao Chirade",
     "email": "sagar.chirade@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "Heat Power Engineering",
@@ -464,7 +422,6 @@
   {
     "name": "Hemant Vasant Darokar",
     "email": "hemant.darokar@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "Heat Power Engineering",
@@ -475,7 +432,6 @@
   {
     "name": "Dipali Nikhil Junankar",
     "email": "dipali.junankar@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "ME Computer Engg",
@@ -486,7 +442,6 @@
   {
     "name": "Pravin Devidas Charde",
     "email": "pravin.charde@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "ME Mechanical Design",
@@ -497,7 +452,6 @@
   {
     "name": "Deepali Shashikant Dhadwad",
     "email": "deepali.dagale@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "ME Computer Engineering",
@@ -508,7 +462,6 @@
   {
     "name": "Meenakshi Somnath Patil",
     "email": "meenakshi.madgunaki@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "E&TC",
@@ -519,7 +472,6 @@
   {
     "name": "Mr. Raghunandan Vinayakrao Kale",
     "email": "raghunandan.kale@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "Mathematics",
@@ -530,7 +482,6 @@
   {
     "name": "Mrs. Pratima Gaikwad",
     "email": "pratima.uploankar@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "Power Electronics & Drives",
@@ -541,7 +492,6 @@
   {
     "name": "Dr. Avinash Bansode",
     "email": "avinash.bansode@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "Physics",
@@ -552,7 +502,6 @@
   {
     "name": "Dr. Bhushan Nikam",
     "email": "bhushan.nikam@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "Ph.D. in CS",
@@ -563,7 +512,6 @@
   {
     "name": "Dr. Poorna Shankar",
     "email": "poornashankar@indiraicem.ac.in",
-    "password": "John@123",
     "role": "hod",
     "designation": "Professor",
     "specialization": "AI,ML,Python,DL",
@@ -574,7 +522,6 @@
   {
     "name": "Rupali V Salunke",
     "email": "rupali.salunke@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "Instrumentation",
@@ -585,7 +532,6 @@
   {
     "name": "Dr. Priyanka Shinde",
     "email": "priyanka.shinde@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "Finance",
@@ -596,7 +542,6 @@
   {
     "name": "Ms. Aditee Huparikar Shah",
     "email": "aditee.huparikar@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Assistant Professor",
     "specialization": "Finance",
@@ -607,7 +552,6 @@
   {
     "name": "Dr. Kiran Devade",
     "email": "kiran.devade@indiraicem.ac.in",
-    "password": "John@123",
     "role": "faculty",
     "designation": "Professor",
     "specialization": "Refrigeration",
