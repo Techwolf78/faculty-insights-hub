@@ -1,0 +1,42 @@
+{"users": [
+{
+  "localId": "SdlpQOVU8rY6E0Mj1XXYxtlm2Jo1",
+  "email": "admin@icem.edu",
+  "emailVerified": false,
+  "passwordHash": "9CRRm0IOSlkww3y8aLdEZbtklzjjHOeIuVc27MqgUoEkQJQSkXHRshOpHqYFiuAzDinWJVtUy8EYZwv/nxCZXQ==",
+  "salt": "0IN6GYBPMLGT7A==",
+  "lastSignedInAt": "1771937570572",
+  "createdAt": "1771936724331",
+  "providerUserInfo": []
+},
+{
+  "localId": "YCMbRbwgaWNG7RKn5RYgOtxJTdI2",
+  "email": "admin@igsb.edu",
+  "emailVerified": false,
+  "passwordHash": "ROoVDCOnYhNv07D5ZnrACU6pFkVp5QS5i4k30ybc6spUfk78EgOZA7VResUMShoGv8y2lPaX5ryJERLDnikqlg==",
+  "salt": "kPnLvX7rG1adnw==",
+  "lastSignedInAt": "1771936751443",
+  "createdAt": "1771936751443",
+  "providerUserInfo": []
+},
+{
+  "localId": "qTAkAn99lMPYBAn7lq8PaqczRZ73",
+  "email": "dean.igsb@indiraigsb.edu.in",
+  "emailVerified": false,
+  "passwordHash": "JEMkW1ltj6aZ9yoEYqa8cIF08LZhnsReEr9M0M/GAFuyaRE3yyomzVHs8ASAed76Py7cMryCbDXXwCvkvqIyGw==",
+  "salt": "hKkxB/Ka7Yi+eg==",
+  "lastSignedInAt": "1771936938309",
+  "createdAt": "1771936938309",
+  "providerUserInfo": []
+},
+{
+  "localId": "uR6J0ZUU5tRiNuRWZkkPFEjxjeJ3",
+  "email": "ajaypawargryphon@gmail.com",
+  "emailVerified": false,
+  "passwordHash": "AiG/eKCjYajjTQKJToqMZVUeEdtn3WB0KtZdt4lfYQRvt1Ck/atPHLVgWQUmKsHgto/wCDRRImXueHulSRGTlQ==",
+  "salt": "/QneibX0NpGwwA==",
+  "lastSignedInAt": "1771936956939",
+  "createdAt": "1771934481186",
+  "disabled": false,
+  "providerUserInfo": []
+}]}

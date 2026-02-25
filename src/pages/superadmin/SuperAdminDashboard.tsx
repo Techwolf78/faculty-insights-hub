@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useLocation, useParams, Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { firebaseConfig, auth } from '@/lib/firebase';
-import { createUserWithEmailAndPassword, updatePassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import {
   collegesApi,
   usersApi,
@@ -38,6 +38,9 @@ import {
   EyeOff,
   Share,
   HelpCircle,
+  User as UserIcon,
+  Mail,
+  Lock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -138,6 +141,7 @@ export const SuperAdminDashboard: React.FC = () => {
       case 'dashboard': return 'overview';
       case 'question-bank': return 'questionBank';
       case 'help-portal': return 'helpPortal';
+      case 'profile': return 'profile';
       default: return section;
     }
   };
@@ -196,6 +200,15 @@ export const SuperAdminDashboard: React.FC = () => {
   const [selectedTicket, setSelectedTicket] = useState<HelpTicket | null>(null);
   const [helpPortalTab, setHelpPortalTab] = useState<'all' | 'open' | 'in-progress' | 'pending-info' | 'on-hold' | 'resolved' | 'rejected' | 'closed'>('all');
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+
+  // Profile/Password change state
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isAddingRemark, setIsAddingRemark] = useState(false);
 
   // Predefined question templates
@@ -776,6 +789,56 @@ export const SuperAdminDashboard: React.FC = () => {
     navigate('/');
   };
 
+  const handleChangePassword = async () => {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      toast.error('Please fill in all password fields');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.error('New passwords do not match');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      toast.error('New password must be at least 6 characters long');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser || !currentUser.email) {
+        toast.error('User not authenticated');
+        return;
+      }
+
+      // Re-authenticate user
+      const credential = EmailAuthProvider.credential(currentUser.email, currentPassword);
+      await reauthenticateWithCredential(currentUser, credential);
+
+      // Update password
+      await updatePassword(currentUser, newPassword);
+
+      toast.success('Password changed successfully!');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (error: unknown) {
+      console.error('Password change error:', error);
+      const firebaseError = error as { code?: string; message?: string };
+      if (firebaseError.code === 'auth/wrong-password') {
+        toast.error('Current password is incorrect');
+      } else if (firebaseError.code === 'auth/weak-password') {
+        toast.error('New password is too weak');
+      } else {
+        toast.error('Failed to change password. Please try again.');
+      }
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
   if (!user) {
     return <Navigate to="/login" replace />;
   }
@@ -842,7 +905,7 @@ export const SuperAdminDashboard: React.FC = () => {
         {/* Sidebar Navigation */}
         <div className="flex-1 p-2 overflow-y-auto">
           <nav className="space-y-1">
-            <div className="grid w-full grid-rows-6 h-auto gap-1">
+            <div className="grid w-full grid-rows-7 h-auto gap-1">
               <Button
                 variant={activeTab === 'overview' ? 'default' : 'ghost'}
                 className={`w-full justify-start gap-3 h-10 px-3 text-sm ${
@@ -914,6 +977,18 @@ export const SuperAdminDashboard: React.FC = () => {
               >
                 <HelpCircle className="h-4 w-4" />
                 Help Portal
+              </Button>
+              <Button
+                variant={activeTab === 'profile' ? 'default' : 'ghost'}
+                className={`w-full justify-start gap-3 h-10 px-3 text-sm ${
+                  activeTab === 'profile' 
+                    ? 'bg-primary text-primary-foreground' 
+                    : 'hover:bg-primary/30 hover:text-primary'
+                }`}
+                onClick={() => navigate('/super-admin/profile')}
+              >
+                <UserIcon className="h-4 w-4" />
+                Profile
               </Button>
             </div>
           </nav>
@@ -1004,7 +1079,6 @@ export const SuperAdminDashboard: React.FC = () => {
                   {colleges.map((college) => {
                     const collegeDepartments = departments.filter(d => d.collegeId === college.id);
                     const collegeFaculty = users.filter(u => u.collegeId === college.id && (u.role === 'faculty' || u.role === 'hod') && u.isActive);
-                    const collegeActiveSessions = feedbackSessions.filter(s => s.collegeId === college.id && isSessionActive(s));
                     return (
                       <div key={college.id} className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50">
                         <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
@@ -1016,7 +1090,6 @@ export const SuperAdminDashboard: React.FC = () => {
                           <div className="flex gap-4 mt-1">
                             <span className="text-xs text-muted-foreground">Departments: {collegeDepartments.length}</span>
                             <span className="text-xs text-muted-foreground">Faculty: {collegeFaculty.length}</span>
-                            <span className="text-xs text-muted-foreground">Active Sessions: {collegeActiveSessions.length}</span>
                           </div>
                         </div>
                       </div>
@@ -2056,6 +2129,144 @@ export const SuperAdminDashboard: React.FC = () => {
                     )}
                   </div>
                 </Tabs>
+              </div>
+            </div>
+          )}
+
+          {/* Profile Tab */}
+          {activeTab === 'profile' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="font-display text-2xl font-bold text-foreground">Profile Settings</h1>
+                  <p className="text-muted-foreground">Manage your account settings and change password</p>
+                </div>
+              </div>
+
+              {/* Profile Information */}
+              <div className="glass-card rounded-xl p-6">
+                <h3 className="font-display text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                  <UserIcon className="h-5 w-5" />
+                  Profile Information
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Full Name</label>
+                    <p className="text-sm text-foreground mt-1">{user?.name}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                      <Mail className="h-4 w-4" />
+                      Email
+                    </label>
+                    <p className="text-sm text-foreground mt-1">{user?.email}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                      <Shield className="h-4 w-4" />
+                      Role
+                    </label>
+                    <p className="text-sm text-foreground mt-1 capitalize">{user?.role}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Account Status</label>
+                    <p className="text-sm text-foreground mt-1">
+                      {user?.isActive ? 'Active' : 'Inactive'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Change Password */}
+              <div className="glass-card rounded-xl p-6">
+                <h3 className="font-display text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                  <Lock className="h-5 w-5" />
+                  Change Password
+                </h3>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="currentPassword">Current Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="currentPassword"
+                        type={showCurrentPassword ? "text" : "password"}
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        placeholder="Enter your current password"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      >
+                        {showCurrentPassword ? (
+                          <EyeOff className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <Eye className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="newPassword">New Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="newPassword"
+                        type={showNewPassword ? "text" : "password"}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="Enter new password (min 6 characters)"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                      >
+                        {showNewPassword ? (
+                          <EyeOff className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <Eye className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="confirmPassword"
+                        type={showConfirmPassword ? "text" : "password"}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Confirm new password"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      >
+                        {showConfirmPassword ? (
+                          <EyeOff className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <Eye className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleChangePassword}
+                    disabled={isChangingPassword}
+                    className="w-full bg-primary hover:bg-primary/90"
+                  >
+                    {isChangingPassword ? 'Changing Password...' : 'Change Password'}
+                  </Button>
+                </div>
               </div>
             </div>
           )}

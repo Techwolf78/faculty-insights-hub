@@ -1,0 +1,12 @@
+{"users": [
+{
+  "localId": "uR6J0ZUU5tRiNuRWZkkPFEjxjeJ3",
+  "email": "ajaypawargryphon@gmail.com",
+  "emailVerified": false,
+  "passwordHash": "vrPjJVefjK10duLvGmY1gen0GdwWHw/wuJkDUj1X4AseRGi3gDwQO54kAxtrZQQ1TX+W73lbdHWWrGPFpAqS1A==",
+  "salt": "yrzKE7b8H0DIsw==",
+  "lastSignedInAt": "1771934844785",
+  "createdAt": "1771934481186",
+  "disabled": false,
+  "providerUserInfo": []
+}]}
