@@ -5,9 +5,15 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import Compliance from "./pages/Compliance";
+import SecurityPortal from "./pages/SecurityPortal";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsOfService from "./pages/TermsOfService";
 
 // Pages
 import { Landing } from "@/pages/Landing";
+import { SimpleLanding } from "@/pages/SimpleLanding";
+import BlogPost from "@/pages/BlogPost";
 import { Login } from "@/pages/Login";
 import { ICEMLogin } from "@/pages/ICEMLogin";
 import { IGSBLogin } from "@/pages/IGSBLogin";
@@ -40,7 +46,9 @@ const App = () => {
           <BrowserRouter basename="/">
             <Routes>
             {/* Public Routes */}
-            <Route path="/" element={<Landing />} />
+            <Route path="/" element={<SimpleLanding />} />
+            <Route path="/home" element={<Landing />} />
+            <Route path="/blog/chaos-to-clarity" element={<BlogPost />} />
             <Route path="/login" element={<Login />} />
             <Route path="/login/icem" element={<ICEMLogin />} />
             <Route path="/login/igsb" element={<IGSBLogin />} />
@@ -56,6 +64,7 @@ const App = () => {
             <Route path="/super-admin/sessions/:sessionId/responses" element={<SuperAdminDashboard />} />
             <Route path="/super-admin/question-bank" element={<SuperAdminDashboard />} />
             <Route path="/super-admin/help-portal" element={<SuperAdminDashboard />} />
+            <Route path="/super-admin/profile" element={<SuperAdminDashboard />} />
 
             {/* Admin Routes */}
             <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
@@ -89,6 +98,12 @@ const App = () => {
               <Route path="/faculty/profile" element={<FacultyProfileSettings />} />
               <Route path="/faculty/help" element={<FacultyHelpSection />} />
             </Route>
+
+            {/* Compliance, Security Portal, Privacy Policy, and Terms of Service */}
+            <Route path="/compliance" element={<Compliance />} />
+            <Route path="/security-portal" element={<SecurityPortal />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+            <Route path="/terms-of-service" element={<TermsOfService />} />
 
             {/* Catch-all */}
             <Route path="*" element={<NotFound />} />

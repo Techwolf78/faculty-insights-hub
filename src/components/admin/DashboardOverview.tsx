@@ -450,8 +450,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = React.memo(({
           />
           <StatsCard
             title="Average Rating"
-            value={(todaySubmissions.length > 0 
-              ? todaySubmissions.reduce((sum, s) => sum + (s.metrics?.overallRating || 0), 0) / todaySubmissions.length
+            value={(filteredData.submissions.length > 0 
+              ? filteredData.submissions.reduce((sum, s) => sum + (s.metrics?.overallRating || 0), 0) / filteredData.submissions.length
               : 0).toFixed(1)}
             subtitle="Out of 5.0"
             icon={TrendingUp}

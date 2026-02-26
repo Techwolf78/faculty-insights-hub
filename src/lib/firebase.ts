@@ -24,7 +24,7 @@ const devFirebaseConfig = {
   measurementId: "G-79BFWGPJE5"
 };
 
-// Production Firebase config (same as dev for now - update with actual prod values when available)
+// Production Firebase config
 const prodFirebaseConfig = {
   apiKey: "AIzaSyDph_LOtSSDyUm2-hyyRVkXdGjk5l_n37U",
   authDomain: "faculty-feedback-c51ae.firebaseapp.com",
@@ -35,29 +35,14 @@ const prodFirebaseConfig = {
   measurementId: "G-GDJYKJ41ZY"
 };
 
-// Validate required environment variables
-const requiredEnvVars = [
-  'VITE_FIREBASE_API_KEY',
-  'VITE_FIREBASE_AUTH_DOMAIN',
-  'VITE_FIREBASE_PROJECT_ID',
-  'VITE_FIREBASE_STORAGE_BUCKET',
-  'VITE_FIREBASE_MESSAGING_SENDER_ID',
-  'VITE_FIREBASE_APP_ID'
-];
-
-const missingVars = requiredEnvVars.filter(varName => !import.meta.env[varName]);
-
-// Use dev config for localhost, prod config for production domain, otherwise fallback to env/prod config
+// Use dev config for localhost, prod config for production domain
 let configToUse: typeof productionConfig;
 if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
   configToUse = devFirebaseConfig;
 } else if (typeof window !== 'undefined' && window.location.hostname === 'faculty.gryphonacademy.co.in') {
   configToUse = prodFirebaseConfig;
 } else {
-  configToUse = missingVars.length === 0 ? productionConfig : prodFirebaseConfig;
-  if (missingVars.length > 0) {
-    console.warn(`Missing Firebase environment variables: ${missingVars.join(', ')}. Using production configuration.`);
-  }
+  configToUse = devFirebaseConfig; // Default to dev for safety during testing
 }
 
 export const firebaseConfig = configToUse;

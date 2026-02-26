@@ -30,6 +30,13 @@ igsb_fac_sub_alloca.json
 igsb_fac_sub_allocation.json
 firebase_console_users.json
 
+dev_users.json
+prod_users.json
+users_backup.json
+users_filtered.json
+users_final.json
+users_verify.json
+
 # Development scripts (remove before production)
 bulk-delete-users.js
 bulk-import-script.ts
@@ -40,6 +47,14 @@ delete-all-faculty.js
 delete-non-superadmin-users.js
 bulk-import-faculty.js
 bulk-import-script.ts
+
+# Other one-off utilities
+delete-auth-users.js
+delete-dev-firestore-users.js
+delete-dev-users.js
+delete-prod-firestore-users.js
+delete-users-cli.js
+test-auth-permissions.js
 
 # Internal documentation
 implementation_plan.md.resolved
