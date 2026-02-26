@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -20,24 +20,47 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Send, CheckCircle2, ShieldCheck, Zap, Users2, Building2 } from "lucide-react";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+
+// allowed categories; keep list synced with pages that open the form
+const categories = [
+  "general",
+  "demo",
+  "pricing",
+  "standard",
+  "sales",
+  "enterprise",
+] as const;
 
 const formSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Invalid email address"),
   institution: z.string().min(2, "Institution name is required"),
-  category: z.string().min(1, "Please select an inquiry type"),
-  message: z.string().min(10, "Message must be at least 10 characters"),
+  // z.enum needs a mutable tuple; cast the readonly array accordingly and supply an error object
+  category: z.enum(
+    categories as unknown as [string, ...string[]],
+    { required_error: "Please select an inquiry type" }
+  ),
+  message: z
+    .string()
+    .min(10, "Message must be at least 10 characters")
+    .max(1000, "Please keep the message under 1000 characters"),
 });
+
+type ContactFormValues = z.infer<typeof formSchema>;
 
 interface ContactFormProps {
   isOpen: boolean;
   onClose: () => void;
-  defaultCategory?: string;
+  defaultCategory?: typeof categories[number];
 }
 
 export const ContactForm = ({ isOpen, onClose, defaultCategory }: ContactFormProps) => {
   const { toast } = useToast();
-  const form = useForm<z.infer<typeof formSchema>>({
+  const [submitting, setSubmitting] = useState(false);
+
+  const form = useForm<ContactFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
@@ -48,14 +71,45 @@ export const ContactForm = ({ isOpen, onClose, defaultCategory }: ContactFormPro
     },
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log(values);
-    toast({
-      title: "Inquiry Received",
-      description: "Our institutional success team will contact you shortly.",
-    });
-    form.reset();
-    onClose();
+  // when the parent changes the defaultCategory we must update the form
+  useEffect(() => {
+    if (
+      defaultCategory &&
+      defaultCategory !== form.getValues().category
+    ) {
+      form.reset({ ...form.getValues(), category: defaultCategory });
+    }
+  }, [defaultCategory, form]);
+
+  async function onSubmit(values: ContactFormValues) {
+    setSubmitting(true);
+    try {
+      await addDoc(collection(db, "formenquiry"), {
+        ...values,
+        createdAt: serverTimestamp(),
+      });
+      toast({
+        title: "Inquiry Received",
+        description: "Our institutional success team will contact you shortly.",
+      });
+      form.reset({
+        name: "",
+        email: "",
+        institution: "",
+        category: defaultCategory || "general",
+        message: "",
+      });
+      onClose();
+    } catch (err) {
+      console.error("failed to submit contact form", err);
+      toast({
+        title: "Submission failed",
+        description: "Please try again later.",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -166,7 +220,7 @@ export const ContactForm = ({ isOpen, onClose, defaultCategory }: ContactFormPro
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400">Project Scope</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select value={field.value} onValueChange={field.onChange}>
                           <FormControl>
                             <SelectTrigger className="h-8 md:h-9 bg-slate-50 border-slate-100 text-slate-900 rounded-xl focus:ring-[#7c3aed]/20 transition-all">
                               <SelectValue placeholder="Select a category" />
@@ -177,6 +231,8 @@ export const ContactForm = ({ isOpen, onClose, defaultCategory }: ContactFormPro
                             <SelectItem value="demo" className="text-slate-700">Request Deep Dive Demo</SelectItem>
                             <SelectItem value="pricing" className="text-slate-700">Enterprise Pricing Quote</SelectItem>
                             <SelectItem value="standard" className="text-slate-700">Standard Implementation</SelectItem>
+                            <SelectItem value="sales" className="text-slate-700">Sales Inquiry</SelectItem>
+                            <SelectItem value="enterprise" className="text-slate-700">Enterprise Deployment</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage className="text-[#f43f5e] font-bold text-[10px]" />
@@ -193,20 +249,30 @@ export const ContactForm = ({ isOpen, onClose, defaultCategory }: ContactFormPro
                         <FormControl>
                           <Textarea 
                             placeholder="Tell us about your institutional goals..." 
+                            maxLength={1000}
                             className="bg-slate-50 border-slate-100 text-slate-900 rounded-xl min-h-[50px] md:min-h-[60px] resize-none focus-visible:ring-[#7c3aed]/20 placeholder:text-slate-300" 
                             {...field} 
                           />
                         </FormControl>
-                        <FormMessage className="text-[#f43f5e] font-bold text-[10px]" />
+                        <div className="flex justify-between items-center">
+                          <FormMessage className="text-[#f43f5e] font-bold text-[10px]" />
+                          <span className="text-xs text-slate-400">
+                            {form.watch("message").length}/1000
+                          </span>
+                        </div>
                       </FormItem>
                     )}
                   />
 
                   <div className="pt-0.5">
-                    <Button type="submit" className="w-full h-8 md:h-9 rounded-xl font-black text-xs gap-1.5 shadow-xl shadow-[#7c3aed]/20 hover:scale-[1.02] active:scale-[0.98] transition-all bg-[#7c3aed] text-white hover:bg-[#6d28d9]">
-                      Submit Request
-                      <CheckCircle2 className="w-3 h-3" />
-                    </Button>
+                    <Button
+                    type="submit"
+                    disabled={submitting}
+                    className="w-full h-8 md:h-9 rounded-xl font-black text-xs gap-1.5 shadow-xl shadow-[#7c3aed]/20 hover:scale-[1.02] active:scale-[0.98] transition-all bg-[#7c3aed] text-white hover:bg-[#6d28d9]"
+                  >
+                    {submitting ? "Submitting…" : "Submit Request"}
+                    <CheckCircle2 className="w-3 h-3" />
+                  </Button>
                     <p className="text-center text-[8px] text-slate-400 mt-0.5 uppercase tracking-widest font-bold">Typically responds in under 4 hours</p>
                   </div>
                 </form>
