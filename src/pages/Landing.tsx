@@ -158,9 +158,9 @@ import { ContactForm } from "@/components/ContactForm";
 
 export const Landing: React.FC = () => {
   const [isContactModalOpen, setContactModalOpen] = useState(false);
-  const [contactCategory, setContactCategory] = useState("general");
+  const [contactCategory, setContactCategory] = useState<"pricing" | "general" | "demo" | "standard" | "sales" | "enterprise">("general");
 
-  const openContact = (category: string = "general") => {
+  const openContact = (category: "pricing" | "general" | "demo" | "standard" | "sales" | "enterprise" = "general") => {
     setContactCategory(category);
     setContactModalOpen(true);
   };
@@ -317,16 +317,16 @@ export const Landing: React.FC = () => {
       </nav>
 
       {/* Enhanced Hero Section */}
-      <section className="relative pt-32 pb-20 px-6 overflow-visible bg-gradient-to-br from-primary/5 via-background to-accent/5">
+      <section className="relative pt-16 md:pt-32 pb-12 md:pb-20 px-4 md:px-6 overflow-visible bg-gradient-to-br from-primary/5 via-background to-accent/5">
         <div className="absolute inset-0 bg-grid-pattern opacity-5" />
         <div className="container mx-auto relative">
-          <div className="text-center space-y-8">
-            <div className="space-y-4">
-              <Badge variant="secondary" className="px-4 py-2 text-sm relative">
-                <Shield className="h-4 w-4 mr-2" />
-                Secure & Anonymous Feedback Platform
-              </Badge>
-              <h1 className="font-display text-5xl md:text-6xl lg:text-7xl font-black text-foreground leading-tight tracking-tight">
+          <div className="text-center space-y-6 md:space-y-8">
+            <div className="space-y-3 md:space-y-4">
+           <Badge variant="secondary" className="px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm relative inline-block whitespace-nowrap">
+  <Shield className="h-3 md:h-4 w-3 md:w-4 mr-1.5 md:mr-2 inline-block" />
+  Secure & Anonymous Feedback Platform
+</Badge>
+              <h1 className="font-display text-3xl sm:text-4xl md:text-6xl lg:text-7xl font-black text-foreground leading-tight tracking-tight">
                 Elevate Teaching Excellence
                 <br />
                 Through <span className="text-primary italic relative inline-block">
@@ -334,27 +334,27 @@ export const Landing: React.FC = () => {
                   <img 
                     src="/black_arrow.png" 
                     alt="" 
-                    className="absolute top-full left-1/2 translate-x-8 transform rotate-180 pointer-events-none object-contain w-72 opacity-30 h-96 -translate-y-24"
+                    className="absolute top-full left-1/2 translate-x-8 transform rotate-180 pointer-events-none object-contain w-40 sm:w-56 md:w-72 opacity-30 h-auto md:h-96 -translate-y-16 md:-translate-y-24"
                   />
                 </span>
               </h1>
-              <p className="text-xl text-muted-foreground max-w-2xl mx-auto mt-6">
+              <p className="text-base md:text-xl text-muted-foreground max-w-2xl mx-auto mt-4 md:mt-6 px-2">
                 The most advanced feedback platform for modern educational
                 institutions. Move beyond forms to actionable insights.
               </p>
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-8">
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 md:gap-4 pt-6 md:pt-8">
                 <Button
                   size="lg"
-                  className="px-8 h-14 text-base font-semibold gradient-hero shadow-lg shadow-primary/20 hover:scale-105 transition-all"
+                  className="w-full sm:w-auto px-6 md:px-8 h-12 md:h-14 text-sm md:text-base font-semibold gradient-hero shadow-lg shadow-primary/20 hover:scale-105 transition-all"
                   onClick={() => openContact("standard")}
                 >
                   Get Started Today
-                  <ArrowRight className="ml-2 h-5 w-5" />
+                  <ArrowRight className="ml-2 h-4 md:h-5 w-4 md:w-5" />
                 </Button>
                 <Button
                   size="lg"
                   variant="outline"
-                  className="px-8 h-14 text-base font-semibold border-2"
+                  className="w-full sm:w-auto px-6 md:px-8 h-12 md:h-14 text-sm md:text-base font-semibold border-2"
                   onClick={() => openContact("demo")}
                 >
                   Request Live Demo
@@ -363,56 +363,56 @@ export const Landing: React.FC = () => {
             </div>
           </div>
 
-          <div className="mt-20 relative">
+          <div className="mt-12 md:mt-20 relative">
             <div className="absolute inset-0 bg-primary/20 blur-[120px] rounded-full -z-10 opacity-30" />
             {/* Browser-like Frame for Image Comparison */}
-            <div className="rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
-              <div className="bg-muted/50 border-b border-border px-4 py-3 flex items-center gap-2">
+            <div className="rounded-lg md:rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
+              <div className="bg-muted/50 border-b border-border px-3 md:px-4 py-2 md:py-3 flex items-center gap-2">
                 <div className="flex gap-1.5">
-                  <div className="w-3 h-3 rounded-full bg-red-400/20" />
-                  <div className="w-3 h-3 rounded-full bg-amber-400/20" />
-                  <div className="w-3 h-3 rounded-full bg-green-400/20" />
+                  <div className="w-2 h-2 md:w-3 md:h-3 rounded-full bg-red-400/20" />
+                  <div className="w-2 h-2 md:w-3 md:h-3 rounded-full bg-amber-400/20" />
+                  <div className="w-2 h-2 md:w-3 md:h-3 rounded-full bg-green-400/20" />
                 </div>
-                <div className="mx-auto bg-background/50 rounded-md px-12 py-1 text-[10px] text-muted-foreground border border-border/50">
+                <div className="hidden md:block mx-auto bg-background/50 rounded-md px-12 py-1 text-[10px] text-muted-foreground border border-border/50">
                   faculty.gryphonacademy.co.in
                 </div>
               </div>
               <ImageComparison />
             </div>
             {/* Star Image positioned at top of outer container */}
-            <div className="absolute -top-12 -right-12 z-50 pointer-events-none hidden lg:block">
+            <div className="absolute -top-8 md:-top-12 -right-8 md:-right-12 z-50 pointer-events-none hidden lg:block">
               <img
                 src="https://www.zonkafeedback.com/hubfs/bannerform-star1.svg"
                 alt="Star"
-                className="animate-pulse w-24 h-24 drop-shadow-2xl"
+                className="animate-pulse w-16 md:w-24 h-16 md:h-24 drop-shadow-2xl"
               />
             </div>{" "}
             {/* Overlay Text positioned outside the image container */}
-            <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 z-30 text-center pointer-events-none">
-              <p className="text-sm font-bold uppercase tracking-[0.2em] text-primary bg-background px-4 py-1 rounded-full border border-primary/20 shadow-sm">
+            <div className="absolute -top-6 md:-top-10 left-1/2 transform -translate-x-1/2 z-30 text-center pointer-events-none">
+              <p className="text-xs md:text-sm font-bold uppercase tracking-[0.2em] text-primary bg-background px-3 md:px-4 py-1 rounded-full border border-primary/20 shadow-sm">
                 Real-time Transformation
               </p>
             </div>{" "}
           </div>
 
           {/* Core Feature Cards - Positioned directly below Image Comparison */}
-          <div className="mt-24 grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="mt-16 md:mt-24 grid sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8">
             {features.map((feature, index) => (
               <div
                 key={feature.title}
-                className="relative p-8 rounded-3xl border border-border/50 hover:border-primary/30 transition-all duration-500 group hover:shadow-2xl hover:shadow-primary/5 bg-card/30 backdrop-blur-md overflow-hidden"
+                className="relative p-6 md:p-8 rounded-2xl md:rounded-3xl border border-border/50 hover:border-primary/30 transition-all duration-500 group hover:shadow-2xl hover:shadow-primary/5 bg-card/30 backdrop-blur-md overflow-hidden"
               >
                 <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-bl-full translate-x-12 -translate-y-12 group-hover:translate-x-8 group-hover:-translate-y-8 transition-transform duration-500" />
 
-                <div className="mb-6 relative">
-                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center group-hover:scale-110 transition-transform duration-500">
-                    <feature.icon className="h-7 w-7 text-primary" />
+                <div className="mb-4 md:mb-6 relative">
+                  <div className="w-12 md:w-14 h-12 md:h-14 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center group-hover:scale-110 transition-transform duration-500">
+                    <feature.icon className="h-5 md:h-7 w-5 md:w-7 text-primary" />
                   </div>
                 </div>
-                <h3 className="text-xl font-bold text-foreground mb-4 leading-tight group-hover:text-primary transition-colors">
+                <h3 className="text-lg md:text-xl font-bold text-foreground mb-2 md:mb-4 leading-tight group-hover:text-primary transition-colors">
                   {feature.title}
                 </h3>
-                <p className="text-muted-foreground leading-relaxed text-sm">
+                <p className="text-muted-foreground leading-relaxed text-xs md:text-sm">
                   {feature.description}
                 </p>
               </div>
@@ -421,9 +421,9 @@ export const Landing: React.FC = () => {
         </div>
 
         {/* Floating elements with improved aesthetics */}
-        <div className="absolute top-40 right-10 w-64 h-64 bg-primary/5 rounded-full blur-[100px] -z-10 animate-pulse" />
+        <div className="absolute top-40 right-10 w-40 md:w-64 h-40 md:h-64 bg-primary/5 rounded-full blur-[100px] -z-10 animate-pulse" />
         <div
-          className="absolute bottom-40 left-10 w-64 h-64 bg-accent/5 rounded-full blur-[100px] -z-10 animate-pulse"
+          className="absolute bottom-40 left-10 w-40 md:w-64 h-40 md:h-64 bg-accent/5 rounded-full blur-[100px] -z-10 animate-pulse"
           style={{ animationDelay: "2s" }}
         />
       </section>
